@@ -7,20 +7,29 @@ function createInputHandler(keys, gameState) {
         handleKeyDown(event) {
             const key = event.key.toLowerCase();
             if (key === 'h') {
-                // Toggle UI visibility
-                gameState.showUI = !gameState.showUI;
+                // Cycle through HUD states: controls only -> controls + tracking -> off -> repeat
+                if (!gameState.hudState) gameState.hudState = 'controls'; // Initialize if not set
                 
-                // Toggle HTML UI elements visibility
+                if (gameState.hudState === 'controls') {
+                    gameState.hudState = 'full'; // Show controls + tracking
+                } else if (gameState.hudState === 'full') {
+                    gameState.hudState = 'off';
+                } else {
+                    gameState.hudState = 'controls';
+                }
+                
+                // Update HTML UI elements visibility based on state
                 const instructions = document.querySelector('.instructions');
-                const ecosystemInfo = document.querySelector('.ecosystem-info');
                 
                 if (instructions) {
-                    instructions.style.display = gameState.showUI ? 'block' : 'none';
-                }
-                if (ecosystemInfo) {
-                    ecosystemInfo.style.display = gameState.showUI ? 'block' : 'none';
+                    // Show instructions for both 'controls' and 'full' states
+                    instructions.style.display = (gameState.hudState !== 'off') ? 'block' : 'none';
                 }
                 
+                // Update legacy showUI for compatibility
+                gameState.showUI = gameState.hudState !== 'off';
+                
+                console.log(`🎮 HUD State: ${gameState.hudState}`);
                 event.preventDefault();
             } else if (key === 'f') {
                 // Cycle through spawn modes: off -> food -> krill -> poop -> fry -> tuna -> squid -> off
@@ -38,6 +47,57 @@ function createInputHandler(keys, gameState) {
                     gameState.spawnMode = 'squid';
                 } else {
                     gameState.spawnMode = 'off';
+                }
+                event.preventDefault();
+            } else if (key === 'r' && event.ctrlKey) {
+                // Reset player spawn statistics (Ctrl+R)
+                if (window.entityCounter) {
+                    window.entityCounter.resetPlayerStats();
+                }
+                event.preventDefault();
+            } else if (key === 'a' && event.ctrlKey) {
+                // Trigger analytics manually (Ctrl+A) - useful for testing
+                if (window.entityCounter) {
+                    window.entityCounter.triggerAnalytics();
+                }
+                event.preventDefault();
+            } else if (key === 't') {
+                // Cycle through behavior state display: Off -> Tuna -> Squid -> Fry -> Krill -> Off
+                if (!gameState.behaviorDebug || gameState.behaviorDebug === 'off') {
+                    gameState.behaviorDebug = 'tuna';
+                    gameState.tunaDebug = true;
+                    gameState.squidDebug = false;
+                    gameState.fryDebug = false;
+                    gameState.krillDebug = false;
+                    console.log('🐟 Show Behaviour State: Tuna (tunaDebug:', gameState.tunaDebug, ')');
+                } else if (gameState.behaviorDebug === 'tuna') {
+                    gameState.behaviorDebug = 'squid';
+                    gameState.tunaDebug = false;
+                    gameState.squidDebug = true;
+                    gameState.fryDebug = false;
+                    gameState.krillDebug = false;
+                    console.log('🦑 Show Behaviour State: Squid (squidDebug:', gameState.squidDebug, ')');
+                } else if (gameState.behaviorDebug === 'squid') {
+                    gameState.behaviorDebug = 'fry';
+                    gameState.tunaDebug = false;
+                    gameState.squidDebug = false;
+                    gameState.fryDebug = true;
+                    gameState.krillDebug = false;
+                    console.log('🐠 Show Behaviour State: Fry (fryDebug:', gameState.fryDebug, ')');
+                } else if (gameState.behaviorDebug === 'fry') {
+                    gameState.behaviorDebug = 'krill';
+                    gameState.tunaDebug = false;
+                    gameState.squidDebug = false;
+                    gameState.fryDebug = false;
+                    gameState.krillDebug = true;
+                    console.log('🦐 Show Behaviour State: Krill (krillDebug:', gameState.krillDebug, ')');
+                } else {
+                    gameState.behaviorDebug = 'off';
+                    gameState.tunaDebug = false;
+                    gameState.squidDebug = false;
+                    gameState.fryDebug = false;
+                    gameState.krillDebug = false;
+                    console.log('❌ Show Behaviour State: Off');
                 }
                 event.preventDefault();
             } else if (key in keys) {

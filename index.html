@@ -43,30 +43,43 @@
             max-width: 300px;
         }
     </style>
-<script src="https://unpkg.com/@vercel/analytics@1.5.0/dist/index.umd.js"></script></head>
+<script src="https://unpkg.com/@vercel/analytics@1.5.0/dist/index.umd.js"></script>
+<script>
+    // Initialize Vercel Analytics when script loads
+    if (typeof window !== 'undefined' && window.va && window.va.track) {
+        console.log('🚀 Vercel Analytics loaded and ready');
+    } else {
+        // Fallback initialization
+        window.addEventListener('load', () => {
+            if (window.va && window.va.track) {
+                console.log('🚀 Vercel Analytics initialized on page load');
+            }
+        });
+    }
+</script></head>
 <body>
     <canvas id="gameCanvas" width="1200" height="800"></canvas>
     <div class="instructions">
         <h3>Controls:</h3>
         <p><strong>WASD</strong> - Move camera</p>
         <p><strong>Mouse Wheel</strong> - Zoom in/out</p>
-        <p><strong>F</strong> - Cycle spawn modes (Food → Krill → Poop → Off)</p>
+        <p><strong>F</strong> - Cycle spawn modes</p>
+        <p><strong>H</strong> - Cycle HUD (Controls → Full View → Off)</p>
+        <p><strong>T</strong> - Toggle tuna AI debug mode</p>
+        <p><strong>Ctrl+R</strong> - Reset spawn statistics</p>
+        <p><strong>Ctrl+A</strong> - Test analytics (dev mode)</p>
         <p><strong>Click</strong> - Spawn items (when mode active)</p>
+        <p><em>🌊 Live ecosystem population counter shows current world state</em></p>
+        <p><em>📊 Player spawns tracked with Vercel Analytics</em></p>
     </div>
-    <div class="ecosystem-info">
-        <h3>🌊 Ecosystem Features:</h3>
-        <p><strong>🐟 Fish:</strong> 3 species with habitat layers</p>
-        <p><strong>🦐 Krill:</strong> Poop-eating migrators</p>
-        <p><strong>🐋 Tuna:</strong> Apex predators hunting all</p>
-        <p><strong>💩 Poop System:</strong> 3-state waste cycle</p>
-        <p><strong>🌊 Migration:</strong> Krill surface migration</p>
-        <p><strong>🎯 Food Chain:</strong> Complete predator-prey relationships</p>
-    </div>
+
     <!-- 1. Utility modules (no dependencies) -->
     <script src="utils/mathUtils.js"></script>
     <script src="utils/depthUtils.js"></script>
     <script src="utils/behaviorUtils.js"></script>
     <script src="utils/squidUtils.js"></script>
+    <script src="utils/tunaAI.js"></script>
+    <script src="utils/krillAI.js"></script>
     <script src="utils/cameraUtils.js"></script>
     <script src="utils/inputUtils.js"></script>
     <script src="utils/fishUtils.js"></script>
@@ -77,9 +90,13 @@
     <!-- 3. Entity classes (depend on Entity.js) -->
     <script src="entities/Predator.js"></script>
     <script src="entities/Boid.js"></script>
+    <script src="entities/Krill.js"></script>
     <script src="entities/GiantSquid.js"></script>
     
-    <!-- 4. Main game file (depends on all entities) -->
+    <!-- 4. System modules -->
+    <script src="systems/EntityCounter.js"></script>
+    
+    <!-- 5. Main game file (depends on all entities and systems) -->
     <script src="game.js"></script>
 </body>
 </html> 

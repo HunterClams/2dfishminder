@@ -17,8 +17,12 @@ function shouldIgnorePrey(predatorType, preyType, fishTypes) {
         } else if (predatorType === fishTypes.SMALL_FRY_2 || 
                    predatorType === fishTypes.SMALL_FRY_3 || 
                    predatorType === fishTypes.SMALL_FRY_4) {
-            // All fry can ONLY eat krill (not other fish)
-            ignore = !(preyType === fishTypes.KRILL);
+            // All fry can eat krill (all types) AND fish food AND poop
+            ignore = !(preyType === fishTypes.KRILL || 
+                      preyType === fishTypes.PALE_KRILL || 
+                      preyType === fishTypes.MOM_KRILL ||
+                      preyType === 'krill' || preyType === 'paleKrill' || preyType === 'momKrill' ||
+                      preyType === 'fishFood' || preyType === 'poop');
         }
         _preyCache.set(key, ignore);
     }

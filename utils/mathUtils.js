@@ -55,6 +55,7 @@ function limitVelocity(velocity, maxSpeed) {
         velocity.x = (velocity.x / speed) * maxSpeed;
         velocity.y = (velocity.y / speed) * maxSpeed;
     }
+    return velocity; // Return the velocity object
 }
 
 // Optimized edge handling for entities

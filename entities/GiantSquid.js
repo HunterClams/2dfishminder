@@ -472,7 +472,102 @@ class GiantSquid extends (window.Entity || Entity) {
                              this.grabbedPrey.size, this.grabbedPrey.size);
                 ctx.restore();
             }
+            
+            // Draw squid behavior debug info
+            if (window.gameState && window.gameState.squidDebug) {
+                this.drawSquidDebugInfo();
+            }
         }
+    }
+
+    // Draw squid behavior debug information
+    drawSquidDebugInfo() {
+        const ctx = window.ctx;
+        if (!ctx) return;
+        
+        ctx.save();
+        
+        // State indicator above squid
+        const stateY = this.y - this.size/2 - 30;
+        
+        // State background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(this.x - 60, stateY - 20, 120, 25);
+        
+        // State text with color coding
+        let stateColor = '#ffffff';
+        let stateText = this.state.toUpperCase();
+        
+        switch (this.state) {
+            case 'patrolling':
+                stateColor = '#00ff00'; // Green
+                break;
+            case 'hunting':
+                stateColor = '#ffaa00'; // Orange
+                if (this.huntTarget) {
+                    const dist = this.distance(this, this.huntTarget);
+                    stateText += ` (${Math.round(dist)}px)`;
+                }
+                break;
+            case 'attacking':
+                stateColor = '#ff0000'; // Red
+                break;
+            case 'retreating':
+                stateColor = '#0088ff'; // Blue
+                if (this.grabbedPrey) {
+                    const consumeProgress = Math.round((this.stateTimer / 180) * 100);
+                    stateText += ` (${consumeProgress}%)`;
+                }
+                break;
+        }
+        
+        ctx.fillStyle = stateColor;
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(stateText, this.x, stateY - 2);
+        
+        // Jet status indicator
+        if (this.jetDuration > 0 || this.jetCooldown > 0) {
+            const jetY = stateY - 45;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(this.x - 50, jetY - 20, 100, 25);
+            
+            if (this.jetDuration > 0) {
+                ctx.fillStyle = '#ff6600'; // Orange for active jet
+                ctx.fillText(`JET: ${this.jetDuration}`, this.x, jetY - 2);
+            } else if (this.jetCooldown > 0) {
+                ctx.fillStyle = '#666666'; // Gray for cooldown
+                ctx.fillText(`COOLDOWN: ${this.jetCooldown}`, this.x, jetY - 2);
+            }
+        }
+        
+        // Vision range circle (faint)
+        if (this.state === 'hunting' || this.state === 'patrolling') {
+            ctx.strokeStyle = 'rgba(150, 50, 200, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.visionRange, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        
+        // Attack range circle (when hunting)
+        if (this.state === 'hunting' && this.huntTarget) {
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.attackRange, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Line to target
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.huntTarget.x, this.huntTarget.y);
+            ctx.stroke();
+        }
+        
+        ctx.restore();
     }
 
     // Helper methods

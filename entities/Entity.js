@@ -47,6 +47,15 @@ class Entity {
     }
 
     move() {
+        // Integrate acceleration into velocity
+        this.velocity.x += this.acceleration.x;
+        this.velocity.y += this.acceleration.y;
+        
+        // Reset acceleration
+        this.acceleration.x = 0;
+        this.acceleration.y = 0;
+        
+        // Update position
         this.x += this.velocity.x;
         this.y += this.velocity.y;
     }
@@ -61,8 +70,15 @@ class Entity {
         ctx.save();
         ctx.translate(this.x, this.y);
         
-        if (this.velocity.x < 0) ctx.scale(-1, 1);
-        if (angle !== 0) ctx.rotate(angle);
+        // Flip sprite based on horizontal movement direction
+        if (this.velocity.x < 0) {
+            ctx.scale(-1, 1);
+        }
+        
+        // Apply rotation if provided (for directional movement)
+        if (angle !== 0) {
+            ctx.rotate(angle);
+        }
         
         if (tintStrength > 0) {
             // Create temporary canvas for proper transparency handling
