@@ -31,7 +31,10 @@ const FISH_TYPES = {
     SMALL_FRY_2: 'smallFry2',
     SMALL_FRY_3: 'smallFry3', 
     SMALL_FRY_4: 'smallFry4',
-    KRILL: 'krill'
+    KRILL: 'krill',
+    PALE_KRILL: 'paleKrill',
+    TIGER_KRILL: 'tigerKrill',
+    MOM_KRILL: 'momKrill'
 };
 
 const gameState = { spawnMode: 'off', frameCount: 0, lastFrameTime: 0, showUI: true };
@@ -40,11 +43,17 @@ const keys = { w: false, a: false, s: false, d: false, shift: false };
 
 const sprites = {};
 const spriteFiles = {
-    bubble1: 'bubble1.png', bubble2: 'bubble2.png', smallFry: 'smallFry.png', smallFry2: 'smallFry2.png',
+    bubble1: 'bubble1.png', bubble2: 'bubble2.png', smallFry2: 'smallFry2.png',
     smallFry3: 'smallFry3.png', smallFry4: 'smallFry4.png', tuna: 'tuna.png', tuna2: 'tuna2.png', 
     fishFood: 'fishFood.png', poop: 'poop.png', poop2: 'poop2.png', poop3: 'poop3.png',
     krill1: 'krill1.png', krill2: 'krill2.png', krill3: 'krill3.png', krillSpawnIcon: 'krillSpawnIcon.png',
-    giantSquid1: 'gaint squid fram1.png', giantSquid2: 'giant squid fram2.png',
+    // Pale krill variant - lighter, more translucent
+    paleKrill1: 'pale krill1.png', paleKrill2: 'pale krill2.png', paleKrill3: 'pale krill3.png',
+    // Tiger krill variant - striped, more aggressive
+    tigerKrill1: 'tiger krill1.png', tigerKrill2: 'tiger krill2.png', tigerKrill3: 'tiger krill3.png',
+    // Mom krill variant - larger, nurturing
+    momKrill1: 'krill mom1.png', momKrill2: 'krill mom2.png', momKrill3: 'krill mom3.png',
+    giantSquid1: 'giant squid fram1.png', giantSquid2: 'giant squid fram2.png',
     abyssalSquid1: 'abbysal squid fram1.png', abyssalSquid2: 'abbysal squid fram2.png',
     abyssalSquid1Blink: 'abbysal squid fram1 (1).png', abyssalSquid2Blink: 'abbysal squid fram2 (1).png'
 };
@@ -160,11 +169,23 @@ class FishFood {
         this.eatRadius = 10;
         this.eaten = false;
         this.opacity = 1;
+        this.transformedToPoop = false; // Track if already transformed to avoid multiple transformations
     }
 
     update() {
         if (!this.eaten) {
             this.y += this.sinkSpeed;
+            
+            // Check if we've reached abyssal depth (80% of world height)
+            const abyssalDepth = WORLD_HEIGHT * CONSTANTS.DEPTH_FADE_END; // 80%
+            if (this.y >= abyssalDepth && !this.transformedToPoop) {
+                // Transform into poop3 when reaching abyssal depth
+                gameEntities.poop.push(new Poop(this.x, this.y, 'abyssal'));
+                this.eaten = true;
+                this.transformedToPoop = true;
+                return;
+            }
+            
             if (this.y > WORLD_HEIGHT + 10) {
                 this.eaten = true;
             }
@@ -206,10 +227,12 @@ class FishFood {
         }
     }
 
-    checkEaten(fish) {
+    checkEaten(fish, krill = []) {
         if (this.eaten) return false;
         
         const eatRadiusSquared = this.eatRadius * this.eatRadius;
+        
+        // Check if fish ate the food
         for (let fishEntity of fish) {
             if (Utils.distanceSquared(this, fishEntity) < eatRadiusSquared) {
                 this.eaten = true;
@@ -218,11 +241,35 @@ class FishFood {
                 if (fishEntity.foodEaten !== undefined) {
                     fishEntity.foodEaten++;
                     
-                    // Fry poop after eating 5 food items
-                    if (fishEntity.foodEaten >= 5) {
+                    // Fry poop after eating 8-10 food items WITH COOLDOWN
+                    const currentTime = Date.now();
+                    const foodThreshold = 8 + Math.floor(Math.random() * 3); // 8-10 items
+                    
+                    if (fishEntity.foodEaten >= foodThreshold && 
+                        (currentTime - (fishEntity.lastPoopTime || 0)) > (fishEntity.poopCooldown || 5000)) {
                         gameEntities.poop.push(new Poop(fishEntity.x, fishEntity.y));
                         fishEntity.foodEaten = 0; // Reset counter
+                        fishEntity.lastPoopTime = currentTime;
                     }
+                }
+                
+                return true;
+            }
+        }
+        
+        // Check if krill ate the food
+        for (let krillEntity of krill) {
+            if (Utils.distanceSquared(this, krillEntity) < eatRadiusSquared) {
+                this.eaten = true;
+                
+                // Handle krill food consumption
+                if (krillEntity.checkFoodConsumption) {
+                    krillEntity.checkFoodConsumption(1); // Fish food has value of 1
+                }
+                
+                // Reduced bubbles when krill eat fish food (prevent lag)
+                if (Math.random() < 0.5) { // Only 50% chance of bubbles
+                    ObjectPools.getEatingBubble(this.x, this.y);
                 }
                 
                 return true;
@@ -452,13 +499,17 @@ class Predator extends Entity {
         this.size = 58; // Average of 60 and 55
         this.maxSpeed = 4.75; // Average of 4.5 and 5
         this.maxForce = 0.08;
-        this.huntRadius = 120;
+        this.huntRadius = 180; // 50% increase from 120
         this.huntRadiusSquared = this.huntRadius * this.huntRadius;
-        this.eatRadius = 25;
+        this.eatRadius = 25; // Back to original value
         this.eatRadiusSquared = this.eatRadius * this.eatRadius;
         
         // Reduced deep water shader effect by half
         this.depthOpacityMultiplier = 0.5; // 50% shader reduction
+        this.lastEatTime = 0; // Track when tuna last ate
+        this.eatCooldown = 8000; // 8 second cooldown between eating for tuna
+        this.lastPoopTime = 0; // Track when tuna last pooped
+        this.poopIgnoreDuration = 5000; // 5 seconds to ignore fry after pooping
     }
 
     edges() {
@@ -469,9 +520,20 @@ class Predator extends Entity {
         let closest = null;
         let closestDistSquared = this.huntRadiusSquared;
         
+        // Check if tuna should ignore fry after pooping
+        const currentTime = Date.now();
+        const shouldIgnoreFry = (currentTime - this.lastPoopTime) < this.poopIgnoreDuration;
+        
         // Hunt regular fish
         for (let fish of prey) {
             if (Utils.shouldIgnorePrey(this.tunaType, fish.fishType)) continue;
+            
+            // Skip fry if we recently pooped
+            if (shouldIgnoreFry && (fish.fishType === FISH_TYPES.SMALL_FRY_2 || 
+                                   fish.fishType === FISH_TYPES.SMALL_FRY_3 || 
+                                   fish.fishType === FISH_TYPES.SMALL_FRY_4)) {
+                continue;
+            }
             
             const distSquared = Utils.distanceSquared(this, fish);
             if (distSquared < closestDistSquared) {
@@ -495,6 +557,10 @@ class Predator extends Entity {
     }
 
     checkForFood(prey, krill = []) {
+        // Check eating cooldown
+        const currentTime = Date.now();
+        if (currentTime - this.lastEatTime < this.eatCooldown) return;
+        
         // Check for regular fish prey
         for (let i = prey.length - 1; i >= 0; i--) {
             if (Utils.shouldIgnorePrey(this.tunaType, prey[i].fishType)) continue;
@@ -508,8 +574,10 @@ class Predator extends Entity {
                 
                 // Create poop when tuna eats fry
                 gameEntities.poop.push(new Poop(this.x, this.y, 'tuna'));
+                this.lastPoopTime = currentTime; // Track when we pooped
                 
                 prey.splice(i, 1);
+                this.lastEatTime = currentTime;
                 break; // Only eat one per frame
             }
         }
@@ -527,24 +595,62 @@ class Predator extends Entity {
                 
                 // Create poop when tuna eats krill (smaller poop)
                 gameEntities.poop.push(new Poop(this.x, this.y));
+                this.lastPoopTime = currentTime; // Track when we pooped
                 
                 krill.splice(i, 1);
+                this.lastEatTime = currentTime;
                 break; // Only eat one per frame
             }
         }
     }
 
-    update(prey, krill) {
-        const huntSteering = this.hunt(prey, krill);
-        const huntMagnitude = Math.hypot(huntSteering.x, huntSteering.y);
+    flee(squids) {
+        let fleeForce = { x: 0, y: 0 };
+        const fleeRadius = 200; // Distance at which tuna start fleeing from squids
+        const fleeRadiusSquared = fleeRadius * fleeRadius;
         
-        if (huntMagnitude > 0) {
-            this.velocity.x += huntSteering.x * 2;
-            this.velocity.y += huntSteering.y * 2;
+        for (let squid of squids) {
+            const distSquared = Utils.distanceSquared(this, squid);
+            if (distSquared < fleeRadiusSquared) {
+                // Calculate flee direction (away from squid)
+                const dx = this.x - squid.x;
+                const dy = this.y - squid.y;
+                const distance = Math.sqrt(distSquared);
+                
+                if (distance > 0) {
+                    // Stronger flee force when closer to squid
+                    const fleeStrength = (fleeRadius - distance) / fleeRadius;
+                    fleeForce.x += (dx / distance) * fleeStrength * this.maxForce * 3;
+                    fleeForce.y += (dy / distance) * fleeStrength * this.maxForce * 3;
+                }
+            }
+        }
+        
+        return fleeForce;
+    }
+
+    update(prey, krill, squids = []) {
+        // Flee from squids takes priority over hunting
+        const fleeForce = this.flee(squids);
+        const fleeMagnitude = Math.hypot(fleeForce.x, fleeForce.y);
+        
+        if (fleeMagnitude > 0) {
+            // Fleeing from squids - apply strong flee force
+            this.velocity.x += fleeForce.x * 2.5;
+            this.velocity.y += fleeForce.y * 2.5;
         } else {
-            // Simple patrol behavior
-            this.velocity.x += (Math.random() - 0.5) * 0.1;
-            this.velocity.y += (Math.random() - 0.5) * 0.1;
+            // No squids nearby - normal hunting behavior
+            const huntSteering = this.hunt(prey, krill);
+            const huntMagnitude = Math.hypot(huntSteering.x, huntSteering.y);
+            
+            if (huntMagnitude > 0) {
+                this.velocity.x += huntSteering.x * 2;
+                this.velocity.y += huntSteering.y * 2;
+            } else {
+                // Simple patrol behavior
+                this.velocity.x += (Math.random() - 0.5) * 0.1;
+                this.velocity.y += (Math.random() - 0.5) * 0.1;
+            }
         }
         
         // All tuna now have the same depth preference: mid-water to deep (0-75%) - avoid abyssal
@@ -585,12 +691,12 @@ class GiantSquid extends Entity {
         const spawnX = Math.random() * WORLD_WIDTH;
         super(spawnX, spawnY, 'abyssal');
         
-        // Physical properties - 5x larger sprite
-        this.size = 425; // 5x larger than original 85
-        this.maxSpeed = 70.0; // Reduced by half (was 140.0)
-        this.cruiseSpeed = 16.0; // Reduced by half (was 32.0)
-        this.burstSpeed = 60.0; // Reduced by half (was 120.0)
-        this.maxForce = 1.0; // Reduced by half (was 2.0)
+        // Physical properties - 5x larger sprite (reduced to 5% increase)
+        this.size = 446.25; // 5% increase from 425 (reduced from 10%)
+        this.maxSpeed = 73.5; // 5% increase from 70.0 (reduced from 10%)
+        this.cruiseSpeed = 16.8; // 5% increase from 16.0 (reduced from 10%)
+        this.burstSpeed = 63.0; // 5% increase from 60.0 (reduced from 10%)
+        this.maxForce = 1.05; // 5% increase from 1.0 (reduced from 10%)
         
         // Jet propulsion system
         this.jetPower = 0;
@@ -620,14 +726,18 @@ class GiantSquid extends Entity {
         this.blinkCycle = 80; // Blink every 1.33 seconds (60 FPS * 1.33)
         this.blinkDuration = 20; // Blink lasts 0.33 seconds
         
-        // Sensory system - scaled proportionally for larger squid
-        this.visionRange = 1000; // 5x larger (was 200)
+        // Sensory system - scaled proportionally for larger squid (reduced to 5% increase)
+        this.visionRange = 1050; // 5% increase from 1000 (reduced from 10%)
         this.visionRangeSquared = this.visionRange * this.visionRange;
-        this.attackRange = 300; // 5x larger (was 60)
+        this.attackRange = 315; // 5% increase from 300 (reduced from 10%)
         this.attackRangeSquared = this.attackRange * this.attackRange;
         
         // Full shader effect applied (no reduction)
-        this.depthOpacityMultiplier = 1.0; // No reduction - full depth shader effect
+        this.depthOpacityMultiplier = 1; // No reduction - full depth shader effect
+        this.lastEatTime = 0; // Track when giant squid last ate
+        this.eatCooldown = 10000; // 10 second cooldown between eating for giant squid
+        this.lastPoopTime = 0; // Track when squid last pooped
+        this.poopIgnoreDuration = 8000; // 8 seconds to ignore tuna after pooping
         
         // Initialize with gentle downward drift
         this.velocity = { x: 0, y: 0.2 };
@@ -646,24 +756,24 @@ class GiantSquid extends Entity {
             this.mantle.contracted = true;
             this.mantle.contractTime = 8;
             
-            // Immediate velocity change from jet
-            const jetForce = power * 1.6; // Reduced by half (was 3.2)
+            // Immediate velocity change from jet (reduced to 5% increase)
+            const jetForce = power * 1.68; // 5% increase from 1.6 (reduced from 10%)
             this.velocity.x += direction.x * jetForce;
             this.velocity.y += direction.y * jetForce;
         }
     }
     
-    // Fin-based gentle movement
+    // Fin-based gentle movement (reduced to 5% increase)
     finPropulsion(direction, intensity = 0.5) {
-        const finForce = intensity * 0.3; // Reduced by half (was 0.6)
+        const finForce = intensity * 0.315; // 5% increase from 0.3 (reduced from 10%)
         this.velocity.x += direction.x * finForce;
         this.velocity.y += direction.y * finForce;
         this.finUndulation += 0.3;
     }
     
-    // Tentacle movement for fine positioning
+    // Tentacle movement for fine positioning (reduced to 5% increase)  
     tentacleAdjust(direction, strength = 0.3) {
-        const tentacleForce = strength * 0.16; // Reduced by half (was 0.32)
+        const tentacleForce = strength * 0.168; // 5% increase from 0.16 (reduced from 10%)
         this.velocity.x += direction.x * tentacleForce;
         this.velocity.y += direction.y * tentacleForce;
         this.tentaclePulse += 0.2;
@@ -674,12 +784,18 @@ class GiantSquid extends Entity {
         let closestPrey = null;
         let closestDistance = this.visionRangeSquared;
         
+        // Check if squid should ignore tuna after pooping
+        const currentTime = Date.now();
+        const shouldIgnoreTuna = (currentTime - this.lastPoopTime) < this.poopIgnoreDuration;
+        
         // Only hunt tuna (predators) - ignore all other fish
-        for (let tuna of predators) {
-            const distSquared = Utils.distanceSquared(this, tuna);
-            if (distSquared < closestDistance) {
-                closestPrey = tuna;
-                closestDistance = distSquared;
+        if (!shouldIgnoreTuna) {
+            for (let tuna of predators) {
+                const distSquared = Utils.distanceSquared(this, tuna);
+                if (distSquared < closestDistance) {
+                    closestPrey = tuna;
+                    closestDistance = distSquared;
+                }
             }
         }
         
@@ -717,9 +833,9 @@ class GiantSquid extends Entity {
         // Update jet propulsion system
         if (this.jetDuration > 0) {
             this.jetDuration--;
-            // Apply continuous jet force
-            this.velocity.x += this.jetDirection.x * this.jetPower * 0.2; // Reduced by half (was 0.4)
-            this.velocity.y += this.jetDirection.y * this.jetPower * 0.2;
+            // Apply continuous jet force (reduced to 5% increase)
+            this.velocity.x += this.jetDirection.x * this.jetPower * 0.21; // 5% increase from 0.2 (reduced from 10%)
+            this.velocity.y += this.jetDirection.y * this.jetPower * 0.21;
         }
         
         if (this.jetCooldown > 0) {
@@ -848,7 +964,17 @@ class GiantSquid extends Entity {
                  if (this.huntTarget) {
              const dist = distance(this, this.huntTarget);
              
-             if (dist < 200) { // 5x larger (was 40)
+             if (dist < 220) { // 10% increase from 200 (was 40 originally)
+                // Check eating cooldown before grabbing prey
+                const currentTime = Date.now();
+                if (currentTime - this.lastEatTime < this.eatCooldown) {
+                    // Still in cooldown, retreat
+                    this.state = 'retreating';
+                    this.stateTimer = 0;
+                    this.huntTarget = null;
+                    return;
+                }
+                
                 // Successful attack - grab prey
                 this.grabbedPrey = this.huntTarget;
                 
@@ -909,8 +1035,10 @@ class GiantSquid extends Entity {
         if (this.grabbedPrey) {
             // Consumption complete after 3 seconds
             if (this.stateTimer > 180) {
-                // Create large poop
+                // Create large poop (100% of the time when eating tuna)
                 gameEntities.poop.push(new Poop(this.x, this.y, 'squid'));
+                this.lastEatTime = Date.now();
+                this.lastPoopTime = Date.now(); // Track when we pooped
                 
                 // Final consumption bubbles - scaled for larger squid
                 for (let i = 0; i < 15; i++) { // More bubbles for larger squid
@@ -990,9 +1118,8 @@ class GiantSquid extends Entity {
                     bioIntensity = 0.1 + (faintProgress * 0.2); // 0.1 to 0.3 opacity
                 }
                 
-                // Calculate reduced shader effect for bioluminescent spots (75% less tinting)
-                const spotBaseOpacity = Utils.getDepthOpacity(this.y, bioIntensity);
-                const spotReducedOpacity = spotBaseOpacity * 0.25 + (1 - 0.25); // 75% shader reduction
+                // Full brightness for abyssal sprites - no depth shader tint
+                const spotReducedOpacity = 1.0; // Maximum opacity, no depth effects
                 
                 // Draw bioluminescent overlay with additive blending for glow effect
                 ctx.save();
@@ -1046,11 +1173,27 @@ class Boid extends Entity {
         this.maxForce = 0.05;
         this.fearRadiusSquared = CONSTANTS.FEAR_RADIUS * CONSTANTS.FEAR_RADIUS;
         this.foodEaten = 0; // Track food consumption for pooping
+        this.lastPoopTime = 0; // Track when fish last pooped to prevent infinite pooping
+        this.poopCooldown = 5000; // 5 second minimum cooldown between poops
+        this.lastEatTime = 0; // Track when fish last ate
+        this.eatCooldown = 5000; // 5 second cooldown between eating for fry
+        this.poopIgnoreDuration = 3000; // 3 seconds to ignore fish food and krill after pooping
         
+        // All fry types can hunt krill (different hunt ranges)
         if (fishType === FISH_TYPES.SMALL_FRY_3) {
-            this.huntRadius = 60;
+            this.huntRadius = 60; // Largest hunt range
             this.huntRadiusSquared = this.huntRadius * this.huntRadius;
             this.eatRadius = 15;
+            this.eatRadiusSquared = this.eatRadius * this.eatRadius;
+        } else if (fishType === FISH_TYPES.SMALL_FRY_2) {
+            this.huntRadius = 40; // Smaller hunt range for smaller fish
+            this.huntRadiusSquared = this.huntRadius * this.huntRadius;
+            this.eatRadius = 12;
+            this.eatRadiusSquared = this.eatRadius * this.eatRadius;
+        } else if (fishType === FISH_TYPES.SMALL_FRY_4) {
+            this.huntRadius = 50; // Medium hunt range
+            this.huntRadiusSquared = this.huntRadius * this.huntRadius;
+            this.eatRadius = 14;
             this.eatRadiusSquared = this.eatRadius * this.eatRadius;
         }
     }
@@ -1139,8 +1282,10 @@ class Boid extends Entity {
         // Seek food
         this.addSeekForce(forces, food);
         
-        // Hunt smaller fish (for smallFry3)
-        if (this.fishType === FISH_TYPES.SMALL_FRY_3) {
+        // Hunt smaller fish and krill (all fry types can hunt krill)
+        if (this.fishType === FISH_TYPES.SMALL_FRY_3 || 
+            this.fishType === FISH_TYPES.SMALL_FRY_2 || 
+            this.fishType === FISH_TYPES.SMALL_FRY_4) {
             this.addHuntForce(forces, boids, krill);
         }
         
@@ -1193,6 +1338,14 @@ class Boid extends Entity {
     }
     
     addSeekForce(forces, food) {
+        // Check if fry should ignore fish food after pooping
+        const currentTime = Date.now();
+        const shouldIgnoreFood = (currentTime - this.lastPoopTime) < this.poopIgnoreDuration;
+        
+        if (shouldIgnoreFood) {
+            return; // Skip food seeking if we recently pooped
+        }
+        
         let closest = null;
         let closestDistSquared = CONSTANTS.FOOD_ATTRACTION_RADIUS * CONSTANTS.FOOD_ATTRACTION_RADIUS;
         
@@ -1214,33 +1367,52 @@ class Boid extends Entity {
     }
     
     addHuntForce(forces, boids, krill = []) {
+        // Check if fry should ignore krill after pooping
+        const currentTime = Date.now();
+        const shouldIgnoreKrill = (currentTime - this.lastPoopTime) < this.poopIgnoreDuration;
+        
         let closest = null;
         let closestDistSquared = this.huntRadiusSquared;
         
-        // Hunt SmallFry2
-        for (let fish of boids) {
-            if (fish.fishType === FISH_TYPES.SMALL_FRY_2) {
-                const distSquared = Utils.distanceSquared(this, fish);
-                if (distSquared < closestDistSquared) {
-                    closest = fish;
-                    closestDistSquared = distSquared;
+        // Only SmallFry3 hunts other fish (SmallFry2)
+        if (this.fishType === FISH_TYPES.SMALL_FRY_3) {
+            for (let fish of boids) {
+                if (fish.fishType === FISH_TYPES.SMALL_FRY_2) {
+                    const distSquared = Utils.distanceSquared(this, fish);
+                    if (distSquared < closestDistSquared) {
+                        closest = fish;
+                        closestDistSquared = distSquared;
+                    }
                 }
             }
         }
         
-        // Also hunt krill
-        for (let krillEntity of krill) {
-            const distSquared = Utils.distanceSquared(this, krillEntity);
-            if (distSquared < closestDistSquared) {
-                closest = krillEntity;
-                closestDistSquared = distSquared;
+        // All fry types hunt krill (prioritize krill over fish) - unless we recently pooped
+        if (!shouldIgnoreKrill) {
+            for (let krillEntity of krill) {
+                const distSquared = Utils.distanceSquared(this, krillEntity);
+                // Give krill hunting slight priority by expanding search radius
+                const krillHuntRadius = this.huntRadiusSquared * 1.2;
+                if (distSquared < krillHuntRadius) {
+                    closest = krillEntity;
+                    closestDistSquared = distSquared;
+                    break; // Prefer krill over fish
+                }
             }
         }
         
         if (closest) {
+            // Adjust hunting intensity based on fish type
+            let huntStrength = 2.5;
+            if (this.fishType === FISH_TYPES.SMALL_FRY_2) {
+                huntStrength = 2.0; // Smaller fish hunt less aggressively
+            } else if (this.fishType === FISH_TYPES.SMALL_FRY_4) {
+                huntStrength = 2.2; // Medium aggression
+            }
+            
             const huntSteering = Utils.calculateSteering(this, closest, this.maxSpeed, this.maxForce);
-            forces.x += huntSteering.x * 2.5;
-            forces.y += huntSteering.y * 2.5;
+            forces.x += huntSteering.x * huntStrength;
+            forces.y += huntSteering.y * huntStrength;
         }
     }
     
@@ -1282,41 +1454,100 @@ class Boid extends Entity {
             this.fishType !== FISH_TYPES.SMALL_FRY_3 && 
             this.fishType !== FISH_TYPES.SMALL_FRY_4) return;
         
-        // Eat krill
-        for (let i = krill.length - 1; i >= 0; i--) {
-            if (Utils.distanceSquared(this, krill[i]) < this.eatRadiusSquared) {
-                // Bubble effect for krill
-                const bubbleCount = Math.floor(Math.random() * 2) + 1;
-                for (let j = 0; j < bubbleCount; j++) {
-                    ObjectPools.getEatingBubble(krill[i].x, krill[i].y);
+        // Check eating cooldown
+        const currentTime = Date.now();
+        if (currentTime - this.lastEatTime < this.eatCooldown) return;
+        
+        // Eat krill (different poop chances for different krill types)
+        // We need to check each krill type array separately to properly remove eaten krill
+        
+        // Check regular krill
+        for (let i = gameEntities.krill.length - 1; i >= 0; i--) {
+            if (Utils.distanceSquared(this, gameEntities.krill[i]) < this.eatRadiusSquared) {
+                const krillEaten = gameEntities.krill[i];
+                
+                // Reduced bubble effect for krill (prevent lag)
+                if (Math.random() < 0.6) { // Only 60% chance of bubbles
+                    ObjectPools.getEatingBubble(krillEaten.x, krillEaten.y);
                 }
                 
-                // Create small poop when eating krill
-                gameEntities.poop.push(new Poop(this.x, this.y));
+                // 50% poop chance for regular krill
+                if (Math.random() < 0.5) {
+                    gameEntities.poop.push(new Poop(this.x, this.y));
+                    this.lastPoopTime = currentTime; // Track when we pooped
+                }
                 
-                krill.splice(i, 1);
+                gameEntities.krill.splice(i, 1);
+                this.lastEatTime = currentTime;
                 break; // Only eat one per frame
             }
         }
         
-        // Eat poop (all states)
+        // Check pale krill
+        for (let i = gameEntities.paleKrill.length - 1; i >= 0; i--) {
+            if (Utils.distanceSquared(this, gameEntities.paleKrill[i]) < this.eatRadiusSquared) {
+                const krillEaten = gameEntities.paleKrill[i];
+                
+                // Reduced bubble effect for krill (prevent lag)
+                if (Math.random() < 0.6) { // Only 60% chance of bubbles
+                    ObjectPools.getEatingBubble(krillEaten.x, krillEaten.y);
+                }
+                
+                // 25% poop chance for pale krill (less nutritious)
+                if (Math.random() < 0.25) {
+                    gameEntities.poop.push(new Poop(this.x, this.y));
+                    this.lastPoopTime = currentTime; // Track when we pooped
+                }
+                
+                gameEntities.paleKrill.splice(i, 1);
+                this.lastEatTime = currentTime;
+                break; // Only eat one per frame
+            }
+        }
+        
+        // Check mom krill
+        for (let i = gameEntities.momKrill.length - 1; i >= 0; i--) {
+            if (Utils.distanceSquared(this, gameEntities.momKrill[i]) < this.eatRadiusSquared) {
+                const krillEaten = gameEntities.momKrill[i];
+                
+                // Reduced bubble effect for krill (prevent lag)
+                if (Math.random() < 0.6) { // Only 60% chance of bubbles
+                    ObjectPools.getEatingBubble(krillEaten.x, krillEaten.y);
+                }
+                
+                // 50% poop chance for mom krill (same as regular)
+                if (Math.random() < 0.5) {
+                    gameEntities.poop.push(new Poop(this.x, this.y));
+                    this.lastPoopTime = currentTime; // Track when we pooped
+                }
+                
+                gameEntities.momKrill.splice(i, 1);
+                this.lastEatTime = currentTime;
+                break; // Only eat one per frame
+            }
+        }
+        
+        // Eat poop (only poop2 - aged poop, not fresh fry poop)
         for (let i = poop.length - 1; i >= 0; i--) {
             const poopItem = poop[i];
-            if (poopItem.isActive && Utils.distanceSquared(this, poopItem) < this.eatRadiusSquared) {
-                // Bubble effect for eating poop
-                const bubbleCount = Math.floor(Math.random() * 2) + 1;
-                for (let j = 0; j < bubbleCount; j++) {
+            // Fry can only eat poop2 (aged poop), not fresh poop (state 1)
+            if (poopItem.isActive && poopItem.state === 2 && Utils.distanceSquared(this, poopItem) < this.eatRadiusSquared) {
+                // Reduced bubble effect for eating poop (prevent lag)
+                if (Math.random() < 0.5) { // Only 50% chance of bubbles
                     ObjectPools.getEatingBubble(poopItem.x, poopItem.y);
                 }
                 
                 // Gain nutrition based on poop feed value
                 this.foodEaten += poopItem.feedValue;
                 
-                // Create new poop after eating enough (based on feed value)
-                const poopThreshold = poopItem.type === 'tuna' ? 3 : 5; // Tuna poop is more nutritious
-                if (this.foodEaten >= poopThreshold) {
+                // Create new poop after eating enough (based on feed value) WITH COOLDOWN
+                const poopThreshold = poopItem.type === 'tuna' ? 8 : 12; // Increased thresholds to reduce frequency
+                const currentTime = Date.now();
+                
+                if (this.foodEaten >= poopThreshold && (currentTime - this.lastPoopTime) > this.poopCooldown) {
                     gameEntities.poop.push(new Poop(this.x, this.y));
                     this.foodEaten = 0;
+                    this.lastPoopTime = currentTime; // Track when we pooped (for both cooldown and ignore duration)
                 }
                 
                 poop.splice(i, 1);
@@ -1344,7 +1575,7 @@ class Krill extends Boid {
         super(FISH_TYPES.KRILL);
         
         // Krill-specific properties
-        this.krillSize = 18; // Smaller than fish
+        this.krillSize = 9; // Reduced to match mom krill size
         this.size = this.krillSize;
         this.maxSpeed = 1.8; // Slower, more gentle movement
         this.maxForce = 0.025; // Much lower force for calmer behavior
@@ -1370,6 +1601,8 @@ class Krill extends Boid {
         // Poop consumption tracking
         this.poopEaten = 0;
         this.nutritionLevel = 0.5; // Affects speed and behavior
+        this.foodValue = 0; // Track total food value consumed
+        this.canTransform = true; // Can transform to mom krill
     }
     
     setupFishProperties() {
@@ -1494,9 +1727,12 @@ class Krill extends Boid {
                 const nutritionGain = poop.type === 'tuna' ? 0.15 : 0.1;
                 this.nutritionLevel = Math.min(1.0, this.nutritionLevel + nutritionGain);
                 
-                // Create small bubbles when eating
-                const bubbleCount = Math.floor(Math.random() * 2) + 1;
-                for (let j = 0; j < bubbleCount; j++) {
+                // Track food value for reproduction (tuna=2, fry=1, others=1)
+                const foodValue = poop.type === 'tuna' ? 2 : 1; // Tuna poop worth 2, fry/regular poop worth 1
+                this.foodConsumed = (this.foodConsumed || 0) + foodValue;
+                
+                // Reduced bubbles when krill eat poop (prevent lag)
+                if (Math.random() < 0.4) { // Only 40% chance of bubbles
                     ObjectPools.getEatingBubble(poop.x, poop.y);
                 }
                 
@@ -1508,6 +1744,27 @@ class Krill extends Boid {
         
         // Nutrition decays slowly over time
         this.nutritionLevel = Math.max(0.2, this.nutritionLevel - 0.001);
+    }
+    
+    // Handle food consumption from fish food
+    checkFoodConsumption(foodValue) {
+        this.foodConsumed = (this.foodConsumed || 0) + foodValue;
+        this.nutritionLevel = Math.min(1.0, this.nutritionLevel + 0.1);
+    }
+    
+    // Check if krill should transform into mom krill
+    checkReproduction() {
+        if ((this.foodConsumed || 0) >= 5) {
+            // Transform into mom krill
+            return {
+                shouldTransform: true,
+                newType: 'mom',
+                x: this.x,
+                y: this.y,
+                velocity: { x: this.velocity.x, y: this.velocity.y }
+            };
+        }
+        return { shouldTransform: false };
     }
     
     update(boids, predators, food, poop) {
@@ -1528,6 +1785,8 @@ class Krill extends Boid {
     }
     
     draw() {
+        if (!Utils.inRenderDistance(this)) return;
+        
         const angle = Math.atan2(this.velocity.y, Math.abs(this.velocity.x)) * 0.3;
         
         // Get current animation frame
@@ -1536,7 +1795,308 @@ class Krill extends Boid {
         // Adjust opacity based on migration status
         const migrationOpacity = this.isMigrating ? 0.95 : 0.85;
         
-        this.drawSprite(sprites[currentSpriteKey], this.size, migrationOpacity, angle);
+        // Apply 50% deep water shader effect
+        let depthOpacity = Utils.getDepthOpacity(this.y, migrationOpacity);
+        let tintStrength = Utils.getDepthTint(this.y);
+        
+        // Reduce depth shader effect by 50% for krill
+        depthOpacity = migrationOpacity * 0.5 + depthOpacity * 0.5;
+        tintStrength *= 0.5;
+        
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(angle);
+        
+        if (tintStrength > 0) {
+            // Create temporary canvas for tinting
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = this.size;
+            tempCanvas.height = this.size;
+            
+            // Draw sprite on temp canvas
+            tempCtx.drawImage(sprites[currentSpriteKey], 0, 0, this.size, this.size);
+            
+            // Apply tint
+            tempCtx.globalCompositeOperation = 'source-atop';
+            tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
+            tempCtx.fillRect(0, 0, this.size, this.size);
+            
+            // Draw tinted sprite
+            ctx.globalAlpha = depthOpacity;
+            ctx.drawImage(tempCanvas, -this.size/2, -this.size/2);
+        } else {
+            // Draw normally with depth opacity
+            ctx.globalAlpha = depthOpacity;
+            ctx.drawImage(sprites[currentSpriteKey], -this.size/2, -this.size/2, this.size, this.size);
+        }
+        
+        ctx.restore();
+    }
+}
+
+// Pale Krill - smaller, faster, juvenile form that matures into regular krill
+class PaleKrill extends Krill {
+    constructor(x, y, velocity = null) {
+        super();
+        
+        // Override krill properties for pale krill
+        this.krillSize = 7; // Increased by 2px (was 5, now 7)
+        this.size = this.krillSize;
+        this.maxSpeed = 2.8; // Faster than regular krill (1.8)
+        this.maxForce = 0.035; // Slightly higher force for more agile movement
+        
+        // Pale krill specific properties
+        this.maturationTimer = 0;
+        this.maturationTime = 60000; // 1 minute in milliseconds
+        this.isMaturing = false;
+        
+        // Use pale krill sprites
+        this.spriteFrames = ['paleKrill1', 'paleKrill2', 'paleKrill3', 'paleKrill2'];
+        
+        // Set position and velocity if provided
+        if (x !== undefined && y !== undefined) {
+            this.x = x;
+            this.y = y;
+        }
+        if (velocity) {
+            this.velocity.x = velocity.x;
+            this.velocity.y = velocity.y;
+        }
+        
+        // Reset food consumption
+        this.foodConsumed = 0;
+    }
+    
+    update(boids, predators, food, poop) {
+        // Update maturation timer
+        this.maturationTimer += 16; // Approximate frame time
+        
+        // Check if ready to mature into regular krill
+        if (this.maturationTimer >= this.maturationTime) {
+            this.isMaturing = true;
+        }
+        
+        // Standard krill update
+        super.update(boids, predators, food, poop);
+    }
+    
+    // Check if pale krill should transform into regular krill
+    checkMaturation() {
+        if (this.isMaturing) {
+            return {
+                shouldTransform: true,
+                newType: 'regular',
+                x: this.x,
+                y: this.y,
+                velocity: { x: this.velocity.x, y: this.velocity.y }
+            };
+        }
+        return { shouldTransform: false };
+    }
+    
+    draw() {
+        if (!Utils.inRenderDistance(this)) return;
+        
+        const angle = Math.atan2(this.velocity.y, Math.abs(this.velocity.x)) * 0.3;
+        
+        // Get current animation frame
+        const currentSpriteKey = this.spriteFrames[Math.floor(this.animationFrame)];
+        
+        // Pale krill have slightly different opacity (more translucent)
+        const paleOpacity = 0.75;
+        
+        // Apply 50% deep water shader effect
+        let depthOpacity = Utils.getDepthOpacity(this.y, paleOpacity);
+        let tintStrength = Utils.getDepthTint(this.y);
+        
+        // Reduce depth shader effect by 50% for krill
+        depthOpacity = paleOpacity * 0.5 + depthOpacity * 0.5;
+        tintStrength *= 0.5;
+        
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(angle);
+        
+        if (tintStrength > 0) {
+            // Create temporary canvas for tinting
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = this.size;
+            tempCanvas.height = this.size;
+            
+            // Draw sprite on temp canvas
+            tempCtx.drawImage(sprites[currentSpriteKey], 0, 0, this.size, this.size);
+            
+            // Apply tint
+            tempCtx.globalCompositeOperation = 'source-atop';
+            tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
+            tempCtx.fillRect(0, 0, this.size, this.size);
+            
+            // Draw tinted sprite
+            ctx.globalAlpha = depthOpacity;
+            ctx.drawImage(tempCanvas, -this.size/2, -this.size/2);
+        } else {
+            // Draw normally with depth opacity
+            ctx.globalAlpha = depthOpacity;
+            ctx.drawImage(sprites[currentSpriteKey], -this.size/2, -this.size/2, this.size, this.size);
+        }
+        
+        ctx.restore();
+    }
+}
+
+// Mom Krill - larger, produces pale krill offspring
+class MomKrill extends Krill {
+    constructor(x, y, velocity = null) {
+        super();
+        
+        // Override krill properties for mom krill
+        this.krillSize = 9; // 4x smaller than current (was 36, now 9)
+        this.size = this.krillSize;
+        this.maxSpeed = 1.5; // Slower than regular krill (pregnancy effect)
+        this.maxForce = 0.02; // Lower force (less agile when pregnant)
+        
+        // Mom krill specific properties
+        this.reproductionTimer = 0;
+        this.reproductionTime = 10000; // 10 seconds in milliseconds
+        this.hasReproduced = false;
+        this.offspringCount = Math.floor(Math.random() * 3) + 2; // 2-4 offspring
+        this.batchesProduced = 0; // Track how many batches have been produced
+        this.maxBatches = Math.floor(Math.random() * 2) + 1; // 1-2 batches before turning back
+        this.shouldRevert = false; // Flag to indicate when mom should turn back to regular krill
+        
+        // Use mom krill sprites
+        this.spriteFrames = ['momKrill1', 'momKrill2', 'momKrill3', 'momKrill2'];
+        
+        // Set position and velocity if provided
+        if (x !== undefined && y !== undefined) {
+            this.x = x;
+            this.y = y;
+        }
+        if (velocity) {
+            this.velocity.x = velocity.x;
+            this.velocity.y = velocity.y;
+        }
+        
+        // Reset food consumption
+        this.foodConsumed = 0;
+    }
+    
+    update(boids, predators, food, poop) {
+        // Update reproduction timer
+        if (!this.hasReproduced) {
+            this.reproductionTimer += 16; // Approximate frame time
+        }
+        
+        // Standard krill update
+        super.update(boids, predators, food, poop);
+    }
+    
+    // Check if mom krill should produce offspring
+    checkOffspring() {
+        if (!this.hasReproduced && this.reproductionTimer >= this.reproductionTime) {
+            const offspring = [];
+            
+            for (let i = 0; i < this.offspringCount; i++) {
+                // Spread offspring around the mom
+                const angle = (Math.PI * 2 * i) / this.offspringCount + Math.random() * 0.5;
+                const distance = 20 + Math.random() * 15;
+                const offsetX = Math.cos(angle) * distance;
+                const offsetY = Math.sin(angle) * distance;
+                
+                offspring.push({
+                    x: this.x + offsetX,
+                    y: this.y + offsetY,
+                    velocity: {
+                        x: this.velocity.x * 0.5 + (Math.random() - 0.5) * 0.5,
+                        y: this.velocity.y * 0.5 + (Math.random() - 0.5) * 0.5
+                    }
+                });
+            }
+            
+            this.hasReproduced = true;
+            this.batchesProduced++;
+            
+            // Check if mom should revert after this batch
+            if (this.batchesProduced >= this.maxBatches) {
+                this.shouldRevert = true;
+            } else {
+                // Reset for next batch
+                this.reproductionTimer = 0;
+                this.hasReproduced = false;
+                this.offspringCount = Math.floor(Math.random() * 3) + 2; // New offspring count for next batch
+            }
+            
+            // Reduced birth effect bubbles (prevent lag)
+            for (let i = 0; i < Math.min(this.offspringCount, 3); i++) {
+                ObjectPools.getEatingBubble(
+                    this.x + (Math.random() - 0.5) * 20,
+                    this.y + (Math.random() - 0.5) * 20
+                );
+            }
+            
+            return {
+                shouldProduce: true,
+                offspring: offspring,
+                shouldRevert: this.shouldRevert
+            };
+        }
+        return { shouldProduce: false };
+    }
+    
+    draw() {
+        if (!Utils.inRenderDistance(this)) return;
+        
+        const angle = Math.atan2(this.velocity.y, Math.abs(this.velocity.x)) * 0.3;
+        
+        // Get current animation frame
+        const currentSpriteKey = this.spriteFrames[Math.floor(this.animationFrame)];
+        
+        // Mom krill have full opacity and slight glow effect when about to reproduce
+        let momOpacity = 1.0;
+        if (!this.hasReproduced && this.reproductionTimer > this.reproductionTime * 0.8) {
+            // Slight pulsing when close to reproduction
+            momOpacity = 0.9 + 0.1 * Math.sin(this.reproductionTimer * 0.01);
+        }
+        
+        // Apply 50% deep water shader effect
+        let depthOpacity = Utils.getDepthOpacity(this.y, momOpacity);
+        let tintStrength = Utils.getDepthTint(this.y);
+        
+        // Reduce depth shader effect by 50% for krill
+        depthOpacity = momOpacity * 0.5 + depthOpacity * 0.5;
+        tintStrength *= 0.5;
+        
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(angle);
+        
+        if (tintStrength > 0) {
+            // Create temporary canvas for tinting
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = this.size;
+            tempCanvas.height = this.size;
+            
+            // Draw sprite on temp canvas
+            tempCtx.drawImage(sprites[currentSpriteKey], 0, 0, this.size, this.size);
+            
+            // Apply tint
+            tempCtx.globalCompositeOperation = 'source-atop';
+            tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
+            tempCtx.fillRect(0, 0, this.size, this.size);
+            
+            // Draw tinted sprite
+            ctx.globalAlpha = depthOpacity;
+            ctx.drawImage(tempCanvas, -this.size/2, -this.size/2);
+        } else {
+            // Draw normally with depth opacity
+            ctx.globalAlpha = depthOpacity;
+            ctx.drawImage(sprites[currentSpriteKey], -this.size/2, -this.size/2, this.size, this.size);
+        }
+        
+        ctx.restore();
     }
 }
 
@@ -1552,7 +2112,10 @@ const gameEntities = {
         ...Array.from({ length: 4 }, () => new Predator('tuna')),  // Reduced from 8
         ...Array.from({ length: 2 }, () => new Predator('tuna2')) // Reduced from 4
     ],
-    krill: Array.from({ length: 40 }, () => new Krill()), // Krill swarms in mid-to-deep waters
+    krill: Array.from({ length: 160 }, () => new Krill()), // 80% regular krill (160 out of 200)
+    paleKrill: Array.from({ length: 20 }, () => new PaleKrill(Math.random() * WORLD_WIDTH, Math.random() * WORLD_HEIGHT)), // 10% pale krill
+    momKrill: Array.from({ length: 20 }, () => new MomKrill(Math.random() * WORLD_WIDTH, Math.random() * WORLD_HEIGHT)), // 10% mom krill
+    squid: Array.from({ length: 3 }, () => new GiantSquid()), // Reduced to 3 giant squids on launch
     fishFood: [],
     poop: []
 };
@@ -1580,7 +2143,7 @@ canvas.addEventListener('click', (event) => {
             gameEntities.fishFood.push(new FishFood(x, y));
         }
     } else if (gameState.spawnMode === 'krill') {
-        const krillCount = Math.floor(Math.random() * 4) + 3;
+        const krillCount = Math.floor(Math.random() * 6) + 5; // Spawn 5-10 krill
         const spreadRadius = 30;
         
         for (let i = 0; i < krillCount; i++) {
@@ -1589,10 +2152,21 @@ canvas.addEventListener('click', (event) => {
             const x = centerX + Math.cos(angle) * distance;
             const y = centerY + Math.sin(angle) * distance;
             
-            gameEntities.krill.push(new Krill());
-            const newKrill = gameEntities.krill[gameEntities.krill.length - 1];
-            newKrill.x = x;
-            newKrill.y = y;
+            // 80% regular, 10% pale, 10% mom distribution
+            const rand = Math.random();
+            if (rand < 0.8) {
+                // 80% regular krill
+                gameEntities.krill.push(new Krill());
+                const newKrill = gameEntities.krill[gameEntities.krill.length - 1];
+                newKrill.x = x;
+                newKrill.y = y;
+            } else if (rand < 0.9) {
+                // 10% pale krill
+                gameEntities.paleKrill.push(new PaleKrill(x, y));
+            } else {
+                // 10% mom krill
+                gameEntities.momKrill.push(new MomKrill(x, y));
+            }
         }
     } else if (gameState.spawnMode === 'poop') {
         const poopCount = Math.floor(Math.random() * 3) + 2;
@@ -1695,20 +2269,20 @@ function animate(currentTime = 0) {
         eatingBubbles[i].draw();
     }
     
-    // Clean up pools periodically
-    if (gameState.frameCount % 300 === 0) {
+    // Clean up pools more frequently to prevent lag
+    if (gameState.frameCount % 180 === 0) { // Every 3 seconds instead of 5
         ObjectPools.cleanup();
     }
     
     // Handle fish food and poop in optimized loops
-    const { fishFood, poop: poopArray } = gameEntities;
+    const { fishFood, poop: poopArray, krill, paleKrill, momKrill } = gameEntities;
     
     for (let i = fishFood.length - 1; i >= 0; i--) {
         const food = fishFood[i];
         food.update();
         food.draw();
         
-        if (food.checkEaten(gameEntities.fish) || food.eaten) {
+        if (food.checkEaten(gameEntities.fish, [...krill, ...paleKrill, ...momKrill]) || food.eaten) {
             fishFood.splice(i, 1);
         }
     }
@@ -1724,22 +2298,89 @@ function animate(currentTime = 0) {
     }
     
     // Update entities with cached references
-    const { fish, predators, krill, squid = [] } = gameEntities;
+    const { fish, predators, squid = [] } = gameEntities;
     
     fish.forEach(f => {
-        f.update(fish, predators, fishFood, krill, poopArray);
+        f.update(fish, predators, fishFood, [...krill, ...paleKrill, ...momKrill], poopArray);
         f.draw();
     });
     
     predators.forEach(p => {
-        p.update(fish, krill);
+        p.update(fish, [...krill, ...paleKrill, ...momKrill], squid);
         p.draw();
     });
     
-    krill.forEach(k => {
-        k.update(krill, predators, fishFood, poopArray);
+    // Handle krill lifecycle transformations
+    
+    // Regular krill updates and transformations to mom krill
+    for (let i = krill.length - 1; i >= 0; i--) {
+        const k = krill[i];
+        k.update([...krill, ...paleKrill, ...momKrill], predators, fishFood, poopArray);
         k.draw();
-    });
+        
+        // Check if krill should become mom krill
+        const reproductionCheck = k.checkReproduction();
+        if (reproductionCheck.shouldTransform) {
+            // Remove from regular krill array
+            krill.splice(i, 1);
+            // Add to mom krill array
+            momKrill.push(new MomKrill(reproductionCheck.x, reproductionCheck.y, reproductionCheck.velocity));
+            console.log('Krill became mom krill!');
+        }
+    }
+    
+    // Pale krill updates and maturation to regular krill
+    for (let i = paleKrill.length - 1; i >= 0; i--) {
+        const pk = paleKrill[i];
+        pk.update([...krill, ...paleKrill, ...momKrill], predators, fishFood, poopArray);
+        pk.draw();
+        
+        // Check if pale krill should mature to regular krill
+        const maturationCheck = pk.checkMaturation();
+        if (maturationCheck.shouldTransform) {
+            // Remove from pale krill array
+            paleKrill.splice(i, 1);
+            // Add to regular krill array
+            const newKrill = new Krill();
+            newKrill.x = maturationCheck.x;
+            newKrill.y = maturationCheck.y;
+            newKrill.velocity.x = maturationCheck.velocity.x;
+            newKrill.velocity.y = maturationCheck.velocity.y;
+            krill.push(newKrill);
+            console.log('Pale krill matured to regular krill!');
+        }
+    }
+    
+    // Mom krill updates and offspring production
+    for (let i = momKrill.length - 1; i >= 0; i--) {
+        const mk = momKrill[i];
+        mk.update([...krill, ...paleKrill, ...momKrill], predators, fishFood, poopArray);
+        mk.draw();
+        
+        // Check if mom krill should produce offspring
+        const offspringCheck = mk.checkOffspring();
+        if (offspringCheck.shouldProduce) {
+            // Add pale krill offspring
+            offspringCheck.offspring.forEach(offspring => {
+                paleKrill.push(new PaleKrill(offspring.x, offspring.y, offspring.velocity));
+            });
+            console.log(`Mom krill produced ${offspringCheck.offspring.length} pale krill! (Batch ${mk.batchesProduced}/${mk.maxBatches})`);
+            
+            // Check if mom krill should revert to regular krill
+            if (offspringCheck.shouldRevert) {
+                // Create new regular krill at mom's position
+                const newKrill = new Krill();
+                newKrill.x = mk.x;
+                newKrill.y = mk.y;
+                newKrill.velocity.x = mk.velocity.x;
+                newKrill.velocity.y = mk.velocity.y;
+                
+                krill.push(newKrill);
+                momKrill.splice(i, 1); // Remove mom krill
+                console.log('Mom krill completed reproduction cycle and reverted to regular krill!');
+            }
+        }
+    }
     
     // Update giant squid - the apex predators of the deep
     squid.forEach(s => {
@@ -1870,18 +2511,19 @@ function animate(currentTime = 0) {
 
 function startAnimation() {
     if (spritesLoaded === Object.keys(spriteFiles).length) {
-        // Initialize the giant squid if it doesn't exist
+        // Initialize the giant squid swarm and maintain population
         if (!ecosystemInitialized) {
             // Ensure gameEntities exists and has squid array
             if (typeof gameEntities !== 'undefined') {
                 if (!gameEntities.squid) {
                     gameEntities.squid = [];
                 }
-                // Add one giant squid to the ecosystem
-                if (gameEntities.squid.length === 0) {
+                // Ensure minimum squid swarm density (3 squids)
+                const targetSquidCount = 3;
+                while (gameEntities.squid.length < targetSquidCount) {
                     gameEntities.squid.push(new GiantSquid());
-                    console.log('Giant squid added to ecosystem!');
                 }
+                console.log(`Giant squid swarm initialized with ${gameEntities.squid.length} squids!`);
             } else {
                 console.warn('gameEntities not found, creating temporary squid for testing');
                 // Create a temporary global squid for testing
@@ -1902,10 +2544,19 @@ class Poop {
         this.x = x;
         this.y = y;
         this.velocity = { x: 0, y: 0.3 }; // Slow downward drift
-        this.type = type; // 'regular', 'tuna', or 'squid'
-        this.size = type === 'squid' ? 20 : (type === 'tuna' ? 16 : 12); // Squid poop is largest
-        this.feedValue = type === 'squid' ? 3 : (type === 'tuna' ? 2 : 1); // Squid poop has most nutrition
-        this.state = 1; // 1 = fresh, 2 = aged, 3 = deep water
+        this.type = type; // 'regular', 'tuna', 'squid', or 'abyssal'
+        this.size = type === 'squid' ? 18 : (type === 'tuna' ? 16 : 12); // Squid poop is 18px, tuna poop is 16px
+        this.feedValue = type === 'squid' ? 5 : (type === 'tuna' ? 2 : 1); // Squid poop worth 5, tuna poop worth 2
+        
+        // Abyssal poop (from fish food) starts as poop3 (deep water state)
+        if (type === 'abyssal') {
+            this.state = 3; // Start as deep water poop (poop3)
+            this.size = 10; // Smaller than regular poop
+            this.feedValue = 1; // Standard nutrition value
+        } else {
+            this.state = 1; // 1 = fresh, 2 = aged, 3 = deep water
+        }
+        
         this.stateTimer = 0;
         this.maxAge = 5000; // 5 seconds for state 1
         this.isActive = true;

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Underwater Ecosystem Game</title>
+    <title>Modular Underwater Ecosystem Game</title>
     <style>
         body {
             margin: 0;
@@ -42,32 +42,77 @@
             font-size: 11px;
             max-width: 300px;
         }
+        .modular-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ff88;
+            background: rgba(0, 20, 10, 0.8);
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 10px;
+            max-width: 200px;
+            border: 1px solid #00ff88;
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas" width="1200" height="800"></canvas>
+    
+    <div class="modular-info">
+        <h3>🔧 Modular Architecture:</h3>
+        <p><strong>✅ Entity Classes:</strong> Separated</p>
+        <p><strong>✅ Game Systems:</strong> Modularized</p>
+        <p><strong>✅ All Features:</strong> Preserved</p>
+        <p><strong>✅ Performance:</strong> Optimized</p>
+    </div>
+    
     <div class="instructions">
         <h3>Controls:</h3>
         <p><strong>WASD</strong> - Move camera</p>
         <p><strong>Mouse Wheel</strong> - Zoom in/out</p>
-        <p><strong>F</strong> - Cycle spawn modes (Food → Krill → Poop → Off)</p>
+        <p><strong>F</strong> - Cycle spawn modes</p>
+        <p><strong>H</strong> - Toggle UI</p>
         <p><strong>Click</strong> - Spawn items (when mode active)</p>
     </div>
+    
     <div class="ecosystem-info">
         <h3>🌊 Ecosystem Features:</h3>
         <p><strong>🐟 Fish:</strong> 3 species with habitat layers</p>
         <p><strong>🦐 Krill:</strong> Poop-eating migrators</p>
         <p><strong>🐋 Tuna:</strong> Apex predators hunting all</p>
+        <p><strong>🦑 Giant Squid:</strong> Deep sea apex predator</p>
         <p><strong>💩 Poop System:</strong> 3-state waste cycle</p>
         <p><strong>🌊 Migration:</strong> Krill surface migration</p>
         <p><strong>🎯 Food Chain:</strong> Complete predator-prey relationships</p>
     </div>
+
+    <!-- Load global configuration first -->
+    <script src="config/gameConfig.js"></script>
+    
+    <!-- Load utility modules -->
     <script src="utils/mathUtils.js"></script>
     <script src="utils/depthUtils.js"></script>
     <script src="utils/behaviorUtils.js"></script>
     <script src="utils/cameraUtils.js"></script>
     <script src="utils/inputUtils.js"></script>
     <script src="utils/fishUtils.js"></script>
-    <script src="game.js"></script>
+    
+    <!-- Load entity classes -->
+    <script src="entities/Entity.js"></script>
+    <script src="entities/Bubble.js"></script>
+    <script src="entities/FishFood.js"></script>
+    <script src="entities/Poop.js"></script>
+    <script src="entities/Boid.js"></script>
+    <script src="entities/Krill.js"></script>
+    <script src="entities/Predator.js"></script>
+    <script src="entities/GiantSquid.js"></script>
+    
+    <!-- Load game systems -->
+    <script src="systems/ObjectPools.js"></script>
+    <script src="systems/GameSystem.js"></script>
+    
+    <!-- Load main game controller -->
+    <script src="game_modular.js"></script>
 </body>
 </html> 

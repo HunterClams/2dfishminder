@@ -1,12 +1,13 @@
 # Underwater Ecosystem Simulation
 
-A highly optimized marine biology simulation featuring realistic predator-prey relationships, migration patterns, and waste cycles.
+A highly optimized marine biology simulation featuring realistic predator-prey relationships, migration patterns, waste cycles, and advanced giant squid AI with bioluminescent effects.
 
 ## Features
 
 ### Marine Life
 - **Fry Species**: 3 types with distinct behaviors and habitat preferences
 - **Tuna Predators**: Apex hunters with selective feeding
+- **Giant Squid**: Advanced AI with bioluminescent effects and depth-based hunting
 - **Krill Swarms**: Waste cleaners with vertical migration patterns
 
 ### Ecosystem Dynamics
@@ -22,9 +23,10 @@ A highly optimized marine biology simulation featuring realistic predator-prey r
 - Memory-efficient entity management
 
 ## Controls
-- **WASD**: Camera movement
+- **WASD**: Camera movement (Shift to boost)
 - **Mouse Wheel**: Zoom (0.5x - 4.0x)
 - **F**: Cycle spawn modes
+- **H**: Toggle UI visibility
 - **Click**: Spawn selected items
 
 ## Performance

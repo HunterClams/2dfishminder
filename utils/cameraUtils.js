@@ -78,6 +78,23 @@ function isVisible(worldX, worldY, camera, margin = 0) {
            worldY <= camera.y + camera.viewHeight + margin;
 }
 
+// Check if entity is within render distance of camera
+function inRenderDistance(entity, camera, renderDistance) {
+    // Calculate distance from entity to camera center
+    const cameraCenterX = camera.x + camera.viewWidth / 2;
+    const cameraCenterY = camera.y + camera.viewHeight / 2;
+    const dx = entity.x - cameraCenterX;
+    const dy = entity.y - cameraCenterY;
+    const distanceSquared = dx * dx + dy * dy;
+    
+    // Use a more generous render distance, especially when zoomed out
+    // Add extra margin based on zoom level to prevent edge culling
+    const zoomMargin = Math.max(200, 400 / camera.zoom); // More margin when zoomed out
+    const effectiveRenderDistance = renderDistance + zoomMargin;
+    
+    return distanceSquared <= effectiveRenderDistance * effectiveRenderDistance;
+}
+
 // Make functions available globally
 window.updateCamera = updateCamera;
 window.applyCamera = applyCamera;
@@ -85,4 +102,5 @@ window.resetCamera = resetCamera;
 window.handleCameraZoom = handleCameraZoom;
 window.screenToWorld = screenToWorld;
 window.worldToScreen = worldToScreen;
-window.isVisible = isVisible; 
+window.isVisible = isVisible;
+window.inRenderDistance = inRenderDistance; 
