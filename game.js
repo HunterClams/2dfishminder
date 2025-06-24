@@ -16,7 +16,7 @@ const CONSTANTS = {
     CAMERA_BOOST: 2.5,
     ZOOM_FACTOR: 0.1,
     BORDER_WIDTH: 8,
-    CORNER_SIZE: 30,
+    CORNER_SIZE: 33,
     DEPTH_FADE_START: 0.2,
     DEPTH_FADE_END: 0.8,
     MIN_DEPTH_OPACITY: 0.15,
@@ -164,9 +164,9 @@ class FishFood {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.size = 12;
+        this.size = 13.2;
         this.sinkSpeed = 0.8;
-        this.eatRadius = 10;
+        this.eatRadius = 11;
         this.eaten = false;
         this.opacity = 1;
         this.transformedToPoop = false; // Track if already transformed to avoid multiple transformations
@@ -289,7 +289,7 @@ class Bubble {
     reset() {
         this.x = Math.random() * WORLD_WIDTH;
         this.y = WORLD_HEIGHT + Math.random() * 20;
-        this.size = (Math.random() * 16 + 10) * (0.5 + Math.random() * 0.8);
+        this.size = (Math.random() * 17.6 + 11) * (0.5 + Math.random() * 0.8);
         this.speed = Math.random() * 2 + 1;
         this.opacity = Math.random() * 0.5 + 0.5;
     }
@@ -347,7 +347,7 @@ class EatingBubble {
     reset(x, y) {
         this.x = x + (Math.random() - 0.5) * 20;
         this.y = y + (Math.random() - 0.5) * 20;
-        this.size = Math.random() * 8 + 4;
+        this.size = Math.random() * 8.8 + 4.4;
         this.speed = Math.random() * 3 + 2;
         this.opacity = 0.8;
         this.life = 0;
@@ -496,7 +496,7 @@ class Predator extends Entity {
         this.velocity = { x: Math.random() * 6 - 3, y: Math.random() * 6 - 3 };
         this.tunaType = tunaType;
         // Standardized size and speed for all tuna
-        this.size = 58; // Average of 60 and 55
+        this.size = 63.8; // Average of 60 and 55
         this.maxSpeed = 4.75; // Average of 4.5 and 5
         this.maxForce = 0.08;
         this.huntRadius = 180; // 50% increase from 120
@@ -692,7 +692,7 @@ class GiantSquid extends Entity {
         super(spawnX, spawnY, 'abyssal');
         
         // Physical properties - 5x larger sprite (reduced to 5% increase)
-        this.size = 446.25; // 5% increase from 425 (reduced from 10%)
+        this.size = 490.875; // 5% increase from 425 (reduced from 10%)
         this.maxSpeed = 73.5; // 5% increase from 70.0 (reduced from 10%)
         this.cruiseSpeed = 16.8; // 5% increase from 16.0 (reduced from 10%)
         this.burstSpeed = 63.0; // 5% increase from 60.0 (reduced from 10%)
@@ -1200,9 +1200,9 @@ class Boid extends Entity {
     
     setupFishProperties() {
         const configs = {
-            [FISH_TYPES.SMALL_FRY_4]: { size: 28, maxSpeed: 3.2 },
-            [FISH_TYPES.SMALL_FRY_3]: { size: 32, maxSpeed: 2.8 },
-            [FISH_TYPES.SMALL_FRY_2]: { size: 35, maxSpeed: 3.0 }
+            [FISH_TYPES.SMALL_FRY_4]: { size: 30.8, maxSpeed: 3.2 },
+            [FISH_TYPES.SMALL_FRY_3]: { size: 35.2, maxSpeed: 2.8 },
+            [FISH_TYPES.SMALL_FRY_2]: { size: 38.5, maxSpeed: 3.0 }
         };
         
         const config = configs[this.fishType] || configs[FISH_TYPES.SMALL_FRY_2];
@@ -2461,7 +2461,7 @@ function animate(currentTime = 0) {
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        const circleRadius = 30;
+        const circleRadius = 33;
         ctx.arc(mouseWorldPos.x, mouseWorldPos.y, circleRadius, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
@@ -2545,13 +2545,13 @@ class Poop {
         this.y = y;
         this.velocity = { x: 0, y: 0.3 }; // Slow downward drift
         this.type = type; // 'regular', 'tuna', 'squid', or 'abyssal'
-        this.size = type === 'squid' ? 18 : (type === 'tuna' ? 16 : 12); // Squid poop is 18px, tuna poop is 16px
+        this.size = type === 'squid' ? 19.8 : (type === 'tuna' ? 17.6 : 13.2); // Squid poop is 18px, tuna poop is 16px
         this.feedValue = type === 'squid' ? 5 : (type === 'tuna' ? 2 : 1); // Squid poop worth 5, tuna poop worth 2
         
         // Abyssal poop (from fish food) starts as poop3 (deep water state)
         if (type === 'abyssal') {
             this.state = 3; // Start as deep water poop (poop3)
-            this.size = 10; // Smaller than regular poop
+            this.size = 11; // Smaller than regular poop
             this.feedValue = 1; // Standard nutrition value
         } else {
             this.state = 1; // 1 = fresh, 2 = aged, 3 = deep water
