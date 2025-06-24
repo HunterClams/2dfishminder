@@ -1,5 +1,5 @@
 // Predator class for large hunting fish (tuna)
-class Predator extends Entity {
+class Predator extends (window.Entity || Entity) {
     constructor(tunaType = 'tuna') {
         super();
         

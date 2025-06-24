@@ -1,5 +1,5 @@
 // Boid class for small fish with flocking behavior
-class Boid extends Entity {
+class Boid extends (window.Entity || Entity) {
     constructor(fishType = null) {
         super();
         
@@ -42,257 +42,157 @@ class Boid extends Entity {
     }
     
     setupFishProperties() {
-        const FISH_TYPES = window.FISH_TYPES || {
-            SMALL_FRY_2: 'smallFry2',
-            SMALL_FRY_3: 'smallFry3', 
-            SMALL_FRY_4: 'smallFry4',
-            KRILL: 'krill'
+        const FISH_TYPES = window.FISH_TYPES || {};
+        
+        const configs = {
+            [FISH_TYPES.SMALL_FRY_4]: { size: 28, maxSpeed: 3.2 },
+            [FISH_TYPES.SMALL_FRY_3]: { size: 32, maxSpeed: 2.8 },
+            [FISH_TYPES.SMALL_FRY_2]: { size: 35, maxSpeed: 3.0 }
         };
         
-        switch(this.fishType) {
-            case FISH_TYPES.SMALL_FRY_2:
-                this.maxSpeed = 1.5;
-                this.size = 18;
-                this.preferredDepthZone = 'shallow';
-                this.canEat = [FISH_TYPES.KRILL];
-                break;
-            case FISH_TYPES.SMALL_FRY_3:
-                this.maxSpeed = 1.3;
-                this.size = 20;
-                this.preferredDepthZone = 'mid';
-                this.canEat = [FISH_TYPES.KRILL, FISH_TYPES.SMALL_FRY_2];
-                break;
-            case FISH_TYPES.SMALL_FRY_4:
-                this.maxSpeed = 1.1;
-                this.size = 22;
-                this.preferredDepthZone = 'deep';
-                this.canEat = [FISH_TYPES.KRILL, FISH_TYPES.SMALL_FRY_2, FISH_TYPES.SMALL_FRY_3];
-                break;
-        }
+        const config = configs[this.fishType] || configs[FISH_TYPES.SMALL_FRY_2];
+        this.size = config.size;
+        this.maxSpeed = config.maxSpeed;
     }
-    
+
     getPreferredDepth() {
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        const FISH_TYPES = window.FISH_TYPES || {};
         
-        switch(this.preferredDepthZone) {
-            case 'surface': return WORLD_HEIGHT * 0.1;
-            case 'shallow': return WORLD_HEIGHT * 0.3;
-            case 'mid': return WORLD_HEIGHT * 0.5;
-            case 'deep': return WORLD_HEIGHT * 0.7;
-            case 'abyssal': return WORLD_HEIGHT * 0.9;
-            default: return WORLD_HEIGHT * 0.5;
+        switch (this.fishType) {
+            case FISH_TYPES.SMALL_FRY_2:
+            case FISH_TYPES.SMALL_FRY_4:
+                return WORLD_HEIGHT * 0.2; // Prefer surface waters
+            case FISH_TYPES.SMALL_FRY_3:
+                return WORLD_HEIGHT * 0.4; // Prefer mid waters
+            default:
+                return WORLD_HEIGHT * 0.3;
         }
     }
 
     edges() {
+        const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         if (window.Utils && window.Utils.handleEdges) {
-            window.Utils.handleEdges(this, 50, 0.8);
+            window.Utils.handleEdges(this, 20, 0.8, WORLD_WIDTH, WORLD_HEIGHT);
         }
     }
 
     flock(boids, predators, food, krill = []) {
-        const forces = {
-            separation: { x: 0, y: 0 },
-            alignment: { x: 0, y: 0 },
-            cohesion: { x: 0, y: 0 },
-            flee: { x: 0, y: 0 },
-            seek: { x: 0, y: 0 },
-            hunt: { x: 0, y: 0 },
-            depth: { x: 0, y: 0 }
+        const CONSTANTS = window.CONSTANTS || { PERCEPTION_RADIUS: 50, SEPARATION_RADIUS: 30 };
+        const perceptionRadiusSquared = CONSTANTS.PERCEPTION_RADIUS * CONSTANTS.PERCEPTION_RADIUS;
+        const separationRadiusSquared = CONSTANTS.SEPARATION_RADIUS * CONSTANTS.SEPARATION_RADIUS;
+        
+        let alignment = { x: 0, y: 0 };
+        let cohesion = { x: 0, y: 0 };
+        let separation = { x: 0, y: 0 };
+        let alignCount = 0, cohesionCount = 0, separationCount = 0;
+        
+        // Single pass through nearby boids
+        for (let other of boids) {
+            if (other === this) continue;
+            
+            const distSquared = this.distanceSquared(this, other);
+            
+            if (distSquared < perceptionRadiusSquared) {
+                alignment.x += other.velocity.x;
+                alignment.y += other.velocity.y;
+                alignCount++;
+                
+                cohesion.x += other.x;
+                cohesion.y += other.y;
+                cohesionCount++;
+            }
+            
+            if (distSquared < separationRadiusSquared) {
+                const dist = Math.sqrt(distSquared);
+                const diff = { x: (this.x - other.x) / dist, y: (this.y - other.y) / dist };
+                separation.x += diff.x;
+                separation.y += diff.y;
+                separationCount++;
+            }
+        }
+        
+        // Calculate steering forces
+        const forces = { x: 0, y: 0 };
+        
+        if (alignCount > 0) {
+            alignment.x /= alignCount;
+            alignment.y /= alignCount;
+            const alignSteering = this.calculateSteering(alignment, this.maxSpeed, this.maxForce);
+            forces.x += alignSteering.x;
+            forces.y += alignSteering.y;
+        }
+        
+        if (cohesionCount > 0) {
+            cohesion.x = (cohesion.x / cohesionCount) - this.x;
+            cohesion.y = (cohesion.y / cohesionCount) - this.y;
+            const cohesionSteering = this.calculateSteering(cohesion, this.maxSpeed, this.maxForce);
+            forces.x += cohesionSteering.x;
+            forces.y += cohesionSteering.y;
+        }
+        
+        if (separationCount > 0) {
+            separation.x /= separationCount;
+            separation.y /= separationCount;
+            const separationSteering = this.calculateSteering(separation, this.maxSpeed, this.maxForce);
+            forces.x += separationSteering.x * 1.5;
+            forces.y += separationSteering.y * 1.5;
+        }
+        
+        // Apply forces
+        this.velocity.x += forces.x;
+        this.velocity.y += forces.y;
+        
+        // Limit velocity
+        if (window.Utils && window.Utils.limitVelocity) {
+            window.Utils.limitVelocity(this.velocity, this.maxSpeed);
+        }
+    }
+
+    distanceSquared(obj1, obj2) {
+        return (obj1.x - obj2.x) ** 2 + (obj1.y - obj2.y) ** 2;
+    }
+
+    calculateSteering(target, maxSpeed, maxForce) {
+        // Simplified steering calculation
+        const desired = this.normalize(target);
+        desired.x *= maxSpeed;
+        desired.y *= maxSpeed;
+        
+        const steer = {
+            x: desired.x - this.velocity.x,
+            y: desired.y - this.velocity.y
         };
-
-        let total = 0;
-        let fleeTotal = 0;
-
-        for (let other of boids) {
-            const d = Utils.distance(this.x, this.y, other.x, other.y);
-
-            if (other !== this && d > 0) {
-                // Separation
-                if (d < this.personalSpace) {
-                    const diff = Utils.calculateSteering(other.x - this.x, other.y - this.y, d);
-                    forces.separation.x -= diff.x / d;
-                    forces.separation.y -= diff.y / d;
-                    total++;
-                }
-
-                // Alignment and Cohesion (same species preference)
-                if (d < this.alignmentRadius && other.fishType === this.fishType) {
-                    forces.alignment.x += other.velocity.x;
-                    forces.alignment.y += other.velocity.y;
-                    forces.cohesion.x += other.x;
-                    forces.cohesion.y += other.y;
-                    fleeTotal++;
-                }
-            }
-        }
-
-        // Apply flee, seek, hunt, and depth forces
-        this.addFleeForce(forces, predators, boids);
-        this.addSeekForce(forces, food);
-        this.addHuntForce(forces, boids, krill);
-        this.addDepthPreference(forces);
-
-        // Normalize and apply forces
-        if (total > 0) {
-            forces.separation.x = (forces.separation.x / total) * this.maxForce * 2;
-            forces.separation.y = (forces.separation.y / total) * this.maxForce * 2;
-        }
-
-        if (fleeTotal > 0) {
-            forces.alignment.x = (forces.alignment.x / fleeTotal) * this.maxForce * 0.5;
-            forces.alignment.y = (forces.alignment.y / fleeTotal) * this.maxForce * 0.5;
-            
-            forces.cohesion.x = (forces.cohesion.x / fleeTotal - this.x) * this.maxForce * 0.3;
-            forces.cohesion.y = (forces.cohesion.y / fleeTotal - this.y) * this.maxForce * 0.3;
-        }
-
-        // Apply all forces
-        Object.values(forces).forEach(force => this.applyForce(force));
-    }
-
-    addFleeForce(forces, predators, boids) {
-        for (let predator of predators) {
-            const d = Utils.distance(this.x, this.y, predator.x, predator.y);
-            if (d < this.fearRadius && d > 0) {
-                const fleeStrength = this.fearSensitivity * (this.fearRadius - d) / this.fearRadius;
-                const flee = Utils.calculateSteering(this.x - predator.x, this.y - predator.y, d);
-                forces.flee.x += flee.x * this.maxForce * fleeStrength * 3;
-                forces.flee.y += flee.y * this.maxForce * fleeStrength * 3;
-            }
-        }
-
-        // Also flee from larger fish of different species that can eat this fish
-        for (let other of boids) {
-            if (other !== this && Utils.shouldFlee(this.fishType, other.fishType)) {
-                const d = Utils.distance(this.x, this.y, other.x, other.y);
-                if (d < this.fearRadius * 0.7 && d > 0) {
-                    const fleeStrength = (this.fearRadius * 0.7 - d) / (this.fearRadius * 0.7);
-                    const flee = Utils.calculateSteering(this.x - other.x, this.y - other.y, d);
-                    forces.flee.x += flee.x * this.maxForce * fleeStrength * 1.5;
-                    forces.flee.y += flee.y * this.maxForce * fleeStrength * 1.5;
-                }
-            }
-        }
-    }
-
-    addSeekForce(forces, food) {
-        if (this.hunger > 50) {
-            let closest = null;
-            let closestDist = Infinity;
-            
-            for (let f of food) {
-                if (!f.eaten) {
-                    const d = Utils.distance(this.x, this.y, f.x, f.y);
-                    if (d < this.foodRadius && d < closestDist) {
-                        closest = f;
-                        closestDist = d;
-                    }
-                }
-            }
-            
-            if (closest) {
-                const seek = Utils.calculateSteering(closest.x - this.x, closest.y - this.y, closestDist);
-                const hungerMultiplier = this.hunger / 100;
-                forces.seek.x = seek.x * this.maxForce * hungerMultiplier * 2;
-                forces.seek.y = seek.y * this.maxForce * hungerMultiplier * 2;
-            }
-        }
-    }
-
-    addHuntForce(forces, boids, krill = []) {
-        if (this.huntCooldown > 0) {
-            this.huntCooldown--;
-            return;
-        }
-
-        const allPrey = [...boids, ...krill];
-        let closest = null;
-        let closestDist = Infinity;
-
-        for (let prey of allPrey) {
-            if (prey !== this && this.canEat && this.canEat.includes(prey.fishType)) {
-                const d = Utils.distance(this.x, this.y, prey.x, prey.y);
-                if (d < this.huntRadius && d < closestDist) {
-                    closest = prey;
-                    closestDist = d;
-                }
-            }
-        }
-
-        if (closest) {
-            const hunt = Utils.calculateSteering(closest.x - this.x, closest.y - this.y, closestDist);
-            const huntStrength = this.hunger > 70 ? 2 : 1;
-            forces.hunt.x = hunt.x * this.maxForce * huntStrength;
-            forces.hunt.y = hunt.y * this.maxForce * huntStrength;
-        }
-    }
-
-    addDepthPreference(forces) {
-        const currentDepth = this.y;
-        const depthDifference = currentDepth - this.preferredDepth;
         
-        // Only apply depth force if outside tolerance zone
-        if (Math.abs(depthDifference) > this.depthTolerance) {
-            const depthForce = -depthDifference * 0.0001; // Gentle depth correction
-            forces.depth.y = depthForce * this.maxForce;
+        // Limit steering force
+        const mag = Math.sqrt(steer.x * steer.x + steer.y * steer.y);
+        if (mag > maxForce) {
+            steer.x = (steer.x / mag) * maxForce;
+            steer.y = (steer.y / mag) * maxForce;
         }
+        
+        return steer;
     }
 
-    checkForSmallerFish(boids, krill = [], poop = []) {
-        const allPrey = [...boids, ...krill];
-        
-        for (let i = allPrey.length - 1; i >= 0; i--) {
-            const prey = allPrey[i];
-            if (prey !== this && this.canEat && this.canEat.includes(prey.fishType)) {
-                const d = Utils.distance(this.x, this.y, prey.x, prey.y);
-                if (d < this.size / 2 + 5) {
-                    // Remove the prey
-                    if (krill.includes(prey)) {
-                        const index = krill.indexOf(prey);
-                        if (index > -1) krill.splice(index, 1);
-                    } else {
-                        const index = boids.indexOf(prey);
-                        if (index > -1) boids.splice(index, 1);
-                    }
-                    
-                    // Add poop and eating effects
-                    if (window.gameSystem) {
-                        window.gameSystem.addEntity('poop', new Poop(this.x, this.y));
-                    }
-                    if (window.ObjectPools) {
-                        window.ObjectPools.getEatingBubble(this.x, this.y);
-                    }
-                    
-                    this.hunger = Math.max(0, this.hunger - 30);
-                    this.huntCooldown = 120; // 2 second cooldown
-                    break;
-                }
-            }
-        }
+    normalize(vector) {
+        const mag = Math.sqrt(vector.x * vector.x + vector.y * vector.y);
+        if (mag === 0) return { x: 0, y: 0 };
+        return { x: vector.x / mag, y: vector.y / mag };
     }
 
     update(boids, predators, food, krill, poop) {
         this.flock(boids, predators, food, krill);
         this.move();
         this.edges();
-        
-        // Update hunger
-        this.hunger = Math.min(100, this.hunger + 0.05);
-        
-        // Check for smaller fish to eat
-        this.checkForSmallerFish(boids, krill, poop);
-        
-        this.animationFrame += this.frameSpeed;
     }
 
     draw() {
-        this.angle = Math.atan2(this.velocity.y, this.velocity.x);
-        this.drawSprite(sprites[this.fishType], this.size, 1, this.angle);
+        const sprites = window.sprites || {};
+        const angle = Math.atan2(this.velocity.y, Math.abs(this.velocity.x)) * 0.5;
+        this.drawSprite(sprites[this.fishType], this.size, 0.9, angle);
     }
 }
 
-// Export for use by other modules
-if (typeof window !== 'undefined') {
-    window.Boid = Boid;
-} 
+// Export for global access
+window.Boid = Boid; 

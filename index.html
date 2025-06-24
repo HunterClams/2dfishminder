@@ -62,12 +62,24 @@
         <p><strong>🌊 Migration:</strong> Krill surface migration</p>
         <p><strong>🎯 Food Chain:</strong> Complete predator-prey relationships</p>
     </div>
+    <!-- 1. Utility modules (no dependencies) -->
     <script src="utils/mathUtils.js"></script>
     <script src="utils/depthUtils.js"></script>
     <script src="utils/behaviorUtils.js"></script>
+    <script src="utils/squidUtils.js"></script>
     <script src="utils/cameraUtils.js"></script>
     <script src="utils/inputUtils.js"></script>
     <script src="utils/fishUtils.js"></script>
+    
+    <!-- 2. Base entity class (must load before all other entities) -->
+    <script src="entities/Entity.js"></script>
+    
+    <!-- 3. Entity classes (depend on Entity.js) -->
+    <script src="entities/Predator.js"></script>
+    <script src="entities/Boid.js"></script>
+    <script src="entities/GiantSquid.js"></script>
+    
+    <!-- 4. Main game file (depends on all entities) -->
     <script src="game.js"></script>
 </body>
 </html> 

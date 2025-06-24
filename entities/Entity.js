@@ -1,4 +1,4 @@
-// Base Entity class for all game entities
+// Base Entity class with optimized rendering
 class Entity {
     constructor(x, y, spawnDepthZone = null) {
         // Use global constants
@@ -6,8 +6,33 @@ class Entity {
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         
         this.x = x || Math.random() * WORLD_WIDTH;
-        this.y = y || (spawnDepthZone ? this.calculateDepth(spawnDepthZone) : Math.random() * WORLD_HEIGHT);
-        this.velocity = { x: 0, y: 0 };
+        
+        // Habitat-based spawning system
+        if (spawnDepthZone && !y) {
+            switch (spawnDepthZone) {
+                case 'surface': // 0-20% depth (surface layer)
+                    this.y = Math.random() * (WORLD_HEIGHT * 0.2);
+                    break;
+                case 'shallow': // 0-40% depth (shallow water)
+                    this.y = Math.random() * (WORLD_HEIGHT * 0.4);
+                    break;
+                case 'mid': // 20-60% depth (mid-water zone)
+                    this.y = (WORLD_HEIGHT * 0.2) + Math.random() * (WORLD_HEIGHT * 0.4);
+                    break;
+                case 'deep': // 0-80% depth (avoid abyssal)
+                    this.y = Math.random() * (WORLD_HEIGHT * 0.8);
+                    break;
+                case 'abyssal': // 80-100% depth (deep water)
+                    this.y = (WORLD_HEIGHT * 0.8) + Math.random() * (WORLD_HEIGHT * 0.2);
+                    break;
+                default:
+                    this.y = Math.random() * WORLD_HEIGHT;
+            }
+        } else {
+            this.y = y || Math.random() * WORLD_HEIGHT;
+        }
+        
+        this.velocity = { x: Math.random() * 4 - 2, y: Math.random() * 4 - 2 };
         this.acceleration = { x: 0, y: 0 };
         this.maxSpeed = 2;
         this.maxForce = 0.05;
@@ -21,44 +46,23 @@ class Entity {
         this.isAlive = true;
     }
 
-    calculateDepth(zone) {
-        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
-        
-        switch (zone) {
-            case 'surface': return Math.random() * WORLD_HEIGHT * 0.2;
-            case 'shallow': return WORLD_HEIGHT * 0.2 + Math.random() * WORLD_HEIGHT * 0.2;
-            case 'mid': return WORLD_HEIGHT * 0.4 + Math.random() * WORLD_HEIGHT * 0.3;
-            case 'deep': return WORLD_HEIGHT * 0.7 + Math.random() * WORLD_HEIGHT * 0.2;
-            case 'abyssal': return WORLD_HEIGHT * 0.9 + Math.random() * WORLD_HEIGHT * 0.1;
-            default: return Math.random() * WORLD_HEIGHT;
-        }
-    }
-
     move() {
-        this.velocity.x += this.acceleration.x;
-        this.velocity.y += this.acceleration.y;
         this.x += this.velocity.x;
         this.y += this.velocity.y;
-        this.acceleration.x = 0;
-        this.acceleration.y = 0;
     }
 
+    // Properly optimized sprite drawing with correct transparency handling
     drawSprite(sprite, size, opacity = 1, angle = 0) {
-        if (!sprite) return;
+        if (!Utils.inRenderDistance(this)) return;
         
-        // Safe check for Utils and inRenderDistance
-        if (window.Utils && window.Utils.inRenderDistance && !window.Utils.inRenderDistance(this)) return;
-
-        const depthOpacity = window.Utils ? window.Utils.getDepthOpacity(this.y, opacity) : opacity;
-        const tintStrength = window.Utils ? window.Utils.getDepthTint(this.y) : 0;
+        const depthOpacity = Utils.getDepthOpacity(this.y, opacity);
+        const tintStrength = Utils.getDepthTint(this.y);
         
-        // Safe check for ctx
-        if (!window.ctx && !ctx) return;
-        const context = window.ctx || ctx;
+        ctx.save();
+        ctx.translate(this.x, this.y);
         
-        context.save();
-        context.translate(this.x, this.y);
-        context.rotate(angle);
+        if (this.velocity.x < 0) ctx.scale(-1, 1);
+        if (angle !== 0) ctx.rotate(angle);
         
         if (tintStrength > 0) {
             // Create temporary canvas for proper transparency handling
@@ -76,15 +80,15 @@ class Entity {
             tempCtx.fillRect(0, 0, size, size);
             
             // Draw the tinted sprite to main canvas
-            context.globalAlpha = depthOpacity;
-            context.drawImage(tempCanvas, -size/2, -size/2);
+            ctx.globalAlpha = depthOpacity;
+            ctx.drawImage(tempCanvas, -size/2, -size/2);
         } else {
             // No tint needed, draw normally
-            context.globalAlpha = depthOpacity;
-            context.drawImage(sprite, -size/2, -size/2, size, size);
+            ctx.globalAlpha = depthOpacity;
+            ctx.drawImage(sprite, -size/2, -size/2, size, size);
         }
         
-        context.restore();
+        ctx.restore();
     }
 
     applyForce(force) {
@@ -105,7 +109,5 @@ class Entity {
     }
 }
 
-// Export for use by other modules
-if (typeof window !== 'undefined') {
-    window.Entity = Entity;
-} 
+// Export for global access
+window.Entity = Entity; 
