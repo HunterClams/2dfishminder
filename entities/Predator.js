@@ -1,7 +1,12 @@
 // Predator class for large hunting fish (tuna)
 class Predator extends (window.Entity || Entity) {
     constructor(tunaType = 'tuna') {
-        super();
+        // Call parent constructor with mid-water spawning
+        super(null, null, 'mid');
+        
+        // Use global constants safely
+        const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         
         this.tunaType = tunaType;
         this.maxSpeed = 3;
@@ -16,6 +21,11 @@ class Predator extends (window.Entity || Entity) {
         this.aggression = 0.7 + Math.random() * 0.3;
         this.patience = Math.random() * 200 + 100;
         this.currentPatience = this.patience;
+        
+        // Ensure velocity is properly initialized (safety check)
+        if (!this.velocity) {
+            this.velocity = { x: Math.random() * 6 - 3, y: Math.random() * 6 - 3 };
+        }
         
         // Start in mid-to-deep waters
         this.y = WORLD_HEIGHT * 0.4 + Math.random() * WORLD_HEIGHT * 0.4;

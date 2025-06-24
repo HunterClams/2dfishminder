@@ -1,8 +1,6 @@
 // Boid class for small fish with flocking behavior
 class Boid extends (window.Entity || Entity) {
     constructor(fishType = null) {
-        super();
-        
         // Use global constants safely
         const FISH_TYPES = window.FISH_TYPES || {
             SMALL_FRY_2: 'smallFry2',
@@ -12,6 +10,28 @@ class Boid extends (window.Entity || Entity) {
         };
         
         this.fishType = fishType || FISH_TYPES.SMALL_FRY_2;
+        
+        // Determine spawn zone based on fish type
+        let spawnZone;
+        switch (this.fishType) {
+            case FISH_TYPES.SMALL_FRY_2:
+            case FISH_TYPES.SMALL_FRY_4:
+                spawnZone = 'surface';
+                break;
+            case FISH_TYPES.SMALL_FRY_3:
+                spawnZone = 'mid';
+                break;
+            default:
+                spawnZone = 'shallow';
+        }
+        
+        // Call parent constructor with proper spawn zone
+        super(null, null, spawnZone);
+        
+        // Ensure velocity is properly initialized (safety check)
+        if (!this.velocity) {
+            this.velocity = { x: Math.random() * 4 - 2, y: Math.random() * 4 - 2 };
+        }
         this.maxSpeed = 1.5;
         this.maxForce = 0.03;
         this.size = 18;
