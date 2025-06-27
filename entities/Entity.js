@@ -64,8 +64,36 @@ class Entity {
     drawSprite(sprite, size, opacity = 1, angle = 0) {
         if (!Utils.inRenderDistance(this)) return;
         
-        const depthOpacity = Utils.getDepthOpacity(this.y, opacity);
-        const tintStrength = Utils.getDepthTint(this.y);
+        // Comprehensive sprite validation
+        if (!sprite || !(sprite instanceof HTMLImageElement) || !sprite.complete || sprite.naturalWidth === 0) {
+            console.warn('🚨 Invalid sprite detected in drawSprite:', {
+                sprite: sprite,
+                type: typeof sprite,
+                isImage: sprite instanceof HTMLImageElement,
+                complete: sprite?.complete,
+                naturalWidth: sprite?.naturalWidth,
+                entityType: this.constructor.name,
+                fishType: this.fishType
+            });
+            return; // Skip drawing if sprite is invalid
+        }
+        
+        // Check if this is a small fry that should not have depth shader
+        const isSmallFry = this.fishType === 'smallFry2' || 
+                          this.fishType === 'smallFry3' || 
+                          this.fishType === 'smallFry4';
+        
+        // Apply depth shader only if not a small fry
+        let depthOpacity, tintStrength;
+        if (isSmallFry) {
+            // Small fry get fixed opacity without depth effects
+            depthOpacity = opacity;
+            tintStrength = 0;
+        } else {
+            // Other entities get full depth shader effects
+            depthOpacity = Utils.getDepthOpacity(this.y, opacity);
+            tintStrength = Utils.getDepthTint(this.y);
+        }
         
         ctx.save();
         ctx.translate(this.x, this.y);
@@ -87,8 +115,18 @@ class Entity {
             tempCanvas.width = size;
             tempCanvas.height = size;
             
-            // Draw sprite on temp canvas
-            tempCtx.drawImage(sprite, 0, 0, size, size);
+            // Draw sprite on temp canvas with validation
+            try {
+                tempCtx.drawImage(sprite, 0, 0, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in temp canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    entityType: this.constructor.name
+                });
+                ctx.restore();
+                return;
+            }
             
             // Apply tint using source-atop (only affects non-transparent pixels)
             tempCtx.globalCompositeOperation = 'source-atop';
@@ -99,9 +137,18 @@ class Entity {
             ctx.globalAlpha = depthOpacity;
             ctx.drawImage(tempCanvas, -size/2, -size/2);
         } else {
-            // No tint needed, draw normally
+            // No tint needed, draw normally with validation
             ctx.globalAlpha = depthOpacity;
-            ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            try {
+                ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in main canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    entityType: this.constructor.name,
+                    fishType: this.fishType
+                });
+            }
         }
         
         ctx.restore();

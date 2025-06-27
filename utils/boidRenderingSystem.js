@@ -7,10 +7,25 @@ class BoidRenderingSystem {
     draw(boid) {
         const sprites = window.sprites || {};
         const angle = Math.atan2(boid.velocity.y, Math.abs(boid.velocity.x)) * 0.5;
-        boid.drawSprite(sprites[boid.fishType], boid.size, 0.9, angle);
         
-        // Debug visualization for fry behavior
-        if (window.gameState && window.gameState.fryDebug) {
+        // Validate sprite before drawing
+        const sprite = sprites[boid.fishType];
+        if (!sprite || !(sprite instanceof HTMLImageElement) || !sprite.complete || sprite.naturalWidth === 0) {
+            console.warn('🚨 Invalid sprite for boid:', {
+                fishType: boid.fishType,
+                sprite: sprite,
+                type: typeof sprite,
+                isImage: sprite instanceof HTMLImageElement,
+                complete: sprite?.complete,
+                naturalWidth: sprite?.naturalWidth
+            });
+            return; // Skip drawing if sprite is invalid
+        }
+        
+        boid.drawSprite(sprite, boid.size, 0.9, angle);
+        
+        // Debug visualization
+        if (window.debugManager && window.debugManager.isDebugOn('fry')) {
             this.drawDebugInfo(boid);
         }
     }
@@ -30,7 +45,8 @@ class BoidRenderingSystem {
             'hunting': '#FFA500',     // Orange  
             'feeding': '#87CEEB',     // Sky Blue
             'feeding_cooldown': '#FFB6C1', // Light Pink for feeding cooldown
-            'spawning': '#FF69B4'     // Hot Pink
+            'spawning': '#FF69B4',    // Hot Pink
+            'spawning_cooldown': '#DDA0DD' // Plum for spawning cooldown
         };
         
         const stateColor = stateColors[boid.behaviorState] || '#FFFFFF';
@@ -64,6 +80,11 @@ class BoidRenderingSystem {
         // Draw spawning timer bar when spawning
         if (boid.behaviorState === 'spawning' && boid.spawningProperties?.spawningTimer !== undefined) {
             this.drawSpawningTimerBar(boid);
+        }
+        
+        // Draw spawning cooldown timer bar when in spawning cooldown
+        if (boid.behaviorState === 'spawning_cooldown' && boid.spawningProperties?.spawningTimer !== undefined) {
+            this.drawSpawningCooldownTimerBar(boid);
         }
         
         // Draw detection radius when hunting
@@ -121,14 +142,9 @@ class BoidRenderingSystem {
         const barHeight = 3;
         const timerBarY = boid.y - 11;
         
-        // Get remaining cooldown time from the system
-        let remainingTime = 0;
-        if (window.FryFeedingCooldownSystem) {
-            remainingTime = window.FryFeedingCooldownSystem.getRemainingCooldownTime(boid);
-        }
-        
-        const totalDuration = 15000; // 15 seconds
-        const cooldownPercent = 1 - (remainingTime / totalDuration);
+        // Since the feeding cooldown system was removed, we'll show a simple indicator
+        // that the fry is in a cooldown state
+        const cooldownPercent = 0.5; // Show 50% progress as placeholder
         
         // Timer background
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -153,6 +169,23 @@ class BoidRenderingSystem {
         
         // Timer bar (hot pink to match spawning color)
         ctx.fillStyle = '#FF69B4';
+        ctx.fillRect(boid.x - barWidth/2, timerBarY, barWidth * spawningPercent, barHeight);
+    }
+
+    drawSpawningCooldownTimerBar(boid) {
+        const ctx = window.ctx;
+        const barWidth = 20;
+        const barHeight = 3;
+        const spawningDuration = 8000; // 8 seconds from spawning system config
+        const spawningPercent = boid.spawningProperties.spawningTimer / spawningDuration;
+        const timerBarY = boid.y - 11;
+        
+        // Timer background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(boid.x - barWidth/2, timerBarY, barWidth, barHeight);
+        
+        // Timer bar (plum to match spawning cooldown color)
+        ctx.fillStyle = '#DDA0DD';
         ctx.fillRect(boid.x - barWidth/2, timerBarY, barWidth * spawningPercent, barHeight);
     }
 

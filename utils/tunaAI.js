@@ -187,6 +187,9 @@ class TunaAI {
             const detectionRadiusSquared = preyGroup.detectionRadius * preyGroup.detectionRadius;
             
             for (let prey of preyGroup.array) {
+                // Check if this is a TrueFry (they have fishType 'truefry', 'truefry1', or 'truefry2')
+                const isTrueFry = prey.fishType === 'truefry' || prey.fishType === 'truefry1' || prey.fishType === 'truefry2';
+                
                 if (window.Utils && !window.Utils.shouldIgnorePrey(tuna.tunaType, prey.fishType)) {
                     const distSquared = window.Utils.distanceSquared(tuna, prey);
                     if (distSquared < detectionRadiusSquared) {

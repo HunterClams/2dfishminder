@@ -1,74 +1,112 @@
-// Fry Egg Laying System - Modular system for fry to lay eggs
-// When two fry enter feeding state and are within detection range, one will lay fish eggs
+// Fry Egg Laying System - Clean implementation
+// Detects when two fry are in feeding state within 80px and spawns eggs
 
 class FryEggLayingSystem {
     constructor() {
         this.config = {
-            DETECTION_RANGE: 80, // Range for fry to detect each other
-            LAYING_COOLDOWN: 15000, // 15 seconds cooldown between laying
-            LAYING_CHANCE: 0.3, // 30% chance to lay when conditions are met
-            EGG_DROP_OFFSET: 20 // Distance from fry to drop eggs
+            DETECTION_RANGE: 80, // Range for fry to detect each other in feeding state
+            EGG_COUNT_MIN: 1, // Minimum eggs to spawn
+            EGG_COUNT_MAX: 3, // Maximum eggs to spawn
+            EGG_LAYING_COOLDOWN: 15000, // 15 seconds cooldown between laying
+            LAYING_CHANCE: 0.8 // 80% chance to lay when conditions are met
         };
         
-        // Track fry that have recently laid eggs to prevent spam
-        this.recentLaying = new Map(); // fryId -> timestamp
+        // Track fry that have recently laid eggs
+        this.recentLaying = new Map(); // fryId -> { lastLayTime }
         
-        console.log('🥚 FryEggLayingSystem initialized');
+        console.log('🥚 FryEggLayingSystem initialized - Clean implementation');
     }
     
     /**
-     * Check if fry should lay eggs with nearby fry
-     * @param {Object} fry - The fry entity
+     * Process all fry for egg laying
+     * @param {Array} allFry - Array of all fry entities
+     * @param {Object} gameEntities - Game entities system
+     */
+    processAllFry(allFry, gameEntities) {
+        // Debug: Log fry state distribution
+        if (window.gameState?.fryEggLayingDebug) {
+            const stateCounts = {};
+            let totalRegularFry = 0;
+            
+            for (let fry of allFry) {
+                if (fry.fishType !== 'truefry1' && fry.fishType !== 'truefry2') {
+                    totalRegularFry++;
+                    const state = fry.behaviorState || 'undefined';
+                    stateCounts[state] = (stateCounts[state] || 0) + 1;
+                }
+            }
+            
+            if (totalRegularFry > 0) {
+                const stateText = `${totalRegularFry} regular fry - ${Object.entries(stateCounts).map(([state, count]) => `${state}:${count}`).join(', ')}`;
+                if (window.ConsoleDebugSystem && window.ConsoleDebugSystem.isEnabled()) {
+                    window.ConsoleDebugSystem.log('EGG_LAYING', `Fry state distribution: ${stateText}`);
+                }
+            }
+        }
+        
+        for (let fry of allFry) {
+            this.checkForEggLaying(fry, allFry, gameEntities);
+        }
+        
+        // Clean up old cooldown entries periodically
+        if (Math.random() < 0.01) { // 1% chance per frame
+            this.cleanup();
+        }
+    }
+    
+    /**
+     * Check if a fry should lay eggs
+     * @param {Object} fry - The fry entity to check
      * @param {Array} allFry - Array of all fry entities
      * @param {Object} gameEntities - Game entities system
      */
     checkForEggLaying(fry, allFry, gameEntities) {
-        // Only check if fry is in feeding state
-        if (fry.behaviorState !== 'feeding') {
-            if (window.gameState?.fryDebug) {
-                console.log(`🥚 Fry not in feeding state: ${fry.behaviorState} at (${fry.x.toFixed(1)}, ${fry.y.toFixed(1)})`);
-            }
+        // Skip TrueFry1 and TrueFry2 - they don't lay eggs
+        if (fry.fishType === 'truefry1' || fry.fishType === 'truefry2') {
             return;
         }
         
-        // Debug: Log when fry are in feeding state
-        if (window.gameState?.fryDebug) {
-            console.log(`🥚 Fry in feeding state at (${fry.x.toFixed(1)}, ${fry.y.toFixed(1)})`);
+        // Only allow egg laying when fry is in feeding state
+        if (fry.behaviorState !== 'feeding') {
+            return;
         }
         
-        // Check cooldown to prevent spam laying
+        // Check cooldown
         const fryId = this.getFryId(fry);
         const now = Date.now();
-        const lastLayTime = this.recentLaying.get(fryId) || 0;
+        const fryCooldown = this.recentLaying.get(fryId);
         
-        if (now - lastLayTime < this.config.LAYING_COOLDOWN) {
+        if (fryCooldown && now - fryCooldown.lastLayTime < this.config.EGG_LAYING_COOLDOWN) {
             return;
         }
         
-        // Find nearby fry in feeding state
+        // Find nearby fry in feeding state (excluding self)
         const nearbyFeedingFry = this.findNearbyFeedingFry(fry, allFry);
         
-        if (window.gameState?.fryDebug && nearbyFeedingFry.length > 0) {
-            console.log(`🥚 Found ${nearbyFeedingFry.length} nearby feeding fry`);
+        if (window.ConsoleDebugSystem && window.ConsoleDebugSystem.isEnabled()) {
+            window.ConsoleDebugSystem.log('EGG_LAYING', `Fry ${fry.fishType} found ${nearbyFeedingFry.length} nearby feeding fry`);
         }
         
+        // Only lay eggs if there are other feeding fry nearby
         if (nearbyFeedingFry.length > 0) {
             // Random chance to lay eggs
             if (Math.random() < this.config.LAYING_CHANCE) {
-                this.layEggs(fry, nearbyFeedingFry, gameEntities);
+                this.layEggs(fry, gameEntities);
                 
-                // Set cooldown
-                this.recentLaying.set(fryId, now);
+                // Set cooldown for this fry
+                this.recentLaying.set(fryId, {
+                    lastLayTime: now
+                });
                 
-                if (window.gameState?.fryDebug) {
-                    console.log(`🥚 Fry laying eggs with ${nearbyFeedingFry.length} nearby feeding fry`);
+                if (window.ConsoleDebugSystem && window.ConsoleDebugSystem.isEnabled()) {
+                    window.ConsoleDebugSystem.log('EGG_LAYING', `Fry ${fry.fishType} laid eggs and got cooldown`);
                 }
             }
         }
     }
     
     /**
-     * Find nearby fry in feeding state
+     * Find nearby fry in feeding state (excluding self)
      * @param {Object} fry - The fry entity
      * @param {Array} allFry - Array of all fry entities
      * @returns {Array} Array of nearby feeding fry
@@ -77,8 +115,15 @@ class FryEggLayingSystem {
         const nearbyFry = [];
         
         for (let otherFry of allFry) {
-            if (otherFry === fry) continue;
-            if (otherFry.behaviorState !== 'feeding') continue;
+            // Skip self and TrueFry
+            if (otherFry === fry || otherFry.fishType === 'truefry1' || otherFry.fishType === 'truefry2') {
+                continue;
+            }
+            
+            // Only count fry in feeding state
+            if (otherFry.behaviorState !== 'feeding') {
+                continue;
+            }
             
             const distance = Math.sqrt((fry.x - otherFry.x) ** 2 + (fry.y - otherFry.y) ** 2);
             
@@ -91,51 +136,48 @@ class FryEggLayingSystem {
     }
     
     /**
-     * Lay eggs by dropping fish eggs near the fry
+     * Lay eggs by dropping unfertilized fish eggs near the fry
      * @param {Object} fry - The fry laying eggs
-     * @param {Array} nearbyFry - Array of nearby feeding fry
      * @param {Object} gameEntities - Game entities system
      */
-    layEggs(fry, nearbyFry, gameEntities) {
+    layEggs(fry, gameEntities) {
         if (!gameEntities || !gameEntities.fishEggs || !window.FishEgg) {
+            console.warn('🐟 Cannot lay eggs - missing dependencies');
             return;
         }
         
-        // Random number of fish eggs to lay (1-3)
-        const eggCount = 1 + Math.floor(Math.random() * 3); // 1, 2, or 3
+        // Random number of eggs to lay
+        const eggCount = this.config.EGG_COUNT_MIN + Math.floor(Math.random() * (this.config.EGG_COUNT_MAX - this.config.EGG_COUNT_MIN + 1));
+        
+        console.log(`🐟 Fry ${fry.fishType} laying ${eggCount} eggs at (${fry.x.toFixed(1)}, ${fry.y.toFixed(1)})`);
         
         for (let i = 0; i < eggCount; i++) {
-            // Spawn fish eggs directly at the fry's location
-            const dropX = fry.x;
-            const dropY = fry.y;
+            // Spawn eggs near the fry with some spread
+            const spreadX = fry.x + (Math.random() - 0.5) * 20;
+            const spreadY = fry.y + (Math.random() - 0.5) * 20;
             
-            // Create fish egg
-            const newEgg = new window.FishEgg(dropX, dropY);
+            // Create unfertilized fish egg
+            const newEgg = new window.FishEgg(spreadX, spreadY);
             gameEntities.fishEggs.push(newEgg);
+            
+            console.log(`🥚 Created fish egg ${i+1}/${eggCount} at (${spreadX.toFixed(1)}, ${spreadY.toFixed(1)})`);
             
             // Create visual effect (bubbles)
             if (window.ObjectPools) {
                 for (let j = 0; j < 2; j++) {
                     window.ObjectPools.getEatingBubble(
-                        dropX + (Math.random() - 0.5) * 10,
-                        dropY + (Math.random() - 0.5) * 10
+                        spreadX + (Math.random() - 0.5) * 10,
+                        spreadY + (Math.random() - 0.5) * 10
                     );
                 }
             }
         }
         
-        // End feeding state for the fry that just laid eggs
+        // Change fry state from feeding to foraging
         fry.behaviorState = 'foraging';
-        fry.feedingTimer = 0;
-        fry.huntTarget = null;
         
-        // Start feeding cooldown to prevent hunting for 15 seconds
-        if (window.FryFeedingCooldownSystem) {
-            window.FryFeedingCooldownSystem.onEggsLaid(fry);
-        }
-        
-        if (window.gameState?.fryDebug) {
-            console.log(`🥚 Fry laid ${eggCount} fish eggs at (${fry.x.toFixed(1)}, ${fry.y.toFixed(1)}) and entered feeding cooldown`);
+        if (window.ConsoleDebugSystem && window.ConsoleDebugSystem.isEnabled()) {
+            window.ConsoleDebugSystem.log('EGG_LAYING', `Fry ${fry.fishType} laid ${eggCount} eggs and returned to foraging state`);
         }
     }
     
@@ -145,7 +187,6 @@ class FryEggLayingSystem {
      * @returns {string} Unique fry ID
      */
     getFryId(fry) {
-        // Use position and fish type as a simple ID
         return `${fry.fishType}_${Math.floor(fry.x)}_${Math.floor(fry.y)}`;
     }
     
@@ -154,36 +195,17 @@ class FryEggLayingSystem {
      */
     cleanup() {
         const now = Date.now();
-        const cutoffTime = now - this.config.LAYING_COOLDOWN * 2; // Remove entries older than 2x cooldown
+        const cutoffTime = now - this.config.EGG_LAYING_COOLDOWN * 2;
         
-        for (let [fryId, timestamp] of this.recentLaying.entries()) {
-            if (timestamp < cutoffTime) {
+        for (let [fryId, cooldown] of this.recentLaying.entries()) {
+            if (cooldown.lastLayTime < cutoffTime) {
                 this.recentLaying.delete(fryId);
             }
         }
     }
-    
-    /**
-     * Process all fry for egg laying
-     * @param {Array} allFry - Array of all fry entities
-     * @param {Object} gameEntities - Game entities system
-     */
-    processAllFry(allFry, gameEntities) {
-        for (let fry of allFry) {
-            this.checkForEggLaying(fry, allFry, gameEntities);
-        }
-        
-        // Clean up old cooldown entries periodically
-        if (Math.random() < 0.01) { // 1% chance per frame
-            this.cleanup();
-        }
-    }
 }
 
-// Create global instance
-const fryEggLayingSystem = new FryEggLayingSystem();
-
-// Export for global access
+// Export the class constructor for global access
 if (typeof window !== 'undefined') {
-    window.FryEggLayingSystem = fryEggLayingSystem;
+    window.FryEggLayingSystem = FryEggLayingSystem;
 } 

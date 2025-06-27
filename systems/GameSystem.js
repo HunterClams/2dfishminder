@@ -289,7 +289,15 @@ class GameSystem {
         // Draw all entities
         this.entities.bubbles.forEach(bubble => bubble.draw());
         this.entities.food.forEach(food => food.draw());
-        this.entities.poop.forEach(poop => poop.draw());
+        
+        // Use optimized poop rendering system
+        if (window.PoopRenderingSystem) {
+            window.PoopRenderingSystem.batchRender(this.entities.poop);
+        } else {
+            // Fallback to individual rendering
+            this.entities.poop.forEach(poop => poop.draw());
+        }
+        
         this.entities.krill.forEach(krill => krill.draw());
         this.entities.boids.forEach(boid => boid.draw());
         this.entities.predators.forEach(predator => predator.draw());

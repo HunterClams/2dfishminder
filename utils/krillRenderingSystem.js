@@ -59,8 +59,8 @@ class KrillRenderingSystem {
         this.drawKrillSprite(krill, sprites[currentSpriteKey], depthOpacity, tintStrength);
         
         // Debug visualization
-        if (window.gameState?.krillDebug) {
-            this.drawRegularKrillDebug(krill);
+        if (window.debugManager && window.debugManager.isDebugOn('krill')) {
+            this.drawDebugInfo(krill);
         }
     }
 
@@ -89,8 +89,8 @@ class KrillRenderingSystem {
         this.drawKrillSprite(paleKrill, sprites[currentSpriteKey], depthOpacity, tintStrength);
         
         // Debug visualization
-        if (window.gameState?.krillDebug) {
-            this.drawPaleKrillDebug(paleKrill);
+        if (window.debugManager && window.debugManager.isDebugOn('krill')) {
+            this.drawDebugInfo(paleKrill);
         }
     }
 
@@ -119,8 +119,8 @@ class KrillRenderingSystem {
         this.drawKrillSprite(momKrill, sprites[currentSpriteKey], depthOpacity, tintStrength);
         
         // Debug visualization
-        if (window.gameState?.krillDebug) {
-            this.drawMomKrillDebug(momKrill);
+        if (window.debugManager && window.debugManager.isDebugOn('krill')) {
+            this.drawDebugInfo(momKrill);
         }
     }
 

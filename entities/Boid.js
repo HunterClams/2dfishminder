@@ -50,9 +50,13 @@ class Boid extends (window.Entity || Entity) {
             this.feedingSystem = new (window.BoidFeedingSystem || BoidFeedingSystem)();
             this.renderingSystem = new (window.BoidRenderingSystem || BoidRenderingSystem)();
             
-            console.log('✅ Boid modular systems initialized successfully');
+            if (window.ConsoleDebugSystem) {
+                window.ConsoleDebugSystem.logSystemInit('BOID', 'Modular systems initialized successfully');
+            }
         } catch (error) {
-            console.error('❌ Error initializing Boid modular systems:', error);
+            if (window.ConsoleDebugSystem) {
+                window.ConsoleDebugSystem.logError('BOID', 'Error initializing modular systems: ' + error.message);
+            }
         }
     }
     

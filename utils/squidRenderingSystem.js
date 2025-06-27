@@ -55,7 +55,7 @@ class SquidRenderingSystem {
         this.drawGrabbedPrey(squid, reducedOpacity, angle);
         
         // Draw debug information
-        if (window.gameState && window.gameState.squidDebug) {
+        if (window.debugManager && window.debugManager.isDebugOn('squid')) {
             this.drawDebugInfo(squid);
         }
     }
@@ -72,11 +72,34 @@ class SquidRenderingSystem {
         const ctx = window.ctx;
         if (!ctx || !sprite) return;
 
+        // Validate sprite before drawing
+        if (!(sprite instanceof HTMLImageElement) || !sprite.complete || sprite.naturalWidth === 0) {
+            console.warn('🚨 Invalid sprite in SquidRenderingSystem drawSprite:', {
+                sprite: sprite,
+                type: typeof sprite,
+                isImage: sprite instanceof HTMLImageElement,
+                complete: sprite?.complete,
+                naturalWidth: sprite?.naturalWidth,
+                squidState: squid.state
+            });
+            return; // Skip drawing if sprite is invalid
+        }
+
         ctx.save();
         ctx.globalAlpha = opacity;
         ctx.translate(squid.x, squid.y);
         ctx.rotate(angle);
-        ctx.drawImage(sprite, -size/2, -size/2, size, size);
+        
+        try {
+            ctx.drawImage(sprite, -size/2, -size/2, size, size);
+        } catch (error) {
+            console.error('🚨 drawImage error in SquidRenderingSystem:', error, {
+                sprite: sprite,
+                size: size,
+                squidState: squid.state
+            });
+        }
+        
         ctx.restore();
     }
 
@@ -144,6 +167,20 @@ class SquidRenderingSystem {
             return;
         }
         
+        // Validate prey sprite before drawing
+        if (!(preySprite instanceof HTMLImageElement) || !preySprite.complete || preySprite.naturalWidth === 0) {
+            console.warn('🚨 Invalid prey sprite in SquidRenderingSystem drawGrabbedPrey:', {
+                preySpriteKey: preySpriteKey,
+                preySprite: preySprite,
+                type: typeof preySprite,
+                isImage: preySprite instanceof HTMLImageElement,
+                complete: preySprite?.complete,
+                naturalWidth: preySprite?.naturalWidth,
+                squidState: squid.state
+            });
+            return; // Skip drawing if sprite is invalid
+        }
+        
         const preyX = squid.x + Math.cos(squid.tentaclePulse) * this.config.PREY_OFFSET_X; 
         const preyY = squid.y + Math.sin(squid.tentaclePulse) * this.config.PREY_OFFSET_Y; 
         
@@ -165,8 +202,19 @@ class SquidRenderingSystem {
         ctx.globalAlpha = preyOpacity;
         ctx.translate(preyX, preyY);
         ctx.rotate(angle * 0.5);
-        ctx.drawImage(preySprite, -squid.grabbedPrey.size/2, -squid.grabbedPrey.size/2, 
-                     squid.grabbedPrey.size, squid.grabbedPrey.size);
+        
+        try {
+            ctx.drawImage(preySprite, -squid.grabbedPrey.size/2, -squid.grabbedPrey.size/2, 
+                         squid.grabbedPrey.size, squid.grabbedPrey.size);
+        } catch (error) {
+            console.error('🚨 drawImage error in SquidRenderingSystem drawGrabbedPrey:', error, {
+                preySprite: preySprite,
+                preySpriteKey: preySpriteKey,
+                preySize: squid.grabbedPrey.size,
+                squidState: squid.state
+            });
+        }
+        
         ctx.restore();
     }
 

@@ -30,12 +30,7 @@ class DebugViewSystem {
      * Bind keyboard events for debug toggle
      */
     bindKeyEvents() {
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'F3') {
-                event.preventDefault();
-                this.toggle();
-            }
-        });
+        // No longer needed, handled by DebugManager
     }
     
     /**
@@ -76,13 +71,13 @@ class DebugViewSystem {
     }
     
     /**
-     * Draw debug information for all entities and systems
-     * @param {CanvasRenderingContext2D} ctx - Canvas context
-     * @param {Object} gameEntities - Game entities system
-     * @param {Object} camera - Camera system
+     * Main draw method for debug overlay
      */
-    draw(ctx, gameEntities, camera) {
-        if (!this.isEnabled || !ctx || !gameEntities) return;
+    draw(ctx) {
+        // Only render if global debug is enabled
+        if (!(window.debugManager && window.debugManager.isGlobalDebugOn())) return;
+        
+        if (!this.isEnabled || !ctx || !window.gameEntities) return;
         
         ctx.save();
         
@@ -94,12 +89,13 @@ class DebugViewSystem {
         ctx.textAlign = 'left';
         
         // Draw debug info for each entity type
-        this.drawFishDebug(ctx, gameEntities.fish, camera);
-        this.drawPredatorDebug(ctx, gameEntities.predators, camera);
-        this.drawKrillDebug(ctx, gameEntities.krill, gameEntities.paleKrill, gameEntities.momKrill, camera);
-        this.drawSquidDebug(ctx, gameEntities.squid, camera);
-        this.drawSystemDebug(ctx, gameEntities, camera);
-        this.drawPerformanceDebug(ctx, camera);
+        this.drawFishDebug(ctx, window.gameEntities.fish, window.gameEntities.camera);
+        this.drawPredatorDebug(ctx, window.gameEntities.predators, window.gameEntities.camera);
+        this.drawKrillDebug(ctx, window.gameEntities.krill, window.gameEntities.paleKrill, window.gameEntities.momKrill, window.gameEntities.camera);
+        this.drawSquidDebug(ctx, window.gameEntities.squid, window.gameEntities.camera);
+        this.drawSpermDebug(ctx, window.gameEntities.sperm, window.gameEntities.camera);
+        this.drawSystemDebug(ctx, window.gameEntities, window.gameEntities.camera);
+        this.drawPerformanceDebug(ctx, window.gameEntities.camera);
         
         ctx.restore();
     }
@@ -118,9 +114,9 @@ class DebugViewSystem {
             const screenY = f.y - camera.y;
             
             // Draw AI state
-            if (f.aiState) {
-                ctx.fillStyle = this.getStateColor(f.aiState);
-                ctx.fillText(`${f.fishType} - ${f.aiState}`, screenX + 15, screenY - 15);
+            if (f.behaviorState) {
+                ctx.fillStyle = this.getStateColor(f.behaviorState);
+                ctx.fillText(`${f.fishType} - ${f.behaviorState}`, screenX + 15, screenY - 15);
             }
             
             // Draw detection ranges
@@ -132,12 +128,42 @@ class DebugViewSystem {
             }
             
             // Draw spawning state
-            if (f.spawningState && f.spawningState.isSpawning) {
+            if (f.behaviorState === 'spawning') {
                 ctx.strokeStyle = '#ff00ff';
+                ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.arc(screenX, screenY, 50, 0, Math.PI * 2);
                 ctx.stroke();
                 ctx.fillText('SPAWNING', screenX - 20, screenY - 30);
+                
+                // Draw target line if spawning target exists
+                if (f.spawningProperties && f.spawningProperties.spawningTarget) {
+                    const target = f.spawningProperties.spawningTarget;
+                    ctx.strokeStyle = '#ff00ff';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, screenY);
+                    ctx.lineTo(target.x - camera.x, target.y - camera.y);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    
+                    // Draw target egg
+                    ctx.strokeStyle = '#ff00ff';
+                    ctx.beginPath();
+                    ctx.arc(target.x - camera.x, target.y - camera.y, 10, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+            
+            // Draw spawning cooldown state
+            if (f.behaviorState === 'spawning_cooldown') {
+                ctx.strokeStyle = '#ff8800';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, 40, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.fillText('COOLDOWN', screenX - 20, screenY - 25);
             }
         }
     }
@@ -232,6 +258,48 @@ class DebugViewSystem {
     }
     
     /**
+     * Draw debug information for sperm
+     * @param {CanvasRenderingContext2D} ctx - Canvas context
+     * @param {Array} sperm - Sperm array
+     * @param {Object} camera - Camera system
+     */
+    drawSpermDebug(ctx, sperm, camera) {
+        if (!this.config.SHOW_LIFECYCLE || !sperm) return;
+        
+        for (let s of sperm) {
+            if (s.eaten) continue;
+            
+            const screenX = s.x - camera.x;
+            const screenY = s.y - camera.y;
+            
+            // Draw sperm info
+            ctx.fillStyle = '#00ffff';
+            ctx.fillText(`Sperm (${Math.round(s.lifespan || 0)}ms)`, screenX + 5, screenY - 5);
+            
+            // Draw velocity vector
+            if (s.velocity && (s.velocity.x !== 0 || s.velocity.y !== 0)) {
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(screenX, screenY);
+                ctx.lineTo(screenX + s.velocity.x * 10, screenY + s.velocity.y * 10);
+                ctx.stroke();
+            }
+            
+            // Draw fertilization range
+            if (this.config.SHOW_DETECTION_RANGES) {
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, 30, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+    }
+    
+    /**
      * Draw debug information for squid
      * @param {CanvasRenderingContext2D} ctx - Canvas context
      * @param {Array} squid - Squid array
@@ -285,11 +353,46 @@ class DebugViewSystem {
         yOffset += 15;
         ctx.fillText(`Food: ${gameEntities.fishFood?.length || 0}`, 10, startY + yOffset);
         yOffset += 15;
-        ctx.fillText(`Eggs: ${gameEntities.fishEggs?.length || 0}`, 10, startY + yOffset);
+        ctx.fillText(`Fish Eggs: ${gameEntities.fishEggs?.length || 0}`, 10, startY + yOffset);
+        yOffset += 15;
+        ctx.fillText(`Fertilized Eggs: ${gameEntities.fertilizedEggs?.length || 0}`, 10, startY + yOffset);
         yOffset += 15;
         ctx.fillText(`Sperm: ${gameEntities.sperm?.length || 0}`, 10, startY + yOffset);
         yOffset += 15;
         ctx.fillText(`Poop: ${gameEntities.poop?.length || 0}`, 10, startY + yOffset);
+        yOffset += 20;
+        
+        // Draw fry state distribution
+        if (gameEntities.fish && gameEntities.fish.length > 0) {
+            const fryStates = {};
+            let totalRegularFry = 0;
+            
+            for (let fry of gameEntities.fish) {
+                if (fry.fishType !== 'truefry1' && fry.fishType !== 'truefry2') {
+                    totalRegularFry++;
+                    const state = fry.behaviorState || 'undefined';
+                    fryStates[state] = (fryStates[state] || 0) + 1;
+                }
+            }
+            
+            if (totalRegularFry > 0) {
+                ctx.fillText(`Fry States (${totalRegularFry} total):`, 10, startY + yOffset);
+                yOffset += 15;
+                for (let [state, count] of Object.entries(fryStates)) {
+                    ctx.fillText(`  ${state}: ${count}`, 15, startY + yOffset);
+                    yOffset += 12;
+                }
+            }
+        }
+        
+        // Draw spawning system info
+        if (gameEntities.frySpawningSystem) {
+            const stats = gameEntities.frySpawningSystem.getSpawningStats(gameEntities.fish);
+            yOffset += 10;
+            ctx.fillText(`Spawning: ${stats.inSpawningState} active, ${stats.inCooldown} cooldown`, 10, startY + yOffset);
+            yOffset += 15;
+            ctx.fillText(`Can spawn: ${stats.canSpawn}/${stats.totalFry}`, 10, startY + yOffset);
+        }
     }
     
     /**

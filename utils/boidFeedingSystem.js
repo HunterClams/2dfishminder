@@ -14,7 +14,7 @@ class BoidFeedingSystem {
             boid.lastEatTime = 0;
             boid.huntTarget = null;
             boid.feedingTimer = 0;
-            boid.feedingDuration = this.config.BEHAVIOR_CONFIG?.feedingDuration || 3000;
+            boid.feedingDuration = this.config.BEHAVIOR_CONFIG?.feedingDuration || 8000;
             boid.foodConsumed = 0;
             boid.poopThreshold = this.getPoopThreshold();
         }
@@ -41,6 +41,12 @@ class BoidFeedingSystem {
         if (boid.behaviorState === 'spawning') {
             // Cannot eat food during spawning state but can move normally
             return false; // Exit early - no eating allowed during spawning state
+        }
+        
+        // Handle spawning cooldown state - prevent hunting after spawning
+        if (boid.behaviorState === 'spawning_cooldown') {
+            // Cannot hunt or eat during spawning cooldown but can move normally
+            return false; // Exit early - no hunting allowed during spawning cooldown
         }
         
         // Check all food types that small fry can eat
@@ -102,20 +108,25 @@ class BoidFeedingSystem {
     getFoodSources(gameEntities) {
         const foodConfig = this.config.FOOD_SOURCES || {};
         
-        return [
+        // Base food sources that all fry can eat
+        const baseFoodSources = [
             // Krill types with corrected food values
             { array: gameEntities.krill, name: 'krill', energyGain: foodConfig.krill?.energyGain || 15, range: foodConfig.krill?.range || 25, foodValue: foodConfig.krill?.foodValue || 3 },
             { array: gameEntities.paleKrill, name: 'paleKrill', energyGain: foodConfig.paleKrill?.energyGain || 12, range: foodConfig.paleKrill?.range || 25, foodValue: foodConfig.paleKrill?.foodValue || 2 },
             { array: gameEntities.momKrill, name: 'momKrill', energyGain: foodConfig.momKrill?.energyGain || 20, range: gameEntities.momKrill?.range || 25, foodValue: foodConfig.momKrill?.foodValue || 6 },
             // Fish food - same as regular krill
             { array: gameEntities.fishFood, name: 'fishFood', energyGain: foodConfig.fishFood?.energyGain || 10, range: foodConfig.fishFood?.range || 20, foodValue: foodConfig.fishFood?.foodValue || 3 },
-            // Fertilized eggs - high nutrition value
-            { array: gameEntities.fertilizedEggs, name: 'fertilizedEggs', energyGain: foodConfig.fertilizedEggs?.energyGain || 25, range: foodConfig.fertilizedEggs?.range || 25, foodValue: foodConfig.fertilizedEggs?.foodValue || 5 },
-            // Sperm - can be eaten by truefry
+            // Sperm - can be eaten by all fry
             { array: gameEntities.sperm, name: 'sperm', energyGain: foodConfig.sperm?.energyGain || 8, range: foodConfig.sperm?.range || 20, foodValue: foodConfig.sperm?.foodValue || 2 },
             // Poop (aged poop only - state 2 and 3) - different values for fry vs tuna poop
             { array: gameEntities.poop?.filter(p => p.state >= 2) || [], name: 'poop', energyGain: foodConfig.poop?.energyGain || 8, range: foodConfig.poop?.range || 22, foodValue: 'variable' }
         ];
+        
+        // Add fertilized eggs only for regular fry (not TrueFry)
+        // Note: This will be filtered by shouldIgnorePrey function, but we include it here for regular fry
+        const fertilizedEggsSource = { array: gameEntities.fertilizedEggs, name: 'fertilizedEggs', energyGain: foodConfig.fertilizedEggs?.energyGain || 25, range: foodConfig.fertilizedEggs?.range || 25, foodValue: foodConfig.fertilizedEggs?.foodValue || 5 };
+        
+        return [...baseFoodSources, fertilizedEggsSource];
     }
 
     eatFood(boid, food, foodSource, index) {
@@ -190,8 +201,13 @@ class BoidFeedingSystem {
     }
 
     getPoopThreshold() {
-        const config = this.config.BEHAVIOR_CONFIG?.poopThreshold || { min: 6, max: 8 };
-        return config.min + Math.floor(Math.random() * (config.max - config.min + 1));
+        // Make fry poop very frequently - only 1-2 food items
+        return 1 + Math.floor(Math.random() * 2); // 1-2 food items for frequent feeding states
+    }
+
+    getFeedingStateDuration() {
+        // Increase feeding state duration to 8 seconds for more egg laying opportunities
+        return 8000; // 8 seconds instead of 3
     }
 }
 

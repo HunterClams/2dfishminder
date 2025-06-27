@@ -47,22 +47,41 @@ window.WORLD_HEIGHT = WORLD_HEIGHT;
 window.CONSTANTS = CONSTANTS;
 window.FISH_TYPES = FISH_TYPES;
 
-const gameState = { 
-    spawnMode: 'food', 
-    frameCount: 0, 
-    lastFrameTime: 0, 
-    showUI: true, 
-    hudState: 'controls', // controls, full, off
-    behaviorDebug: 'off', // off, tuna, squid, fry, krill - T key to cycle
-    tunaDebug: false, // Legacy compatibility for tuna AI
-    squidDebug: true, // Enable squid debug to monitor behavior improvements
-    fryDebug: true, // Enable fry debug mode
-    krillDebug: true, // Enable krill debug mode
-    debugMode: false
+const gameState = {
+    spawnMode: 'off',
+    showUI: true,
+    hudState: 'full', // 'controls', 'full', or 'off'
+    lastFrameTime: 0,
+    frameCount: 0
+    // All debug flags are now managed by DebugManager and default to false
 };
 
 // Make gameState globally accessible
 window.gameState = gameState;
+
+// Initialize DebugManager
+if (window.DebugManager) {
+    window.debugManager = new window.DebugManager();
+    console.log('🔧 DebugManager instance created');
+    
+    // Connect DebugManager to ConsoleDebugSystem if available
+    if (window.ConsoleDebugSystem) {
+        window.ConsoleDebugSystem.setDebugManager(window.debugManager);
+        console.log('🔗 DebugManager connected to ConsoleDebugSystem');
+    }
+    
+    // Initialize DebugIntegration
+    if (window.DebugIntegration) {
+        window.DebugIntegration.setDebugManager(window.debugManager);
+        window.DebugIntegration.initialize();
+        console.log('🔗 DebugIntegration initialized');
+    } else {
+        console.warn('⚠️ DebugIntegration not found - debug integration disabled');
+    }
+} else {
+    console.warn('⚠️ DebugManager not found - debug functionality disabled');
+}
+
 const camera = { x: 0, y: 0, zoom: 1, minZoom: 0.5, maxZoom: 4.0, viewWidth: 0, viewHeight: 0 };
 const keys = { w: false, a: false, s: false, d: false, shift: false };
 
@@ -72,7 +91,7 @@ const spriteFiles = {
     smallFry3: 'smallFry3.png', smallFry4: 'smallFry4.png', tuna: 'tuna.png', tuna2: 'tuna2.png',
     tunaFins: 'tuna fins.png', // New overlay sprite for both tuna types
     tunaEaten: 'tuna eaten.png', tuna2Eaten: 'tuna2 eaten.png', // Tuna eaten overlay sprites
-    fishFood: 'fishFood.png', fishEgg: 'fishEgg.png', fishSperm: 'fishsperm.png', fertilizedEgg: 'fertilizedEgg.png', poop: 'poop.png', poop2: 'poop2.png', poop3: 'poop3.png',
+    fishFood: 'fishFood.png', fishEgg: 'fishEgg.png', fishSperm: 'fishsperm.png', fertilizedEgg: 'fertilizedegg.png', poop: 'poop.png', poop2: 'poop2.png', poop3: 'poop3.png',
     krill1: 'krill1.png', krill2: 'krill2.png', krill3: 'krill3.png', krillSpawnIcon: 'krillSpawnIcon.png',
     // Pale krill variant - lighter, more translucent
     paleKrill1: 'pale krill1.png', paleKrill2: 'pale krill2.png', paleKrill3: 'pale krill3.png',
@@ -248,6 +267,11 @@ function animate(currentTime = 0) {
     
     gameState.lastFrameTime = currentTime;
     gameState.frameCount++;
+    
+    // Reset console debug system frame counters
+    if (window.ConsoleDebugSystem) {
+        window.ConsoleDebugSystem.resetFrameCounters();
+    }
     
     window.updateCamera(camera, keys, CONSTANTS, WORLD_WIDTH, WORLD_HEIGHT);
     window.applyCamera(ctx);

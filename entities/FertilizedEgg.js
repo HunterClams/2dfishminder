@@ -4,22 +4,17 @@ class FertilizedEgg extends (window.Entity || Entity) {
         super(x, y);
         
         // Fertilized egg specific properties
-        this.size = 10; // Slightly larger than regular eggs
+        this.size = 4; // Increased by 3px from 1px
         this.eaten = false;
         this.spawnTime = Date.now();
-        this.lifespan = 60000; // 60 seconds lifespan (longer than regular eggs)
+        this.lifespan = 30000; // 30 seconds lifespan (reduced from 60, but still enough for hatching)
         this.nutritionValue = 5; // Higher nutrition than regular fish eggs
         this.fertilized = true; // Mark as fertilized
         
-        // Initialize velocity for gentle floating
-        this.velocity = {
-            x: (Math.random() - 0.5) * 0.3,
-            y: (Math.random() - 0.5) * 0.3
-        };
-        
-        // Gentle floating animation
-        this.floatOffset = Math.random() * Math.PI * 2;
-        this.floatSpeed = 0.015 + Math.random() * 0.01;
+        // Initialize shared floating system
+        if (window.EggFloatingSystem) {
+            window.EggFloatingSystem.initializeFloating(this);
+        }
         
         // Development timer for hatching
         this.developmentTimer = 0;
@@ -28,18 +23,16 @@ class FertilizedEgg extends (window.Entity || Entity) {
         // Hatching system compatibility
         this.hatchTimer = 0; // Timer for hatching system
         this.hatched = false; // Flag to prevent double hatching
+        this.hatchDuration = 7000 + Math.random() * 6000; // Random duration between 7-13 seconds
         
         console.log('🥚 FertilizedEgg created at', x, y);
     }
     
     update() {
-        // Gentle floating movement
-        this.floatOffset += this.floatSpeed;
-        this.y += Math.sin(this.floatOffset) * 0.15;
-        
-        // Apply gentle drift
-        this.x += this.velocity.x;
-        this.y += this.velocity.y;
+        // Use shared floating system
+        if (window.EggFloatingSystem) {
+            window.EggFloatingSystem.updateFloating(this);
+        }
         
         // Update development timer
         this.developmentTimer += 16; // Approximate frame time
@@ -63,14 +56,25 @@ class FertilizedEgg extends (window.Entity || Entity) {
     }
     
     draw() {
+        // Use the modular egg rendering system
+        if (window.EggRenderingSystem) {
+            window.EggRenderingSystem.drawFertilizedEgg(this);
+        } else {
+            // Fallback to original drawing method if system not available
+            this.drawFallback();
+        }
+    }
+    
+    drawFallback() {
         if (this.eaten) return;
         
         const sprites = window.sprites || {};
         const fertilizedEggSprite = sprites.fertilizedEgg;
         
-        if (!fertilizedEggSprite) {
-            // Fallback: draw a simple fertilized egg shape
-            this.drawFallbackFertilizedEgg();
+        // Validate sprite before drawing
+        if (!fertilizedEggSprite || !(fertilizedEggSprite instanceof HTMLImageElement) || !fertilizedEggSprite.complete) {
+            // Fallback: draw a simple egg shape
+            this.drawFallbackEgg();
             return;
         }
         
@@ -81,7 +85,7 @@ class FertilizedEgg extends (window.Entity || Entity) {
         if (!ctx) return;
         
         // Calculate depth-based opacity
-        const depthOpacity = window.Utils ? window.Utils.getDepthOpacity(this.y, 0.95) : 0.95;
+        const depthOpacity = window.Utils ? window.Utils.getDepthOpacity(this.y, 0.9) : 0.9;
         const tintStrength = window.Utils ? window.Utils.getDepthTint(this.y) : 0;
         
         ctx.save();
@@ -93,20 +97,27 @@ class FertilizedEgg extends (window.Entity || Entity) {
         }
         
         // Add gentle floating animation
-        const floatY = this.y + Math.sin(this.floatOffset) * 2;
+        const floatY = window.EggFloatingSystem ? 
+            window.EggFloatingSystem.getFloatingY(this) : 
+            this.y + Math.sin(this.floatOffset) * 2;
         
-        // Draw the fertilized egg sprite
-        ctx.drawImage(fertilizedEggSprite, this.x - this.size/2, floatY - this.size/2, this.size, this.size);
+        // Draw the fertilized egg sprite with validation
+        try {
+            ctx.drawImage(fertilizedEggSprite, this.x - this.size/2, floatY - this.size/2, this.size, this.size);
+        } catch (error) {
+            console.warn('🥚 FertilizedEgg drawImage error:', error);
+            this.drawFallbackEgg();
+        }
         
         ctx.restore();
         
         // Debug visualization
-        if (window.gameState?.fryDebug) {
+        if (window.debugManager && window.debugManager.isGlobalDebugOn()) {
             this.drawDebugInfo();
         }
     }
     
-    drawFallbackFertilizedEgg() {
+    drawFallbackEgg() {
         const ctx = window.ctx;
         if (!ctx) return;
         
@@ -117,7 +128,9 @@ class FertilizedEgg extends (window.Entity || Entity) {
         ctx.strokeStyle = 'rgba(180, 180, 100, 0.7)';
         ctx.lineWidth = 2;
         
-        const floatY = this.y + Math.sin(this.floatOffset) * 2;
+        const floatY = window.EggFloatingSystem ? 
+            window.EggFloatingSystem.getFloatingY(this) : 
+            this.y + Math.sin(this.floatOffset) * 2;
         
         // Draw oval fertilized egg shape with development indicator
         ctx.beginPath();

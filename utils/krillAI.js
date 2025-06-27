@@ -25,6 +25,10 @@ const KRILL_CONFIG = {
     REST_THRESHOLD: 0.3,        // Energy level to enter rest state
     ENERGY_RECOVERY: 0.6,       // Energy level to exit rest state
     
+    // Post-migration resting (3x longer)
+    POST_MIGRATION_REST_DURATION: 18000, // 18 seconds (3x the normal 6 seconds)
+    POST_MIGRATION_REST_ENERGY_GAIN: 0.001, // Slower energy recovery during post-migration rest
+    
     // Behavioral ranges
     FOOD_DETECTION_RANGE: 120,   // Range to detect food (doubled from 60)
     PREDATOR_DETECTION_RANGE: 150, // Range to detect threats
@@ -81,6 +85,11 @@ class KrillBehaviorTree {
         // Eating state - if food is very close
         if (this.isEatingFood(poop, food)) {
             return this.changeState(KRILL_STATES.EATING);
+        }
+        
+        // Post-migration resting - high priority after migration
+        if (this.krill.wasMigrating && this.krill.energy < KRILL_CONFIG.ENERGY_RECOVERY) {
+            return this.changeState(KRILL_STATES.RESTING);
         }
         
         // Energy-based state decisions
@@ -144,9 +153,16 @@ class KrillBehaviorTree {
             case KRILL_STATES.MIGRATING:
                 this.krill.migrationTarget = null;
                 this.krill.migrationPhase = this.calculateMigrationPhase();
+                this.krill.wasMigrating = true; // Track that krill was migrating
                 break;
             case KRILL_STATES.RESTING:
                 this.krill.restStartTime = Date.now();
+                // Check if this is post-migration rest
+                if (this.krill.wasMigrating) {
+                    this.krill.postMigrationRest = true;
+                    this.krill.postMigrationRestStart = Date.now();
+                    this.krill.wasMigrating = false; // Reset migration flag
+                }
                 break;
         }
     }
@@ -483,12 +499,28 @@ class KrillAI {
         // Minimal movement during rest
         this.calculateBasicFlocking(krill, nearbyKrill, forces, 0.2);
         
-        // Gradual energy recovery
-        krill.energy = Math.min(1.0, krill.energy + 0.002);
-        
-        // Exit rest state when energy recovers
-        if (krill.energy > KRILL_CONFIG.ENERGY_RECOVERY) {
-            krill.behaviorState = KRILL_STATES.FORAGING;
+        // Check if this is post-migration rest
+        if (krill.postMigrationRest) {
+            const restDuration = Date.now() - krill.postMigrationRestStart;
+            
+            // Post-migration rest: longer duration and slower energy recovery
+            if (restDuration < KRILL_CONFIG.POST_MIGRATION_REST_DURATION) {
+                // Slower energy recovery during post-migration rest
+                krill.energy = Math.min(1.0, krill.energy + KRILL_CONFIG.POST_MIGRATION_REST_ENERGY_GAIN);
+            } else {
+                // Post-migration rest complete
+                krill.postMigrationRest = false;
+                krill.postMigrationRestStart = null;
+                krill.behaviorState = KRILL_STATES.FORAGING;
+            }
+        } else {
+            // Normal rest: standard energy recovery
+            krill.energy = Math.min(1.0, krill.energy + 0.002);
+            
+            // Exit rest state when energy recovers
+            if (krill.energy > KRILL_CONFIG.ENERGY_RECOVERY) {
+                krill.behaviorState = KRILL_STATES.FORAGING;
+            }
         }
     }
     

@@ -3,6 +3,9 @@ class EntityCounter {
     constructor() {
         // World population counters
         this.worldCounts = {
+            trueFry1: 0,
+            trueFry2: 0,
+            regularFry: 0,
             bubbles: 0,
             fish: 0,
             predators: 0,
@@ -22,6 +25,8 @@ class EntityCounter {
             food: 0,
             krill: 0,
             poop: 0,
+            truefry1: 0,
+            truefry2: 0,
             fry: 0,
             tuna: 0,
             squid: 0
@@ -29,8 +34,10 @@ class EntityCounter {
         
         // Entity display configuration
         this.entityDisplayConfig = [
+            { key: 'trueFry1', name: 'TrueFry1', icon: 'truefry1' },
+            { key: 'trueFry2', name: 'TrueFry2', icon: 'truefry2' },
+            { key: 'regularFry', name: 'Regular Fry', icon: 'smallFry2' },
             { key: 'bubbles', name: 'Bubbles', icon: 'bubble1' },
-            { key: 'fish', name: 'Small Fish', icon: 'smallFry2' },
             { key: 'predators', name: 'Tuna', icon: 'tuna' },
             { key: 'krill', name: 'Krill', icon: 'krill1' },
             { key: 'paleKrill', name: 'Pale Krill', icon: 'paleKrill1' },
@@ -38,7 +45,7 @@ class EntityCounter {
             { key: 'squid', name: 'Giant Squid', icon: 'giantSquid1' },
             { key: 'fishFood', name: 'Fish Food', icon: 'fishFood' },
             { key: 'fishEggs', name: 'Fish Eggs', icon: 'fishEgg' },
-            { key: 'sperm', name: 'Fish Sperm', icon: 'fishEgg' },
+            { key: 'sperm', name: 'Fish Sperm', icon: 'fishSperm' },
             { key: 'poop', name: 'Poop', icon: 'poop' },
             { key: 'eatingBubbles', name: 'Eating Bubbles', icon: 'bubble2' }
         ];
@@ -65,6 +72,15 @@ class EntityCounter {
         this.worldCounts.fishEggs = gameEntities.fishEggs ? gameEntities.fishEggs.length : 0;
         this.worldCounts.sperm = gameEntities.sperm ? gameEntities.sperm.length : 0;
         this.worldCounts.poop = gameEntities.poop ? gameEntities.poop.length : 0;
+        
+        // Count fry stages
+        if (gameEntities.fish) {
+            this.worldCounts.trueFry1 = gameEntities.fish.filter(f => f.constructor.name === 'TrueFry1').length;
+            this.worldCounts.trueFry2 = gameEntities.fish.filter(f => f.constructor.name === 'TrueFry2').length;
+            this.worldCounts.regularFry = gameEntities.fish.filter(f => 
+                f.constructor.name !== 'TrueFry1' && f.constructor.name !== 'TrueFry2'
+            ).length;
+        }
         
         // Count active eating bubbles from object pool
         if (objectPools && objectPools.eatingBubbles) {
@@ -239,6 +255,8 @@ class EntityCounter {
             food: 'Food',
             krill: 'Krill',
             poop: 'Poop',
+            truefry1: 'TrueFry1',
+            truefry2: 'TrueFry2',
             fry: 'Fry',
             tuna: 'Tuna',
             squid: 'Squid'

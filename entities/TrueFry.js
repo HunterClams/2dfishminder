@@ -1,226 +1,436 @@
-// TrueFry class - Enhanced fry with stronger schooling behavior
-class TrueFry extends Boid {
-    constructor() {
-        // Call parent constructor with truefry type
-        super('truefry');
+// TrueFry System - Two-stage fry evolution following krill pattern
+// TrueFry1 → TrueFry2 → SmallFry4 (regular fry)
+
+class TrueFry1 extends Boid {
+    constructor(x, y, velocity = null) {
+        // Call parent constructor with fish type
+        super('truefry1');
         
-        // Enhanced schooling properties
-        this.schoolingIntensity = 2.0; // Stronger schooling urge (vs 1.0 for regular fry)
-        this.cohesionRadius = 100; // Larger cohesion radius (vs 80 for regular fry)
-        this.alignmentRadius = 80; // Larger alignment radius (vs 60 for regular fry)
-        this.separationRadius = 25; // Tighter separation (vs 35 for regular fry)
-        
-        // Enhanced movement properties
-        this.maxSpeed = 3.5; // Slightly faster than regular fry
-        this.maxForce = 0.08; // More responsive steering
-        this.size = 40; // Slightly larger than regular fry
-        
-        // TrueFry specific properties
-        this.fishType = 'truefry';
-        this.spriteFrames = ['truefry1', 'truefry1', 'truefry1', 'truefry1']; // Use truefry sprite
-        this.frameSpeed = 0.12; // Slightly faster animation
-        
-        // Enhanced energy and nutrition (truefry are more robust)
-        this.energy = 120; // Higher energy than regular fry
-        this.nutritionLevel = 0.9; // Higher nutrition value
-        this.hunger = Math.random() * 0.3; // Lower initial hunger
-        
-        // Schooling behavior enhancements
-        this.schoolingTarget = null;
-        this.schoolingUrge = 0.9; // Very high urge to school
-        this.formationPreference = 'tight'; // Prefer tight formations
-        
-        // Initialize modular systems with enhanced schooling
-        this.initializeTrueFrySystems();
-        
-        console.log('🐟 TrueFry created with enhanced schooling behavior');
-    }
-    
-    initializeTrueFrySystems() {
-        // Enhanced flocking system for stronger schooling
-        if (window.BoidFlockingSystem) {
-            this.flockingSystem = new window.BoidFlockingSystem();
-            // Override constants for stronger schooling
-            this.flockingSystem.constants.PERCEPTION_RADIUS = 80; // Larger perception
-            this.flockingSystem.constants.SEPARATION_RADIUS = 25; // Tighter separation
+        // Override spawn position if provided
+        if (x !== undefined && y !== undefined) {
+            this.x = x;
+            this.y = y;
         }
         
-        // Enhanced feeding system
-        if (window.BoidFeedingSystem) {
-            this.feedingSystem = new window.BoidFeedingSystem();
+        // Override velocity if provided
+        if (velocity) {
+            this.velocity = velocity;
+        }
+        
+        // TrueFry1 specific properties (override Boid defaults)
+        this.size = 12; // Reduced by 6px from 18px
+        this.maxSpeed = 3.0;
+        this.maxForce = 0.06;
+        this.frameSpeed = 0.1;
+        
+        // Enhanced schooling (slightly increased swarm tendencies)
+        this.cohesionRadius = 90; // Slightly larger than regular fry
+        this.alignmentRadius = 70; // Slightly larger than regular fry
+        this.separationRadius = 30; // Slightly tighter than regular fry
+        this.schoolingUrge = 1.2; // Enhanced schooling urge
+        
+        // Evolution properties
+        this.evolutionTimer = 0;
+        this.evolutionDuration = 7000; // 7 seconds
+        this.hasEatenThisStage = 0; // Track count of food eaten, not boolean
+        this.canTransform = true;
+        
+        // Energy and nutrition
+        this.energy = 100;
+        this.nutritionLevel = 0.6;
+        this.hunger = Math.random() * 0.5;
+        
+        // Prevent spawning state (TrueFry cannot enter spawning)
+        this.canSpawn = false;
+        this.behaviorState = 'foraging'; // Start in foraging state
+        
+        if (window.ConsoleDebugSystem) {
+            window.ConsoleDebugSystem.logEntityCreated('TRUEFRY', 'TrueFry1', this.x, this.y);
         }
     }
     
     update(boids, predators, food, krill = [], poop = [], fertilizedEggs = []) {
-        // Enhanced schooling behavior
-        this.updateSchooling(boids);
-        
         // Standard boid behaviors
-        this.updateFeeding(food, krill, poop, fertilizedEggs);
-        this.updatePredatorAvoidance(predators);
-        this.updateMovement();
-        this.updateAnimation();
+        this.flock(boids, predators, food, krill);
+        this.checkForFood(krill, food, poop, fertilizedEggs);
+        this.move();
+        this.edges();
         
-        // Handle edges
-        if (window.Utils && window.Utils.handleEdges) {
-            window.Utils.handleEdges(this, 20, 0.8);
-        }
+        // Update evolution timer (cap at evolutionDuration to prevent going over 100%)
+        this.evolutionTimer = Math.min(this.evolutionTimer + 16, this.evolutionDuration);
+        
+        // Let the TrueFryTransformationSystem handle evolution logic
+        // This class only updates the timer and sets flags
     }
     
-    updateSchooling(boids) {
-        if (!this.flockingSystem) return;
-        
-        // Enhanced flocking with stronger schooling urge
-        this.flockingSystem.flock(this, boids, [], [], []);
-        
-        // Additional schooling behavior
-        this.findSchoolingTarget(boids);
-        this.applySchoolingUrge();
+    // Override food consumption to trigger evolution
+    consumeFood(food) {
+        super.consumeFood(food);
+        this.hasEatenThisStage++;
     }
     
-    findSchoolingTarget(boids) {
-        let bestTarget = null;
-        let bestScore = 0;
-        
-        for (let other of boids) {
-            if (other === this || other.fishType !== 'truefry') continue;
-            
-            const distance = Math.sqrt((this.x - other.x) ** 2 + (this.y - other.y) ** 2);
-            
-            if (distance < this.cohesionRadius) {
-                // Score based on proximity and velocity alignment
-                const velocityAlignment = Math.abs(
-                    (this.velocity.x * other.velocity.x + this.velocity.y * other.velocity.y) /
-                    (Math.sqrt(this.velocity.x ** 2 + this.velocity.y ** 2) * 
-                     Math.sqrt(other.velocity.x ** 2 + other.velocity.y ** 2))
-                );
-                
-                const score = (this.cohesionRadius - distance) / this.cohesionRadius * velocityAlignment;
-                
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestTarget = other;
-                }
-            }
-        }
-        
-        this.schoolingTarget = bestTarget;
+    consumePoop(poop, poopArray, index) {
+        super.consumePoop(poop, poopArray, index);
+        this.hasEatenThisStage++;
     }
     
-    applySchoolingUrge() {
-        if (!this.schoolingTarget) return;
+    draw() {
+        if (!window.Utils?.inRenderDistance(this)) return;
         
-        // Strong urge to follow schooling target
-        const dx = this.schoolingTarget.x - this.x;
-        const dy = this.schoolingTarget.y - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        const sprites = window.sprites || {};
         
-        if (distance > 0) {
-            const schoolingForce = this.schoolingUrge * this.maxForce;
-            this.velocity.x += (dx / distance) * schoolingForce;
-            this.velocity.y += (dy / distance) * schoolingForce;
-        }
-    }
-    
-    updateFeeding(food, krill, poop, fertilizedEggs) {
-        if (!this.feedingSystem) return;
-        
-        // TrueFry can eat the same things as regular fry but more efficiently
-        const ateSomething = this.feedingSystem.checkForFood(this, krill, food, poop, fertilizedEggs);
-        
-        // If truefry ate something and we have the evolution system, mark it
-        if (ateSomething && window.TrueFryEvolutionSystem) {
-            window.TrueFryEvolutionSystem.markAsEaten(this);
-        }
-    }
-    
-    updatePredatorAvoidance(predators) {
-        // Enhanced predator avoidance
-        for (let predator of predators) {
-            const distance = Math.sqrt((this.x - predator.x) ** 2 + (this.y - predator.y) ** 2);
-            const fleeRadius = 150; // Larger flee radius than regular fry
-            
-            if (distance < fleeRadius) {
-                const fleeIntensity = (fleeRadius - distance) / fleeRadius * 2.0; // Stronger flee
-                const dx = this.x - predator.x;
-                const dy = this.y - predator.y;
-                
-                if (distance > 0) {
-                    this.velocity.x += (dx / distance) * fleeIntensity * this.maxForce;
-                    this.velocity.y += (dy / distance) * fleeIntensity * this.maxForce;
-                }
-            }
-        }
-    }
-    
-    updateMovement() {
-        // Apply velocity
-        this.x += this.velocity.x;
-        this.y += this.velocity.y;
-        
-        // Limit velocity
-        if (window.Utils && window.Utils.limitVelocity) {
-            window.Utils.limitVelocity(this.velocity, this.maxSpeed);
-        }
-    }
-    
-    updateAnimation() {
-        this.animationFrame += this.frameSpeed;
-        if (this.animationFrame >= this.spriteFrames.length) {
-            this.animationFrame = 0;
-        }
-    }
-    
-    draw(ctx, camera) {
-        if (!ctx || !camera) return;
-        
-        // Calculate screen position
-        const screenX = this.x - camera.x + camera.width / 2;
-        const screenY = this.y - camera.y + camera.height / 2;
-        
-        // Check if on screen
-        if (screenX < -50 || screenX > camera.width + 50 || 
-            screenY < -50 || screenY > camera.height + 50) {
+        // Use the same sprite allocation as regular fry
+        const sprite = sprites[this.fishType];
+        if (!sprite || !(sprite instanceof HTMLImageElement) || !sprite.complete || sprite.naturalWidth === 0) {
+            // Fallback circle if sprite not found
+            this.drawFallback();
             return;
         }
         
-        // Get sprite frame
-        const frameIndex = Math.floor(this.animationFrame) % this.spriteFrames.length;
-        const spriteName = this.spriteFrames[frameIndex];
+        // Use the same angle calculation as regular fry
+        const angle = Math.atan2(this.velocity.y, Math.abs(this.velocity.x)) * 0.5;
         
-        // Draw sprite
-        if (window.sprites && window.sprites[spriteName]) {
-            const sprite = window.sprites[spriteName];
-            const drawSize = this.size * camera.zoom;
-            
-            ctx.save();
-            ctx.translate(screenX, screenY);
-            
-            // Rotate based on velocity
-            const angle = Math.atan2(this.velocity.y, this.velocity.x);
-            ctx.rotate(angle);
-            
-            // Draw with enhanced visual effects
-            ctx.globalAlpha = 0.9; // Slightly more visible than regular fry
-            ctx.drawImage(
-                sprite,
-                -drawSize / 2, -drawSize / 2,
-                drawSize, drawSize
-            );
-            
-            ctx.restore();
-        } else {
-            // Fallback circle if sprite not found
-            ctx.save();
-            ctx.fillStyle = '#4CAF50';
-            ctx.globalAlpha = 0.8;
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, this.size * camera.zoom / 2, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
+        // Apply deep water shader effects for TrueFry with 75% opacity
+        const baseOpacity = window.Utils.getDepthOpacity(this.y, 0.9) * 0.75; // 75% opacity
+        const tintStrength = window.Utils.getDepthTint(this.y);
+        
+        // Draw with deep water shader effects
+        this.drawWithDeepWaterShader(sprite, this.size, baseOpacity, angle, tintStrength);
+        
+        // Debug info
+        if (window.gameState?.fryDebug) {
+            this.drawDebugInfo();
         }
+    }
+    
+    drawWithDeepWaterShader(sprite, size, opacity, angle, tintStrength) {
+        const ctx = window.ctx;
+        if (!ctx) return;
+        
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        // Flip sprite based on horizontal movement direction
+        if (this.velocity.x < 0) {
+            ctx.scale(-1, 1);
+        }
+        
+        // Apply rotation if provided (for directional movement)
+        if (angle !== 0) {
+            ctx.rotate(angle);
+        }
+        
+        if (tintStrength > 0) {
+            // Create temporary canvas for proper transparency handling
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = size;
+            tempCanvas.height = size;
+            
+            // Draw sprite on temp canvas with validation
+            try {
+                tempCtx.drawImage(sprite, 0, 0, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in TrueFry temp canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    fishType: this.fishType
+                });
+                ctx.restore();
+                return;
+            }
+            
+            // Apply deep water tint using source-atop (only affects non-transparent pixels)
+            tempCtx.globalCompositeOperation = 'source-atop';
+            tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
+            tempCtx.fillRect(0, 0, size, size);
+            
+            // Draw the tinted sprite to main canvas
+            ctx.globalAlpha = opacity;
+            ctx.drawImage(tempCanvas, -size/2, -size/2);
+        } else {
+            // No tint needed, draw normally with validation
+            ctx.globalAlpha = opacity;
+            try {
+                ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in TrueFry main canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    fishType: this.fishType
+                });
+            }
+        }
+        
+        ctx.restore();
+    }
+    
+    drawFallback() {
+        const ctx = window.ctx;
+        if (!ctx) return;
+        
+        // Apply deep water shader effects to fallback drawing too with 75% opacity
+        const baseOpacity = window.Utils.getDepthOpacity(this.y, 0.8) * 0.75; // 75% opacity
+        const tintStrength = window.Utils.getDepthTint(this.y);
+        
+        ctx.save();
+        ctx.globalAlpha = baseOpacity;
+        
+        if (tintStrength > 0) {
+            // Apply blue tint for deep water effect
+            ctx.fillStyle = `rgba(76, 175, 80, ${1 - tintStrength * 0.3})`; // Green with blue tint
+        } else {
+            ctx.fillStyle = '#4CAF50';
+        }
+        
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+    
+    drawDebugInfo() {
+        const ctx = window.ctx;
+        if (!ctx) return;
+        
+        ctx.save();
+        ctx.fillStyle = '#4CAF50';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('TRUEFRY1', this.x, this.y - this.size/2 - 10);
+        
+        const evolutionPercent = this.evolutionTimer / this.evolutionDuration;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.font = '8px Arial';
+        ctx.fillText(`Evolution: ${(evolutionPercent * 100).toFixed(1)}%`, this.x, this.y + this.size/2 + 15);
+        
+        // Evolution bar
+        const barWidth = 20;
+        const barHeight = 3;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(this.x - barWidth/2, this.y + this.size/2 + 20, barWidth, barHeight);
+        ctx.fillStyle = '#4CAF50';
+        ctx.fillRect(this.x - barWidth/2, this.y + this.size/2 + 20, barWidth * evolutionPercent, barHeight);
+        
+        ctx.restore();
+    }
+}
+
+class TrueFry2 extends Boid {
+    constructor(x, y, velocity = null) {
+        // Call parent constructor with fish type
+        super('truefry2');
+        
+        // Override spawn position if provided
+        if (x !== undefined && y !== undefined) {
+            this.x = x;
+            this.y = y;
+        }
+        
+        // Override velocity if provided
+        if (velocity) {
+            this.velocity = velocity;
+        }
+        
+        // TrueFry2 specific properties (override Boid defaults)
+        this.size = 20; // Slightly larger than TrueFry1
+        this.maxSpeed = 3.2;
+        this.maxForce = 0.07;
+        this.frameSpeed = 0.12;
+        
+        // Enhanced schooling (slightly increased swarm tendencies)
+        this.cohesionRadius = 95; // Slightly larger than TrueFry1
+        this.alignmentRadius = 75; // Slightly larger than TrueFry1
+        this.separationRadius = 28; // Slightly tighter than TrueFry1
+        this.schoolingUrge = 1.3; // Enhanced schooling urge
+        
+        // Evolution properties
+        this.evolutionTimer = 0;
+        this.evolutionDuration = 7000; // 7 seconds
+        this.hasEatenThisStage = 0; // Track count of food eaten, not boolean
+        this.canTransform = true;
+        
+        // Energy and nutrition
+        this.energy = 110;
+        this.nutritionLevel = 0.7;
+        this.hunger = Math.random() * 0.4;
+        
+        // Prevent spawning state (TrueFry2 cannot lay eggs or spawn)
+        this.canSpawn = false;
+        this.behaviorState = 'foraging'; // Start in foraging state
+        
+        if (window.ConsoleDebugSystem) {
+            window.ConsoleDebugSystem.logEntityCreated('TRUEFRY', 'TrueFry2', this.x, this.y);
+        }
+    }
+    
+    update(boids, predators, food, krill = [], poop = [], fertilizedEggs = []) {
+        // Standard boid behaviors
+        this.flock(boids, predators, food, krill);
+        this.checkForFood(krill, food, poop, fertilizedEggs);
+        this.move();
+        this.edges();
+        
+        // Update evolution timer (cap at evolutionDuration to prevent going over 100%)
+        this.evolutionTimer = Math.min(this.evolutionTimer + 16, this.evolutionDuration);
+        
+        // Let the TrueFryTransformationSystem handle evolution logic
+        // This class only updates the timer and sets flags
+    }
+    
+    // Override food consumption to trigger evolution
+    consumeFood(food) {
+        super.consumeFood(food);
+        this.hasEatenThisStage++;
+    }
+    
+    consumePoop(poop, poopArray, index) {
+        super.consumePoop(poop, poopArray, index);
+        this.hasEatenThisStage++;
+    }
+    
+    draw() {
+        if (!window.Utils?.inRenderDistance(this)) return;
+        
+        const sprites = window.sprites || {};
+        
+        // Use the same sprite allocation as regular fry
+        const sprite = sprites[this.fishType];
+        if (!sprite || !(sprite instanceof HTMLImageElement) || !sprite.complete || sprite.naturalWidth === 0) {
+            // Fallback circle if sprite not found
+            this.drawFallback();
+            return;
+        }
+        
+        // Use the same angle calculation as regular fry
+        const angle = Math.atan2(this.velocity.y, Math.abs(this.velocity.x)) * 0.5;
+        
+        // Apply deep water shader effects for TrueFry
+        const baseOpacity = window.Utils.getDepthOpacity(this.y, 0.9);
+        const tintStrength = window.Utils.getDepthTint(this.y);
+        
+        // Draw with deep water shader effects
+        this.drawWithDeepWaterShader(sprite, this.size, baseOpacity, angle, tintStrength);
+        
+        // Debug info
+        if (window.gameState?.fryDebug) {
+            this.drawDebugInfo();
+        }
+    }
+    
+    drawWithDeepWaterShader(sprite, size, opacity, angle, tintStrength) {
+        const ctx = window.ctx;
+        if (!ctx) return;
+        
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        // Flip sprite based on horizontal movement direction
+        if (this.velocity.x < 0) {
+            ctx.scale(-1, 1);
+        }
+        
+        // Apply rotation if provided (for directional movement)
+        if (angle !== 0) {
+            ctx.rotate(angle);
+        }
+        
+        if (tintStrength > 0) {
+            // Create temporary canvas for proper transparency handling
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = size;
+            tempCanvas.height = size;
+            
+            // Draw sprite on temp canvas with validation
+            try {
+                tempCtx.drawImage(sprite, 0, 0, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in TrueFry temp canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    fishType: this.fishType
+                });
+                ctx.restore();
+                return;
+            }
+            
+            // Apply deep water tint using source-atop (only affects non-transparent pixels)
+            tempCtx.globalCompositeOperation = 'source-atop';
+            tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
+            tempCtx.fillRect(0, 0, size, size);
+            
+            // Draw the tinted sprite to main canvas
+            ctx.globalAlpha = opacity;
+            ctx.drawImage(tempCanvas, -size/2, -size/2);
+        } else {
+            // No tint needed, draw normally with validation
+            ctx.globalAlpha = opacity;
+            try {
+                ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in TrueFry main canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    fishType: this.fishType
+                });
+            }
+        }
+        
+        ctx.restore();
+    }
+    
+    drawFallback() {
+        const ctx = window.ctx;
+        if (!ctx) return;
+        
+        // Apply deep water shader effects to fallback drawing too
+        const baseOpacity = window.Utils.getDepthOpacity(this.y, 0.8);
+        const tintStrength = window.Utils.getDepthTint(this.y);
+        
+        ctx.save();
+        ctx.globalAlpha = baseOpacity;
+        
+        if (tintStrength > 0) {
+            // Apply blue tint for deep water effect
+            ctx.fillStyle = `rgba(33, 150, 243, ${1 - tintStrength * 0.3})`; // Blue with blue tint
+        } else {
+            ctx.fillStyle = '#2196F3';
+        }
+        
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+    
+    drawDebugInfo() {
+        const ctx = window.ctx;
+        if (!ctx) return;
+        
+        ctx.save();
+        ctx.fillStyle = '#2196F3';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('TRUEFRY2', this.x, this.y - this.size/2 - 10);
+        
+        const evolutionPercent = this.evolutionTimer / this.evolutionDuration;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.font = '8px Arial';
+        ctx.fillText(`Evolution: ${(evolutionPercent * 100).toFixed(1)}%`, this.x, this.y + this.size/2 + 15);
+        
+        // Evolution bar
+        const barWidth = 20;
+        const barHeight = 3;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(this.x - barWidth/2, this.y + this.size/2 + 20, barWidth, barHeight);
+        ctx.fillStyle = '#2196F3';
+        ctx.fillRect(this.x - barWidth/2, this.y + this.size/2 + 20, barWidth * evolutionPercent, barHeight);
+        
+        ctx.restore();
     }
 }
 
 // Export for global access
-window.TrueFry = TrueFry; 
+window.TrueFry1 = TrueFry1;
+window.TrueFry2 = TrueFry2; 

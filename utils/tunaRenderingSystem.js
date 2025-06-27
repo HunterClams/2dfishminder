@@ -31,18 +31,30 @@ class TunaRenderingSystem {
         tuna.angle = Math.atan2(tuna.velocity.y, Math.abs(tuna.velocity.x));
         const sprites = window.sprites;
         
-        if (sprites && sprites[tuna.tunaType]) {
+        // Validate base sprite before drawing
+        const baseSprite = sprites && sprites[tuna.tunaType];
+        if (baseSprite && baseSprite instanceof HTMLImageElement && baseSprite.complete && baseSprite.naturalWidth > 0) {
             // Draw base tuna sprite first
-            this.drawSprite(tuna, sprites[tuna.tunaType], tuna.size, 1, tuna.angle);
+            this.drawSprite(tuna, baseSprite, tuna.size, 1, tuna.angle);
             
             // Draw tuna fins overlay sprite on top with reduced shader tint
-            if (sprites.tunaFins) {
-                this.drawTunaOverlay(tuna, sprites.tunaFins, tuna.size, 1, tuna.angle);
+            const finsSprite = sprites.tunaFins;
+            if (finsSprite && finsSprite instanceof HTMLImageElement && finsSprite.complete && finsSprite.naturalWidth > 0) {
+                this.drawTunaOverlay(tuna, finsSprite, tuna.size, 1, tuna.angle);
             }
+        } else {
+            console.warn('🚨 Invalid base sprite for tuna:', {
+                tunaType: tuna.tunaType,
+                baseSprite: baseSprite,
+                type: typeof baseSprite,
+                isImage: baseSprite instanceof HTMLImageElement,
+                complete: baseSprite?.complete,
+                naturalWidth: baseSprite?.naturalWidth
+            });
         }
         
         // Debug: Draw AI state if available and debug mode is enabled
-        if (window.gameState && window.gameState.tunaDebug) {
+        if (window.debugManager && window.debugManager.isDebugOn('tuna')) {
             this.drawDebugInfo(tuna);
         }
     }
@@ -57,6 +69,19 @@ class TunaRenderingSystem {
      */
     drawSprite(tuna, sprite, size, opacity = 1, angle = 0) {
         if (!window.Utils || !window.Utils.inRenderDistance(tuna)) return;
+        
+        // Validate sprite before drawing
+        if (!sprite || !(sprite instanceof HTMLImageElement) || !sprite.complete || sprite.naturalWidth === 0) {
+            console.warn('🚨 Invalid sprite in TunaRenderingSystem drawSprite:', {
+                sprite: sprite,
+                type: typeof sprite,
+                isImage: sprite instanceof HTMLImageElement,
+                complete: sprite?.complete,
+                naturalWidth: sprite?.naturalWidth,
+                tunaType: tuna.tunaType
+            });
+            return; // Skip drawing if sprite is invalid
+        }
         
         const depthOpacity = window.Utils.getDepthOpacity(tuna.y, opacity);
         const tintStrength = window.Utils.getDepthTint(tuna.y);
@@ -84,8 +109,18 @@ class TunaRenderingSystem {
             tempCanvas.width = size;
             tempCanvas.height = size;
             
-            // Draw sprite on temp canvas
-            tempCtx.drawImage(sprite, 0, 0, size, size);
+            // Draw sprite on temp canvas with validation
+            try {
+                tempCtx.drawImage(sprite, 0, 0, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in TunaRenderingSystem temp canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    tunaType: tuna.tunaType
+                });
+                ctx.restore();
+                return;
+            }
             
             // Apply tint using source-atop
             tempCtx.globalCompositeOperation = 'source-atop';
@@ -96,9 +131,17 @@ class TunaRenderingSystem {
             ctx.globalAlpha = depthOpacity;
             ctx.drawImage(tempCanvas, -size/2, -size/2);
         } else {
-            // No tint needed, draw normally
+            // No tint needed, draw normally with validation
             ctx.globalAlpha = depthOpacity;
-            ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            try {
+                ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in TunaRenderingSystem main canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    tunaType: tuna.tunaType
+                });
+            }
         }
         
         ctx.restore();
@@ -114,6 +157,19 @@ class TunaRenderingSystem {
      */
     drawTunaOverlay(tuna, sprite, size, opacity = 1, angle = 0) {
         if (!window.Utils || !window.Utils.inRenderDistance(tuna)) return;
+        
+        // Validate sprite before drawing
+        if (!sprite || !(sprite instanceof HTMLImageElement) || !sprite.complete || sprite.naturalWidth === 0) {
+            console.warn('🚨 Invalid sprite in TunaRenderingSystem drawTunaOverlay:', {
+                sprite: sprite,
+                type: typeof sprite,
+                isImage: sprite instanceof HTMLImageElement,
+                complete: sprite?.complete,
+                naturalWidth: sprite?.naturalWidth,
+                tunaType: tuna.tunaType
+            });
+            return; // Skip drawing if sprite is invalid
+        }
         
         const depthOpacity = window.Utils.getDepthOpacity(tuna.y, opacity);
         let tintStrength = window.Utils.getDepthTint(tuna.y);
@@ -144,8 +200,18 @@ class TunaRenderingSystem {
             tempCanvas.width = size;
             tempCanvas.height = size;
             
-            // Draw sprite on temp canvas
-            tempCtx.drawImage(sprite, 0, 0, size, size);
+            // Draw sprite on temp canvas with validation
+            try {
+                tempCtx.drawImage(sprite, 0, 0, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in TunaRenderingSystem overlay temp canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    tunaType: tuna.tunaType
+                });
+                ctx.restore();
+                return;
+            }
             
             // Apply reduced tint using source-atop
             tempCtx.globalCompositeOperation = 'source-atop';
@@ -156,9 +222,17 @@ class TunaRenderingSystem {
             ctx.globalAlpha = depthOpacity;
             ctx.drawImage(tempCanvas, -size/2, -size/2);
         } else {
-            // No tint needed, draw overlay normally
+            // No tint needed, draw overlay normally with validation
             ctx.globalAlpha = depthOpacity;
-            ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            try {
+                ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in TunaRenderingSystem overlay main canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    tunaType: tuna.tunaType
+                });
+            }
         }
         
         ctx.restore();

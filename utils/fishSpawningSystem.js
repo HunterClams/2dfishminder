@@ -41,7 +41,7 @@ class FishSpawningSystem {
             [window.FISH_TYPES.KRILL]: {
                 preferredZone: 'DEEP',
                 spawnZone: 'deep',
-                count: 280,
+                count: 250,
                 preferredDepth: 0.75
             },
             [window.FISH_TYPES.PALE_KRILL]: {
@@ -195,8 +195,8 @@ class FishSpawningSystem {
                     break;
                     
                 case 'fishEgg':
-                    entity = new window.FishEgg(position.x, position.y);
-                    gameEntities.fishEggs.push(entity);
+                    entity = new window.FertilizedEgg(position.x, position.y);
+                    gameEntities.fertilizedEggs.push(entity);
                     break;
                     
                 case 'bubble':
@@ -239,7 +239,7 @@ class FishSpawningSystem {
             predators: gameEntities.predators.length,
             squid: gameEntities.squid.length,
             bubbles: gameEntities.bubbles.length,
-            fishEggs: gameEntities.fishEggs.length
+            fishEggs: gameEntities.fertilizedEggs.length
         });
         
         // Log depth zone information

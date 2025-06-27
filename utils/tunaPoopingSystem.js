@@ -9,7 +9,9 @@ class TunaPoopingSystem {
             DEBUG: false  // Will be controlled by debug view system
         };
         
-        console.log('🐟 Tuna Pooping System initialized');
+        if (window.ConsoleDebugSystem) {
+            window.ConsoleDebugSystem.logSystemInit('TUNA', 'Pooping System initialized');
+        }
     }
     
     /**
@@ -56,10 +58,14 @@ class TunaPoopingSystem {
         props.lastPoopTime = currentTime;
         
         // Create the first poop immediately
-        console.log(`🐟 Creating poop 1/${props.totalPoops} (immediate)`);
+        if (window.ConsoleDebugSystem) {
+            window.ConsoleDebugSystem.log('TUNA', `Creating poop 1/${props.totalPoops} (immediate)`, 'debug');
+        }
         this.createPoop(tuna, gameEntities, 0);
         
-        console.log(`🐟 Tuna starting pooping sequence: ${props.totalPoops} poop over ${(props.totalPoops - 1) * 200}ms`);
+        if (window.ConsoleDebugSystem) {
+            window.ConsoleDebugSystem.log('TUNA', `Starting pooping sequence: ${props.totalPoops} poop over ${(props.totalPoops - 1) * 200}ms`, 'debug');
+        }
     }
     
     /**
@@ -97,13 +103,15 @@ class TunaPoopingSystem {
         const requiredInterval = props.poopCount === 0 ? this.config.FIRST_POOP_INTERVAL : this.config.SUBSEQUENT_POOP_INTERVAL;
         
         // Debug logging
-        if (props.poopCount < props.totalPoops) {
-            console.log(`🐟 Pooping update: ${props.poopCount}/${props.totalPoops}, time since last: ${timeSinceLastPoop}ms, required: ${requiredInterval}ms`);
+        if (props.poopCount < props.totalPoops && window.ConsoleDebugSystem) {
+            window.ConsoleDebugSystem.log('TUNA', `Pooping update: ${props.poopCount}/${props.totalPoops}, time since last: ${timeSinceLastPoop}ms, required: ${requiredInterval}ms`, 'debug');
         }
         
         // Check if it's time for the next poop
         if (timeSinceLastPoop >= requiredInterval && props.poopCount < props.totalPoops) {
-            console.log(`🐟 Creating poop ${props.poopCount + 1}/${props.totalPoops}`);
+            if (window.ConsoleDebugSystem) {
+                window.ConsoleDebugSystem.log('TUNA', `Creating poop ${props.poopCount + 1}/${props.totalPoops}`, 'debug');
+            }
             this.createPoop(tuna, gameEntities, props.poopCount);
             
             props.poopCount++;
@@ -124,7 +132,9 @@ class TunaPoopingSystem {
      */
     createPoop(tuna, gameEntities, poopIndex) {
         if (!gameEntities || !gameEntities.poop || !window.Poop) {
-            console.log('🐟 Cannot create poop - missing gameEntities, poop array, or Poop class');
+            if (window.ConsoleDebugSystem) {
+                window.ConsoleDebugSystem.logError('TUNA', 'Cannot create poop - missing gameEntities, poop array, or Poop class');
+            }
             return;
         }
         
@@ -159,7 +169,9 @@ class TunaPoopingSystem {
         props.totalPoops = 0;
         props.poopPositions = [];
         
-        console.log(`🐟 Tuna pooping sequence completed`);
+        if (window.ConsoleDebugSystem) {
+            window.ConsoleDebugSystem.log('TUNA', 'Pooping sequence completed', 'debug');
+        }
     }
     
     /**

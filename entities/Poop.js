@@ -71,21 +71,23 @@ class Poop {
     }
     
     draw() {
+        // Use the modular poop rendering system
+        if (window.PoopRenderingSystem) {
+            window.PoopRenderingSystem.draw(this);
+        } else {
+            // Fallback to original drawing method if system not available
+            this.drawFallback();
+        }
+    }
+    
+    drawFallback() {
         if (!this.isActive) return;
         
         // Safe check for Utils and inRenderDistance
         if (window.Utils && window.Utils.inRenderDistance && !window.Utils.inRenderDistance(this)) return;
         
-        let depthOpacity = window.Utils ? window.Utils.getDepthOpacity(this.y, this.opacity) : this.opacity;
-        let tintStrength = window.Utils ? window.Utils.getDepthTint(this.y) : 0;
-        
-        // Reduce deep water shader effect by 50% for poop 3 sprite
-        if (this.state === 3) {
-            // Blend depth opacity with base opacity (50% less effect)
-            depthOpacity = this.opacity * 0.5 + depthOpacity * 0.5;
-            // Reduce tint strength by 50%
-            tintStrength *= 0.5;
-        }
+        // Poop should not have deep water shader effects - always use base opacity
+        let depthOpacity = this.opacity; // No depth shader for poop
         
         // Safe check for ctx and sprites
         if (!window.ctx && !ctx) return;
@@ -105,35 +107,34 @@ class Poop {
             case 3: spriteKey = 'poop3'; break;
         }
         
-        if (tintStrength > 0) {
-            // Create temporary canvas for tinting
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = this.size;
-            tempCanvas.height = this.size;
-            
-            // Draw sprite on temp canvas
-            tempCtx.drawImage(spriteObj[spriteKey], 0, 0, this.size, this.size);
-            
-            // Apply tint
-            tempCtx.globalCompositeOperation = 'source-atop';
-            tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
-            tempCtx.fillRect(0, 0, this.size, this.size);
-            
-            // Draw tinted sprite
-            context.globalAlpha = depthOpacity;
-            context.drawImage(tempCanvas, -this.size/2, -this.size/2);
-        } else {
-            // Draw normally
-            context.globalAlpha = depthOpacity;
-            context.drawImage(spriteObj[spriteKey], -this.size/2, -this.size/2, this.size, this.size);
-        }
+        // Draw normally without any depth effects
+        context.globalAlpha = depthOpacity;
+        context.drawImage(spriteObj[spriteKey], -this.size/2, -this.size/2, this.size, this.size);
         
         context.restore();
     }
     
     isDead() {
         return !this.isActive;
+    }
+    
+    checkEaten(entity) {
+        if (!this.isActive) return false;
+        
+        // Check if any entity is close enough to eat the poop
+        for (let i = 0; i < entity.length; i++) {
+            const e = entity[i];
+            // Safe distance calculation
+            const distance = window.Utils ? window.Utils.distance(this.x, this.y, e.x, e.y) : 
+                            Math.sqrt((this.x - e.x) * (this.x - e.x) + (this.y - e.y) * (this.y - e.y));
+            
+            if (distance < this.size/2 + e.size/2) {
+                this.isActive = false;
+                return true;
+            }
+        }
+        
+        return false;
     }
 }
 

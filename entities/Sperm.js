@@ -64,17 +64,13 @@ class Sperm extends (window.Entity || Entity) {
         const ctx = window.ctx;
         if (!ctx) return;
         
-        // Calculate depth-based opacity
-        const depthOpacity = window.Utils ? window.Utils.getDepthOpacity(this.y, 0.8) : 0.8;
-        const tintStrength = window.Utils ? window.Utils.getDepthTint(this.y) : 0;
+        // No depth shader for sperm - they should remain visible as they sink
+        const opacity = 0.8; // Fixed opacity, no depth-based fading
         
         ctx.save();
         
-        // Apply depth effects
-        ctx.globalAlpha = depthOpacity;
-        if (tintStrength > 0) {
-            ctx.filter = `brightness(${1 - tintStrength * 0.3})`;
-        }
+        // Apply simple opacity without depth effects
+        ctx.globalAlpha = opacity;
         
         // Draw the sperm sprite (no horizontal swimming animation)
         ctx.drawImage(fishSpermSprite, this.x - this.size/2, this.y - this.size/2, this.size, this.size);

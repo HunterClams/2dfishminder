@@ -4,12 +4,15 @@ class BoidConfig {
         SMALL_FRY_2: 'smallFry2',
         SMALL_FRY_3: 'smallFry3', 
         SMALL_FRY_4: 'smallFry4',
+        TRUE_FRY_1: 'truefry1',
+        TRUE_FRY_2: 'truefry2',
+        TRUE_FRY: 'truefry',
         KRILL: 'krill'
     };
 
     static FISH_CONFIGS = {
         [BoidConfig.FISH_TYPES.SMALL_FRY_4]: { 
-            size: 28, 
+            size: 32, 
             maxSpeed: 3.2,
             spawnZone: 'surface'
         },
@@ -19,8 +22,23 @@ class BoidConfig {
             spawnZone: 'mid'
         },
         [BoidConfig.FISH_TYPES.SMALL_FRY_2]: { 
-            size: 35, 
+            size: 32, 
             maxSpeed: 3.0,
+            spawnZone: 'surface'
+        },
+        [BoidConfig.FISH_TYPES.TRUE_FRY_1]: { 
+            size: 18, 
+            maxSpeed: 3.5,
+            spawnZone: 'surface'
+        },
+        [BoidConfig.FISH_TYPES.TRUE_FRY_2]: { 
+            size: 26, 
+            maxSpeed: 3.3,
+            spawnZone: 'surface'
+        },
+        [BoidConfig.FISH_TYPES.TRUE_FRY]: { 
+            size: 18, 
+            maxSpeed: 3.5,
             spawnZone: 'surface'
         }
     };
@@ -61,6 +79,9 @@ class BoidConfig {
         switch (fishType) {
             case BoidConfig.FISH_TYPES.SMALL_FRY_2:
             case BoidConfig.FISH_TYPES.SMALL_FRY_4:
+            case BoidConfig.FISH_TYPES.TRUE_FRY_1:
+            case BoidConfig.FISH_TYPES.TRUE_FRY_2:
+            case BoidConfig.FISH_TYPES.TRUE_FRY:
                 return WORLD_HEIGHT * 0.2; // Prefer surface waters
             case BoidConfig.FISH_TYPES.SMALL_FRY_3:
                 return WORLD_HEIGHT * 0.4; // Prefer mid waters

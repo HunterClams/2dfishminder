@@ -33,6 +33,11 @@ class KrillBase extends Boid {
         this.restStartTime = 0;
         this.wanderOffset = Math.random() * Math.PI * 2;
         
+        // Post-migration resting properties
+        this.wasMigrating = false;
+        this.postMigrationRest = false;
+        this.postMigrationRestStart = null;
+        
         // Animation and visual properties
         this.animationFrame = 0;
         this.animationSpeed = 0.08;

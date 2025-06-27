@@ -4,56 +4,48 @@ class FishEgg extends (window.Entity || Entity) {
         super(x, y);
         
         // Fish egg specific properties
-        this.size = 8; // Reduced from 16 to 8 pixels
+        this.size = 4; // Changed to 4px to match fertilized egg size
         this.eaten = false;
         this.spawnTime = Date.now();
         this.lifespan = 30000; // 30 seconds lifespan
         this.nutritionValue = 2; // Higher nutrition than regular fish food
         
-        // Initialize velocity for gentle floating
-        this.velocity = {
-            x: (Math.random() - 0.5) * 0.5,
-            y: (Math.random() - 0.5) * 0.5
-        };
-        
-        // Gentle floating animation
-        this.floatOffset = Math.random() * Math.PI * 2;
-        this.floatSpeed = 0.02 + Math.random() * 0.01;
-        
-        console.log('🥚 FishEgg created at', x, y);
+        // Initialize shared floating system
+        if (window.EggFloatingSystem) {
+            window.EggFloatingSystem.initializeFloating(this);
+        }
     }
     
     update() {
-        // Gentle floating movement
-        this.floatOffset += this.floatSpeed;
-        this.y += Math.sin(this.floatOffset) * 0.2;
-        
-        // Apply gentle drift
-        this.x += this.velocity.x;
-        this.y += this.velocity.y;
+        // Use shared floating system
+        if (window.EggFloatingSystem) {
+            window.EggFloatingSystem.updateFloating(this);
+        }
         
         // Check if egg has expired
         if (Date.now() - this.spawnTime > this.lifespan) {
             this.eaten = true; // Mark for removal
         }
-        
-        // Keep egg within world bounds
-        const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
-        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
-        
-        if (this.x < 0) this.x = 0;
-        if (this.x > WORLD_WIDTH) this.x = WORLD_WIDTH;
-        if (this.y < 0) this.y = 0;
-        if (this.y > WORLD_HEIGHT) this.y = WORLD_HEIGHT;
     }
     
     draw() {
+        // Use the modular egg rendering system
+        if (window.EggRenderingSystem) {
+            window.EggRenderingSystem.drawFishEgg(this);
+        } else {
+            // Fallback to original drawing method if system not available
+            this.drawFallback();
+        }
+    }
+    
+    drawFallback() {
         if (this.eaten) return;
         
         const sprites = window.sprites || {};
         const fishEggSprite = sprites.fishEgg;
         
-        if (!fishEggSprite) {
+        // Validate sprite before drawing
+        if (!fishEggSprite || !(fishEggSprite instanceof HTMLImageElement) || !fishEggSprite.complete) {
             // Fallback: draw a simple egg shape
             this.drawFallbackEgg();
             return;
@@ -78,15 +70,22 @@ class FishEgg extends (window.Entity || Entity) {
         }
         
         // Add gentle floating animation
-        const floatY = this.y + Math.sin(this.floatOffset) * 2;
+        const floatY = window.EggFloatingSystem ? 
+            window.EggFloatingSystem.getFloatingY(this) : 
+            this.y + Math.sin(this.floatOffset) * 2;
         
-        // Draw the fish egg sprite
-        ctx.drawImage(fishEggSprite, this.x - this.size/2, floatY - this.size/2, this.size, this.size);
+        // Draw the fish egg sprite with validation
+        try {
+            ctx.drawImage(fishEggSprite, this.x - this.size/2, floatY - this.size/2, this.size, this.size);
+        } catch (error) {
+            console.warn('🥚 FishEgg drawImage error:', error);
+            this.drawFallbackEgg();
+        }
         
         ctx.restore();
         
         // Debug visualization
-        if (window.gameState?.fryDebug) {
+        if (window.debugManager && window.debugManager.isGlobalDebugOn()) {
             this.drawDebugInfo();
         }
     }
@@ -102,7 +101,9 @@ class FishEgg extends (window.Entity || Entity) {
         ctx.strokeStyle = 'rgba(200, 200, 150, 0.6)';
         ctx.lineWidth = 1;
         
-        const floatY = this.y + Math.sin(this.floatOffset) * 2;
+        const floatY = window.EggFloatingSystem ? 
+            window.EggFloatingSystem.getFloatingY(this) : 
+            this.y + Math.sin(this.floatOffset) * 2;
         
         // Draw oval egg shape
         ctx.beginPath();

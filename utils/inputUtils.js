@@ -32,12 +32,20 @@ function createInputHandler(keys, gameState) {
                 console.log(`🎮 HUD State: ${gameState.hudState}`);
                 event.preventDefault();
             } else if (key === 'f') {
-                // Cycle through spawn modes: off -> food -> poop -> fertilized eggs -> krill -> fry -> tuna -> squid -> off
+                // Cycle through spawn modes: off -> food -> poop -> truefry1 -> truefry2 -> fish eggs -> sperm -> fertilized eggs -> krill -> fry -> tuna -> squid -> off
                 if (gameState.spawnMode === 'off') {
                     gameState.spawnMode = 'food';
                 } else if (gameState.spawnMode === 'food') {
                     gameState.spawnMode = 'poop';
                 } else if (gameState.spawnMode === 'poop') {
+                    gameState.spawnMode = 'truefry1';
+                } else if (gameState.spawnMode === 'truefry1') {
+                    gameState.spawnMode = 'truefry2';
+                } else if (gameState.spawnMode === 'truefry2') {
+                    gameState.spawnMode = 'fishEggs';
+                } else if (gameState.spawnMode === 'fishEggs') {
+                    gameState.spawnMode = 'sperm';
+                } else if (gameState.spawnMode === 'sperm') {
                     gameState.spawnMode = 'fertilizedEggs';
                 } else if (gameState.spawnMode === 'fertilizedEggs') {
                     gameState.spawnMode = 'krill';
@@ -64,43 +72,10 @@ function createInputHandler(keys, gameState) {
                 }
                 event.preventDefault();
             } else if (key === 't' || key === 'T') {
-                // Cycle through behavior state display: Off -> Tuna -> Squid -> Fry -> Krill -> Off
-                if (!gameState.behaviorDebug || gameState.behaviorDebug === 'off') {
-                    gameState.behaviorDebug = 'tuna';
-                    gameState.tunaDebug = true;
-                    gameState.squidDebug = false;
-                    gameState.fryDebug = false;
-                    gameState.krillDebug = false;
-                    console.log('🐟 Show Behaviour State: Tuna (tunaDebug:', gameState.tunaDebug, ')');
-                } else if (gameState.behaviorDebug === 'tuna') {
-                    gameState.behaviorDebug = 'squid';
-                    gameState.tunaDebug = false;
-                    gameState.squidDebug = true;
-                    gameState.fryDebug = false;
-                    gameState.krillDebug = false;
-                    console.log('🦑 Show Behaviour State: Squid (squidDebug:', gameState.squidDebug, ')');
-                } else if (gameState.behaviorDebug === 'squid') {
-                    gameState.behaviorDebug = 'fry';
-                    gameState.tunaDebug = false;
-                    gameState.squidDebug = false;
-                    gameState.fryDebug = true;
-                    gameState.krillDebug = false;
-                    console.log('🐠 Show Behaviour State: Fry (fryDebug:', gameState.fryDebug, ')');
-                } else if (gameState.behaviorDebug === 'fry') {
-                    gameState.behaviorDebug = 'krill';
-                    gameState.tunaDebug = false;
-                    gameState.squidDebug = false;
-                    gameState.fryDebug = false;
-                    gameState.krillDebug = true;
-                    console.log('🦐 Show Behaviour State: Krill (krillDebug:', gameState.krillDebug, ')');
-                } else {
-                    gameState.behaviorDebug = 'off';
-                    gameState.tunaDebug = false;
-                    gameState.squidDebug = false;
-                    gameState.fryDebug = false;
-                    gameState.krillDebug = false;
-                    console.log('❌ Show Behaviour State: Off');
-                }
+                // DebugManager handles cycling debug overlays
+                event.preventDefault();
+            } else if (key === 'F3') {
+                // DebugManager handles toggling all debug overlays
                 event.preventDefault();
             } else if (key in keys) {
                 keys[key] = true;
@@ -150,9 +125,13 @@ function setupMouseTracking(canvas, camera, mouseWorldPos) {
 // Get current spawn mode info
 function getSpawnModeInfo(spawnMode) {
     const modes = {
-        'off': { name: 'OFF', color: 'rgba(255, 255, 255, 0.6)', message: 'Press F to cycle: Food → Poop → Fertilized Eggs → Krill → Fry → Tuna → Squid → Off' },
+        'off': { name: 'OFF', color: 'rgba(255, 255, 255, 0.6)', message: 'Press F to cycle: Food → Poop → TrueFry1 → TrueFry2 → Fish Eggs → Sperm → Fertilized Eggs → Krill → Fry → Tuna → Squid → Off' },
         'food': { name: 'FOOD MODE', color: 'rgba(0, 255, 0, 0.8)', message: 'Click to spawn food' },
         'poop': { name: 'POOP MODE', color: 'rgba(139, 69, 19, 0.8)', message: 'Click to spawn poop' },
+        'truefry1': { name: 'TRUEFRY1 MODE', color: 'rgba(100, 150, 255, 0.8)', message: 'Click to spawn TrueFry1 (1-3)' },
+        'truefry2': { name: 'TRUEFRY2 MODE', color: 'rgba(150, 200, 255, 0.8)', message: 'Click to spawn TrueFry2 (1-3)' },
+        'fishEggs': { name: 'FISH EGGS MODE', color: 'rgba(255, 255, 200, 0.8)', message: 'Click to spawn fish eggs (1-3, need sperm to fertilize)' },
+        'sperm': { name: 'SPERM MODE', color: 'rgba(255, 200, 255, 0.8)', message: 'Click to spawn sperm (1-3, fertilizes fish eggs)' },
         'fertilizedEggs': { name: 'FERTILIZED EGGS MODE', color: 'rgba(255, 182, 193, 0.8)', message: 'Click to spawn fertilized eggs (1-3)' },
         'krill': { name: 'KRILL MODE', color: 'rgba(255, 150, 100, 0.8)', message: 'Click to spawn krill' },
         'fry': { name: 'FRY MODE', color: 'rgba(100, 200, 255, 0.8)', message: 'Click to spawn fry (1-5 random types)' },

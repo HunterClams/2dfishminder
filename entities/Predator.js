@@ -195,12 +195,26 @@ class Predator extends (window.Entity || Entity) {
             this.angle = Math.atan2(this.velocity.y, Math.abs(this.velocity.x));
             const sprites = window.sprites;
             
-            if (sprites && sprites[this.tunaType]) {
-                this.drawSprite(sprites[this.tunaType], this.size, 1, this.angle);
-                
-                if (sprites.tunaFins) {
-                    this.drawTunaOverlay(sprites.tunaFins, this.size, 1, this.angle);
-                }
+            // Validate sprite before drawing
+            const sprite = sprites && sprites[this.tunaType];
+            if (!sprite || !(sprite instanceof HTMLImageElement) || !sprite.complete || sprite.naturalWidth === 0) {
+                console.warn('🚨 Invalid sprite for predator:', {
+                    tunaType: this.tunaType,
+                    sprite: sprite,
+                    type: typeof sprite,
+                    isImage: sprite instanceof HTMLImageElement,
+                    complete: sprite?.complete,
+                    naturalWidth: sprite?.naturalWidth
+                });
+                return; // Skip drawing if sprite is invalid
+            }
+            
+            this.drawSprite(sprite, this.size, 1, this.angle);
+            
+            // Validate fins sprite before drawing overlay
+            const finsSprite = sprites.tunaFins;
+            if (finsSprite && finsSprite instanceof HTMLImageElement && finsSprite.complete && finsSprite.naturalWidth > 0) {
+                this.drawTunaOverlay(finsSprite, this.size, 1, this.angle);
             }
         }
     }
@@ -208,6 +222,19 @@ class Predator extends (window.Entity || Entity) {
     // Fallback draw methods (kept for compatibility)
     drawSprite(sprite, size, opacity = 1, angle = 0) {
         if (!window.Utils || !window.Utils.inRenderDistance(this)) return;
+        
+        // Validate sprite before drawing
+        if (!sprite || !(sprite instanceof HTMLImageElement) || !sprite.complete || sprite.naturalWidth === 0) {
+            console.warn('🚨 Invalid sprite in Predator drawSprite:', {
+                sprite: sprite,
+                type: typeof sprite,
+                isImage: sprite instanceof HTMLImageElement,
+                complete: sprite?.complete,
+                naturalWidth: sprite?.naturalWidth,
+                tunaType: this.tunaType
+            });
+            return; // Skip drawing if sprite is invalid
+        }
         
         const depthOpacity = window.Utils.getDepthOpacity(this.y, opacity);
         const tintStrength = window.Utils.getDepthTint(this.y);
@@ -232,7 +259,18 @@ class Predator extends (window.Entity || Entity) {
             tempCanvas.width = size;
             tempCanvas.height = size;
             
-            tempCtx.drawImage(sprite, 0, 0, size, size);
+            try {
+                tempCtx.drawImage(sprite, 0, 0, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in Predator temp canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    tunaType: this.tunaType
+                });
+                ctx.restore();
+                return;
+            }
+            
             tempCtx.globalCompositeOperation = 'source-atop';
             tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
             tempCtx.fillRect(0, 0, size, size);
@@ -241,7 +279,15 @@ class Predator extends (window.Entity || Entity) {
             ctx.drawImage(tempCanvas, -size/2, -size/2);
         } else {
             ctx.globalAlpha = depthOpacity;
-            ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            try {
+                ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in Predator main canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    tunaType: this.tunaType
+                });
+            }
         }
         
         ctx.restore();
@@ -249,6 +295,19 @@ class Predator extends (window.Entity || Entity) {
     
     drawTunaOverlay(sprite, size, opacity = 1, angle = 0) {
         if (!window.Utils || !window.Utils.inRenderDistance(this)) return;
+        
+        // Validate sprite before drawing
+        if (!sprite || !(sprite instanceof HTMLImageElement) || !sprite.complete || sprite.naturalWidth === 0) {
+            console.warn('🚨 Invalid sprite in Predator drawTunaOverlay:', {
+                sprite: sprite,
+                type: typeof sprite,
+                isImage: sprite instanceof HTMLImageElement,
+                complete: sprite?.complete,
+                naturalWidth: sprite?.naturalWidth,
+                tunaType: this.tunaType
+            });
+            return; // Skip drawing if sprite is invalid
+        }
         
         const depthOpacity = window.Utils.getDepthOpacity(this.y, opacity);
         let tintStrength = window.Utils.getDepthTint(this.y);
@@ -274,7 +333,18 @@ class Predator extends (window.Entity || Entity) {
             tempCanvas.width = size;
             tempCanvas.height = size;
             
-            tempCtx.drawImage(sprite, 0, 0, size, size);
+            try {
+                tempCtx.drawImage(sprite, 0, 0, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in Predator overlay temp canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    tunaType: this.tunaType
+                });
+                ctx.restore();
+                return;
+            }
+            
             tempCtx.globalCompositeOperation = 'source-atop';
             tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
             tempCtx.fillRect(0, 0, size, size);
@@ -283,7 +353,15 @@ class Predator extends (window.Entity || Entity) {
             ctx.drawImage(tempCanvas, -size/2, -size/2);
         } else {
             ctx.globalAlpha = depthOpacity;
-            ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            try {
+                ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in Predator overlay main canvas:', error, {
+                    sprite: sprite,
+                    size: size,
+                    tunaType: this.tunaType
+                });
+            }
         }
         
         ctx.restore();

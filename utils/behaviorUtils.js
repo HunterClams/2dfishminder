@@ -14,18 +14,34 @@ function shouldIgnorePrey(predatorType, preyType, fishTypes) {
             ignore = preyType === fishTypes.SMALL_FRY_3;
             // All tuna ignore krill (standardized behavior)
             if (preyType === fishTypes.KRILL) ignore = true;
-            // Tuna can eat fertilized eggs
-            if (preyType === 'fertilizedEggs') ignore = false;
+            // Tuna can eat TrueFry but NOT fertilized eggs (let them hatch first!)
+            if (preyType === 'truefry' || preyType === 'truefry1' || preyType === 'truefry2') ignore = false;
+            if (preyType === 'fertilizedEggs') ignore = true;
         } else if (predatorType === fishTypes.SMALL_FRY_2 || 
                    predatorType === fishTypes.SMALL_FRY_3 || 
                    predatorType === fishTypes.SMALL_FRY_4) {
-            // All fry can eat krill (all types) AND fish food AND poop AND fertilized eggs AND sperm
-            // Fry do NOT eat fish eggs - only krill, food, poop, fertilized eggs, and sperm
+            // All fry can eat krill (all types) AND fish food AND poop AND sperm
+            // Fry do NOT eat fish eggs, fertilized eggs, or TrueFry - only krill, food, poop, and sperm
             ignore = !(preyType === fishTypes.KRILL || 
                       preyType === fishTypes.PALE_KRILL || 
                       preyType === fishTypes.MOM_KRILL ||
                       preyType === 'krill' || preyType === 'paleKrill' || preyType === 'momKrill' ||
-                      preyType === 'fishFood' || preyType === 'poop' || preyType === 'fertilizedEggs' || preyType === 'sperm');
+                      preyType === 'fishFood' || preyType === 'poop' || preyType === 'sperm');
+            // Explicitly prevent fry from eating eggs and TrueFry
+            if (preyType === 'fertilizedEggs' || preyType === 'fishEggs' || preyType === 'fishEgg') ignore = true;
+            if (preyType === 'truefry' || preyType === 'truefry1' || preyType === 'truefry2') ignore = true;
+        } else if (predatorType === 'truefry' || predatorType === 'truefry1' || predatorType === 'truefry2') {
+            // TrueFry can eat: krill, fish food, poop, sperm
+            // TrueFry CANNOT eat: fertilized eggs, unfertilized eggs, other TrueFry
+            ignore = !(preyType === fishTypes.KRILL || 
+                      preyType === fishTypes.PALE_KRILL || 
+                      preyType === fishTypes.MOM_KRILL ||
+                      preyType === 'krill' || preyType === 'paleKrill' || preyType === 'momKrill' ||
+                      preyType === 'fishFood' || preyType === 'poop' || preyType === 'sperm');
+            // Explicitly prevent TrueFry from eating any type of eggs
+            if (preyType === 'fertilizedEggs' || preyType === 'fishEggs' || preyType === 'fishEgg') ignore = true;
+            // Explicitly prevent TrueFry from eating other TrueFry
+            if (preyType === 'truefry' || preyType === 'truefry1' || preyType === 'truefry2') ignore = true;
         }
         _preyCache.set(key, ignore);
     }
@@ -65,4 +81,7 @@ function clearBehaviorCaches() {
 window.shouldIgnorePrey = shouldIgnorePrey;
 window.shouldFlee = shouldFlee;
 window.getRandomBubbleSprite = getRandomBubbleSprite;
-window.clearBehaviorCaches = clearBehaviorCaches; 
+window.clearBehaviorCaches = clearBehaviorCaches;
+
+// Clear cache to ensure new behavior takes effect
+clearBehaviorCaches(); 

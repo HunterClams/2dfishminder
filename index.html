@@ -63,19 +63,26 @@
         <h3>Controls:</h3>
         <p><strong>WASD</strong> - Move camera</p>
         <p><strong>Mouse Wheel</strong> - Zoom in/out</p>
-        <p><strong>F</strong> - Cycle spawn modes (Food → Poop → Fertilized Eggs → Krill → Fry → Tuna → Squid → Off)</p>
+        <p><strong>F</strong> - Cycle spawn modes (Food → Poop → Fish Eggs → Sperm → Fertilized Eggs → Krill → Fry → Tuna → Squid → Off)</p>
         <p><strong>H</strong> - Cycle HUD (Controls → Full View → Off)</p>
-        <p><strong>T</strong> - Toggle tuna AI debug mode</p>
-        <p><strong>F3</strong> - Toggle comprehensive debug view (all systems)</p>
+        <p><strong>F3</strong> - Toggle comprehensive debug view (visual overlays + console logging)</p>
+        <p><strong>T</strong> - Cycle debug overlays (Tuna → Squid → Fry → Krill → TrueFry → Eggs → Food → Poop → Sperm → Off)</p>
+        <p><strong>V</strong> - Toggle verbose logging</p>
+        <p><strong>P</strong> - Toggle performance mode</p>
         <p><strong>Ctrl+R</strong> - Reset spawn statistics</p>
         <p><strong>Ctrl+A</strong> - Test analytics (dev mode)</p>
         <p><strong>Click</strong> - Spawn items (when mode active)</p>
         <p><em>🌊 Live ecosystem population counter shows current world state</em></p>
         <p><em>📊 Player spawns tracked with Vercel Analytics</em></p>
-        <p><em>🔍 F3 shows AI states, detection ranges, pooping sequences, and more!</em></p>
+        <p><em>🔍 F3 shows AI states, detection ranges, spawning sequences, and more!</em></p>
+        <p><em>🐟 Fry spawning system: 1000px egg detection, 10px offset swimming, 3 sperm per spawn</em></p>
     </div>
 
     <!-- 1. Utility modules (no dependencies) -->
+    <script src="utils/DebugManager.js"></script>
+    <script src="utils/consoleDebugSystem.js"></script>
+    <script src="utils/debugIntegration.js"></script>
+    <script src="utils/eggFloatingSystem.js"></script>
     <script src="utils/mathUtils.js"></script>
     <script src="utils/depthUtils.js"></script>
     <script src="utils/behaviorUtils.js"></script>
@@ -104,7 +111,9 @@
     <script src="utils/krillTransformationSystem.js"></script>
     <!-- Modular Fry Food Sharing system -->
     <script src="utils/fryEggLayingSystem.js"></script>
-    <script src="utils/fryFeedingCooldownSystem.js"></script>
+    <script src="utils/frySpawningSystem.js"></script>
+    <!-- Modular Sperm Fertilization system -->
+    <script src="utils/spermFertilizationSystem.js"></script>
     <!-- Modular Fish Spawning system -->
     <script src="utils/fishSpawningSystem.js"></script>
     <!-- Modular Fry Fertilization system -->
@@ -112,7 +121,7 @@
     <!-- Modular TrueFry Hatching system -->
     <script src="utils/truefryHatchingSystem.js"></script>
     <!-- Modular TrueFry Evolution system -->
-    <script src="utils/truefryEvolutionSystem.js"></script>
+    <script src="utils/truefryTransformationSystem.js"></script>
     <!-- Modular Boid system -->
     <script src="utils/boidConfig.js"></script>
     <script src="utils/boidFlockingSystem.js"></script>
@@ -124,6 +133,9 @@
     <script src="utils/tunaOverlayUtils.js"></script>
     <script src="utils/debugViewSystem.js"></script>
     <script src="utils/uiRenderingSystem.js"></script>
+    <script src="utils/eggRenderingSystem.js"></script>
+    <script src="utils/poopRenderingSystem.js"></script>
+    <script src="utils/stageProgressionSystem.js"></script>
     
     <!-- 2. Base entity class (must load before all other entities) -->
     <script src="entities/Entity.js"></script>
