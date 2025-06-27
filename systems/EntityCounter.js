@@ -11,6 +11,8 @@ class EntityCounter {
             momKrill: 0,
             squid: 0,
             fishFood: 0,
+            fishEggs: 0,
+            sperm: 0,
             poop: 0,
             eatingBubbles: 0
         };
@@ -35,6 +37,8 @@ class EntityCounter {
             { key: 'momKrill', name: 'Mom Krill', icon: 'momKrill1' },
             { key: 'squid', name: 'Giant Squid', icon: 'giantSquid1' },
             { key: 'fishFood', name: 'Fish Food', icon: 'fishFood' },
+            { key: 'fishEggs', name: 'Fish Eggs', icon: 'fishEgg' },
+            { key: 'sperm', name: 'Fish Sperm', icon: 'fishEgg' },
             { key: 'poop', name: 'Poop', icon: 'poop' },
             { key: 'eatingBubbles', name: 'Eating Bubbles', icon: 'bubble2' }
         ];
@@ -58,6 +62,8 @@ class EntityCounter {
         this.worldCounts.momKrill = gameEntities.momKrill ? gameEntities.momKrill.length : 0;
         this.worldCounts.squid = gameEntities.squid ? gameEntities.squid.length : 0;
         this.worldCounts.fishFood = gameEntities.fishFood ? gameEntities.fishFood.length : 0;
+        this.worldCounts.fishEggs = gameEntities.fishEggs ? gameEntities.fishEggs.length : 0;
+        this.worldCounts.sperm = gameEntities.sperm ? gameEntities.sperm.length : 0;
         this.worldCounts.poop = gameEntities.poop ? gameEntities.poop.length : 0;
         
         // Count active eating bubbles from object pool

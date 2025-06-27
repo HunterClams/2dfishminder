@@ -14,7 +14,7 @@ const KRILL_STATES = {
 
 const KRILL_CONFIG = {
     // Behavioral parameters
-    SWARM_RADIUS: 120,          // Distance to consider other krill for swarming
+    SWARM_RADIUS: 240,          // Distance to consider other krill for swarming (doubled from 120)
     SWARM_MIN_SIZE: 8,          // Minimum group size for migration
     SWARM_OPTIMAL_SIZE: 15,     // Optimal swarm size
     MIGRATION_THRESHOLD: 8,     // Minimum swarm size to trigger migration (reduced from 12)
@@ -26,9 +26,9 @@ const KRILL_CONFIG = {
     ENERGY_RECOVERY: 0.6,       // Energy level to exit rest state
     
     // Behavioral ranges
-    FOOD_DETECTION_RANGE: 60,   // Range to detect food (reduced from 100)
+    FOOD_DETECTION_RANGE: 120,   // Range to detect food (doubled from 60)
     PREDATOR_DETECTION_RANGE: 150, // Range to detect threats
-    COMMUNICATION_RANGE: 80,    // Range for swarm communication
+    COMMUNICATION_RANGE: 160,    // Range for swarm communication (doubled from 80)
     
     // Migration parameters  
     MIGRATION_CYCLE_LENGTH: 120000, // 2 minutes in milliseconds (reduced from 4 minutes)
@@ -48,6 +48,12 @@ const KRILL_CONFIG = {
         MIGRATION: 1.0
     }
 };
+
+// Export for global access
+if (typeof window !== 'undefined') {
+    window.KRILL_STATES = KRILL_STATES;
+    window.KRILL_CONFIG = KRILL_CONFIG;
+}
 
 class KrillBehaviorTree {
     constructor(krill) {
@@ -205,103 +211,87 @@ class KrillBehaviorTree {
     
     // Detect nearby food sources
     detectFood(poop, food) {
-        let closestFood = null;
-        let closestDistance = KRILL_CONFIG.FOOD_DETECTION_RANGE;
+        let closest = null;
+        let closestDistSquared = KRILL_CONFIG.FOOD_DETECTION_RANGE * KRILL_CONFIG.FOOD_DETECTION_RANGE;
         
-        // Check poop (preferred)
+        // Check poop first (preferred food source)
         for (let p of poop) {
             if (p.isActive && p.state >= 2) {
-                const distance = this.distanceToTarget(p);
-                if (distance < closestDistance) {
-                    closestFood = p;
-                    closestDistance = distance;
+                const distSquared = this.distanceToTarget(p) ** 2;
+                if (distSquared < closestDistSquared) {
+                    closest = p;
+                    closestDistSquared = distSquared;
                 }
             }
         }
         
         // Check fish food if no poop found
-        if (!closestFood) {
+        if (!closest) {
             for (let f of food) {
                 if (!f.eaten) {
-                    const distance = this.distanceToTarget(f);
-                    if (distance < closestDistance) {
-                        closestFood = f;
-                        closestDistance = distance;
+                    const distSquared = this.distanceToTarget(f) ** 2;
+                    if (distSquared < closestDistSquared) {
+                        closest = f;
+                        closestDistSquared = distSquared;
                     }
                 }
             }
         }
         
-        if (closestFood) {
-            this.krill.seekTarget = closestFood;
+        if (closest) {
+            this.krill.seekTarget = closest;
+            return closest;
         }
         
-        return closestFood;
+        return null;
     }
     
-    // Evaluate swarm conditions and migration readiness
+    // Evaluate swarm conditions and migration triggers
     evaluateSwarmConditions(nearbyKrill) {
         const swarmmates = this.findSwarmmates(nearbyKrill);
-        const swarmSize = swarmmates.length + 1; // +1 for self
+        const swarmSize = swarmmates.length;
         
-        // Calculate swarm center
-        let centerX = this.krill.x;
-        let centerY = this.krill.y;
-        
-        if (swarmmates.length > 0) {
-            for (let mate of swarmmates) {
-                centerX += mate.x;
-                centerY += mate.y;
-            }
-            centerX /= swarmSize;
-            centerY /= swarmSize;
+        // Update krill's swarm info
+        this.krill.swarmSize = swarmSize;
+        if (swarmSize > 0) {
+            const centerX = swarmmates.reduce((sum, k) => sum + k.x, 0) / swarmSize;
+            const centerY = swarmmates.reduce((sum, k) => sum + k.y, 0) / swarmSize;
+            this.krill.swarmCenter = { x: centerX, y: centerY };
         }
         
-        this.krill.swarmCenter = { x: centerX, y: centerY };
-        this.krill.swarmSize = swarmSize;
-        
-        // Check migration conditions
-        const shouldMigrate = this.shouldTriggerMigration(swarmmates, swarmSize);
-        const shouldSwarm = swarmSize >= 3 && !shouldMigrate;
-        
         return {
-            swarmSize,
-            swarmmates,
-            shouldMigrate,
-            shouldSwarm,
-            swarmCenter: this.krill.swarmCenter
+            shouldSwarm: swarmSize >= KRILL_CONFIG.SWARM_MIN_SIZE,
+            shouldMigrate: this.shouldTriggerMigration(swarmmates, swarmSize),
+            swarmSize: swarmSize
         };
     }
     
-    // Find nearby krill for swarming
     findSwarmmates(nearbyKrill) {
-        return nearbyKrill.filter(other => {
-            if (other === this.krill) return false;
-            const distance = this.distanceToTarget(other);
-            return distance < KRILL_CONFIG.SWARM_RADIUS;
-        });
+        return nearbyKrill.filter(k => 
+            k !== this.krill && 
+            k.behaviorState !== KRILL_STATES.FLEEING &&
+            this.distanceToTarget(k) < KRILL_CONFIG.SWARM_RADIUS
+        );
     }
     
-    // Determine if swarm should migrate
     shouldTriggerMigration(swarmmates, swarmSize) {
         if (swarmSize < KRILL_CONFIG.MIGRATION_THRESHOLD) return false;
         
-        // Check if enough swarmmates are ready for migration
-        const readyCount = swarmmates.filter(mate => {
-            return mate.energy > 0.5 && mate.behaviorState !== KRILL_STATES.FLEEING;
-        }).length;
+        // Check if enough swarmmates are also ready to migrate
+        const readyToMigrate = swarmmates.filter(k => 
+            k.behaviorState === KRILL_STATES.SWARMING || 
+            k.behaviorState === KRILL_STATES.FORAGING
+        ).length;
         
-        return readyCount >= KRILL_CONFIG.MIGRATION_THRESHOLD * 0.8;
+        return readyToMigrate >= KRILL_CONFIG.MIGRATION_THRESHOLD * 0.7;
     }
     
-    // Calculate current migration phase based on time
     calculateMigrationPhase() {
         const currentTime = Date.now();
         const cyclePosition = (currentTime % KRILL_CONFIG.MIGRATION_CYCLE_LENGTH) / KRILL_CONFIG.MIGRATION_CYCLE_LENGTH;
         return cyclePosition;
     }
     
-    // Helper function to calculate distance to target
     distanceToTarget(target) {
         const dx = this.krill.x - target.x;
         const dy = this.krill.y - target.y;
@@ -309,7 +299,6 @@ class KrillBehaviorTree {
     }
 }
 
-// Advanced krill AI behavior calculator
 class KrillAI {
     constructor() {
         this.behaviorTrees = new Map();
@@ -359,7 +348,8 @@ class KrillAI {
             predatorAvoid: { x: 0, y: 0 },
             depthPreference: { x: 0, y: 0 },
             swarmCohesion: { x: 0, y: 0 },
-            migration: { x: 0, y: 0 }
+            migration: { x: 0, y: 0 },
+            wandering: { x: 0, y: 0 }
         };
         
         // State-specific force calculations
@@ -404,10 +394,8 @@ class KrillAI {
         
         // Wandering behavior - random exploration
         const wanderAngle = (Date.now() / 1000 + krill.wanderOffset || 0) * 0.1;
-        forces.wandering = {
-            x: Math.cos(wanderAngle) * 0.3,
-            y: Math.sin(wanderAngle) * 0.2
-        };
+        forces.wandering.x = Math.cos(wanderAngle) * 0.3;
+        forces.wandering.y = Math.sin(wanderAngle) * 0.2;
     }
     
     calculateSeekingForces(krill, nearbyKrill, forces) {
@@ -530,8 +518,8 @@ class KrillAI {
                 alignmentCount++;
                 
                 // Cohesion
-                forces.cohesion.x -= dx * intensity * 0.01;
-                forces.cohesion.y -= dy * intensity * 0.01;
+                forces.cohesion.x -= dx * intensity * 0.005;
+                forces.cohesion.y -= dy * intensity * 0.005;
                 cohesionCount++;
             }
         }
@@ -541,10 +529,12 @@ class KrillAI {
             forces.separation.x /= separationCount;
             forces.separation.y /= separationCount;
         }
+        
         if (alignmentCount > 0) {
             forces.alignment.x /= alignmentCount;
             forces.alignment.y /= alignmentCount;
         }
+        
         if (cohesionCount > 0) {
             forces.cohesion.x /= cohesionCount;
             forces.cohesion.y /= cohesionCount;
@@ -557,151 +547,119 @@ class KrillAI {
             const dy = krill.y - predator.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            if (distance > 0 && distance < KRILL_CONFIG.PREDATOR_DETECTION_RANGE) {
-                const threat = this.calculateThreatLevel(predator, distance);
-                if (threat > 0.2) {
-                    forces.predatorAvoid.x += (dx / distance) * threat;
-                    forces.predatorAvoid.y += (dy / distance) * threat;
-                }
+            if (distance < KRILL_CONFIG.PREDATOR_DETECTION_RANGE && distance > 0) {
+                const strength = KRILL_CONFIG.PREDATOR_DETECTION_RANGE / distance;
+                forces.predatorAvoid.x += (dx / distance) * strength * 0.5;
+                forces.predatorAvoid.y += (dy / distance) * strength * 0.5;
             }
         }
     }
     
     calculateDepthPreference(krill, forces) {
-        // Skip depth preference during migration to avoid interference
-        if (krill.behaviorState === KRILL_STATES.MIGRATING) {
-            return; // Let migration forces handle depth control
-        }
-        
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         const preferredDepth = WORLD_HEIGHT * KRILL_CONFIG.DEEP_WATER_PREFERENCE;
         const depthDiff = krill.y - preferredDepth;
         
-        // Gentle force toward preferred depth
         forces.depthPreference.y = -depthDiff * KRILL_CONFIG.WEIGHTS.DEPTH_PREFERENCE * 0.001;
     }
     
-    calculateThreatLevel(predator, distance) {
-        // Reuse the threat calculation from behavior tree
-        let baseThreat = 0.5;
-        
-        if (predator.fishType === 'tuna' || predator.fishType === 'tuna2') {
-            baseThreat = 0.3;
-        } else if (predator.type === 'squid' || predator.type === 'giantSquid') {
-            baseThreat = 0.9;
-        } else if (predator.fishType && predator.fishType.includes('smallFry')) {
-            baseThreat = 0.7;
-        }
-        
-        const proximityFactor = 1 - (distance / KRILL_CONFIG.PREDATOR_DETECTION_RANGE);
-        return baseThreat * proximityFactor;
-    }
-    
     applySteeringForces(krill, forces) {
-        const maxForce = krill.maxForce || 0.025;
+        const maxForce = krill.maxForce || 0.04;
         
-        // Combine all forces with their weights
-        let totalX = 0;
-        let totalY = 0;
+        // Apply all forces to velocity
+        const totalForce = {
+            x: forces.separation.x * KRILL_CONFIG.WEIGHTS.SEPARATION +
+               forces.alignment.x * KRILL_CONFIG.WEIGHTS.ALIGNMENT +
+               forces.cohesion.x * KRILL_CONFIG.WEIGHTS.COHESION +
+               forces.foodSeek.x * KRILL_CONFIG.WEIGHTS.FOOD_SEEK +
+               forces.predatorAvoid.x * KRILL_CONFIG.WEIGHTS.PREDATOR_AVOID +
+               forces.depthPreference.x * KRILL_CONFIG.WEIGHTS.DEPTH_PREFERENCE +
+               forces.swarmCohesion.x * KRILL_CONFIG.WEIGHTS.SWARM_COHESION +
+               forces.migration.x * KRILL_CONFIG.WEIGHTS.MIGRATION +
+               forces.wandering.x,
+            
+            y: forces.separation.y * KRILL_CONFIG.WEIGHTS.SEPARATION +
+               forces.alignment.y * KRILL_CONFIG.WEIGHTS.ALIGNMENT +
+               forces.cohesion.y * KRILL_CONFIG.WEIGHTS.COHESION +
+               forces.foodSeek.y * KRILL_CONFIG.WEIGHTS.FOOD_SEEK +
+               forces.predatorAvoid.y * KRILL_CONFIG.WEIGHTS.PREDATOR_AVOID +
+               forces.depthPreference.y * KRILL_CONFIG.WEIGHTS.DEPTH_PREFERENCE +
+               forces.swarmCohesion.y * KRILL_CONFIG.WEIGHTS.SWARM_COHESION +
+               forces.migration.y * KRILL_CONFIG.WEIGHTS.MIGRATION +
+               forces.wandering.y
+        };
         
-        totalX += forces.separation.x * KRILL_CONFIG.WEIGHTS.SEPARATION;
-        totalY += forces.separation.y * KRILL_CONFIG.WEIGHTS.SEPARATION;
-        
-        totalX += forces.alignment.x * KRILL_CONFIG.WEIGHTS.ALIGNMENT;
-        totalY += forces.alignment.y * KRILL_CONFIG.WEIGHTS.ALIGNMENT;
-        
-        totalX += forces.cohesion.x * KRILL_CONFIG.WEIGHTS.COHESION;
-        totalY += forces.cohesion.y * KRILL_CONFIG.WEIGHTS.COHESION;
-        
-        totalX += forces.foodSeek.x;
-        totalY += forces.foodSeek.y;
-        
-        totalX += forces.predatorAvoid.x;
-        totalY += forces.predatorAvoid.y;
-        
-        totalX += forces.depthPreference.x;
-        totalY += forces.depthPreference.y;
-        
-        totalX += forces.swarmCohesion.x;
-        totalY += forces.swarmCohesion.y;
-        
-        totalX += forces.migration.x;
-        totalY += forces.migration.y;
-        
-        // Limit total force
-        const totalMag = Math.sqrt(totalX * totalX + totalY * totalY);
-        if (totalMag > maxForce) {
-            totalX = (totalX / totalMag) * maxForce;
-            totalY = (totalY / totalMag) * maxForce;
+        // Limit force magnitude
+        const forceMagnitude = Math.sqrt(totalForce.x * totalForce.x + totalForce.y * totalForce.y);
+        if (forceMagnitude > maxForce) {
+            totalForce.x = (totalForce.x / forceMagnitude) * maxForce;
+            totalForce.y = (totalForce.y / forceMagnitude) * maxForce;
         }
         
         // Apply to velocity
-        krill.velocity.x += totalX;
-        krill.velocity.y += totalY;
+        krill.velocity.x += totalForce.x;
+        krill.velocity.y += totalForce.y;
         
         // Limit velocity
-        const maxSpeed = krill.maxSpeed || 1.8;
-        const velMag = Math.sqrt(krill.velocity.x * krill.velocity.x + krill.velocity.y * krill.velocity.y);
-        if (velMag > maxSpeed) {
-            krill.velocity.x = (krill.velocity.x / velMag) * maxSpeed;
-            krill.velocity.y = (krill.velocity.y / velMag) * maxSpeed;
+        const speed = Math.sqrt(krill.velocity.x * krill.velocity.x + krill.velocity.y * krill.velocity.y);
+        const maxSpeed = krill.maxSpeed || 2.0;
+        if (speed > maxSpeed) {
+            krill.velocity.x = (krill.velocity.x / speed) * maxSpeed;
+            krill.velocity.y = (krill.velocity.y / speed) * maxSpeed;
         }
     }
     
     updateKrillProperties(krill) {
-        // Update energy based on behavior
+        // Update vital stats
+        krill.energy = Math.max(0, krill.energy - 0.0002);
+        krill.hunger = Math.min(1.0, krill.hunger + 0.0003);
+        krill.nutritionLevel = Math.max(0.2, krill.nutritionLevel - 0.0001);
+        
+        // Update speed based on state and nutrition
+        let speedMultiplier = 1.0;
         switch (krill.behaviorState) {
             case KRILL_STATES.FLEEING:
-                krill.energy = Math.max(0, krill.energy - 0.003); // High energy cost
-                break;
-            case KRILL_STATES.MIGRATING:
-                krill.energy = Math.max(0, krill.energy - 0.002); // Medium energy cost
+                speedMultiplier = 1.5;
                 break;
             case KRILL_STATES.SEEKING:
-                krill.energy = Math.max(0, krill.energy - 0.001); // Low energy cost
+                speedMultiplier = 1.2;
+                break;
+            case KRILL_STATES.MIGRATING:
+                speedMultiplier = 1.1;
                 break;
             case KRILL_STATES.RESTING:
-                krill.energy = Math.min(1.0, krill.energy + 0.002); // Energy recovery
+                speedMultiplier = 0.5;
                 break;
-            default:
-                krill.energy = Math.max(0, krill.energy - 0.0005); // Minimal energy drain
+            case KRILL_STATES.SWARMING:
+                speedMultiplier = 0.9;
+                break;
         }
         
-        // Update hunger
-        krill.hunger = Math.min(1.0, krill.hunger + 0.001);
-        
-        // Ensure properties exist and have valid values
-        krill.energy = Math.max(0, Math.min(1.0, krill.energy || 0.5));
-        krill.hunger = Math.max(0, Math.min(1.0, krill.hunger || 0.5));
-        krill.nutritionLevel = Math.max(0.2, Math.min(1.0, krill.nutritionLevel || 0.5));
+        const nutritionSpeedBonus = krill.nutritionLevel * 0.3;
+        krill.maxSpeed = (1.8 + nutritionSpeedBonus) * speedMultiplier;
     }
     
-    // Calculate current migration phase based on time
     calculateMigrationPhase() {
         const currentTime = Date.now();
         const cyclePosition = (currentTime % KRILL_CONFIG.MIGRATION_CYCLE_LENGTH) / KRILL_CONFIG.MIGRATION_CYCLE_LENGTH;
         return cyclePosition;
     }
     
-    // Clean up behavior trees for removed krill
     cleanup() {
-        // Remove behavior trees for krill that no longer exist
-        // This should be called periodically to prevent memory leaks
+        // Clean up old behavior trees
+        const currentTime = Date.now();
         for (let [krill, tree] of this.behaviorTrees) {
-            if (!krill || krill.removed) {
+            if (currentTime - tree.lastStateChangeTime > 60000) { // 1 minute
                 this.behaviorTrees.delete(krill);
             }
         }
     }
 }
 
-// Export the AI system
+// Create global instance
+const krillAI = new KrillAI();
+
+// Export for global access
 if (typeof window !== 'undefined') {
-    window.KRILL_STATES = KRILL_STATES;
-    window.KRILL_CONFIG = KRILL_CONFIG;
-    window.KrillAI = KrillAI;
-    window.KrillBehaviorTree = KrillBehaviorTree;
-    
-    // Create global instance
-    window.krillAI = new KrillAI();
+    window.krillAI = krillAI;
 } 

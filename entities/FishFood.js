@@ -23,8 +23,8 @@ class FishFood {
             const abyssalDepth = WORLD_HEIGHT * CONSTANTS.DEPTH_FADE_END; // 80%
             if (this.y >= abyssalDepth && !this.transformedToPoop) {
                 // Transform into poop3 when reaching abyssal depth
-                if (window.gameSystem && window.Poop) {
-                    window.gameSystem.addEntity('poop', new window.Poop(this.x, this.y, 'abyssal'));
+                if (window.gameEntities && window.Poop) {
+                    window.gameEntities.poop.push(new window.Poop(this.x, this.y, 'abyssal'));
                 }
                 this.eaten = true;
                 this.transformedToPoop = true;
@@ -82,9 +82,10 @@ class FishFood {
         }
     }
 
-    checkEaten(fish) {
+    checkEaten(fish, krill = []) {
         if (this.eaten) return false;
         
+        // Check fish eating fish food
         for (let i = 0; i < fish.length; i++) {
             const f = fish[i];
             // Safe distance calculation
@@ -98,14 +99,15 @@ class FishFood {
                 }
                 
                 // Add poop when fish eats food
-                if (window.gameSystem && window.Poop) {
-                    window.gameSystem.addEntity('poop', new window.Poop(f.x, f.y));
+                if (window.gameEntities && window.Poop) {
+                    window.gameEntities.poop.push(new window.Poop(f.x, f.y));
                 }
                 
                 this.eaten = true;
                 return true;
             }
         }
+        
         return false;
     }
 }

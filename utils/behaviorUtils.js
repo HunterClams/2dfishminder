@@ -14,15 +14,18 @@ function shouldIgnorePrey(predatorType, preyType, fishTypes) {
             ignore = preyType === fishTypes.SMALL_FRY_3;
             // All tuna ignore krill (standardized behavior)
             if (preyType === fishTypes.KRILL) ignore = true;
+            // Tuna can eat fertilized eggs
+            if (preyType === 'fertilizedEggs') ignore = false;
         } else if (predatorType === fishTypes.SMALL_FRY_2 || 
                    predatorType === fishTypes.SMALL_FRY_3 || 
                    predatorType === fishTypes.SMALL_FRY_4) {
-            // All fry can eat krill (all types) AND fish food AND poop
+            // All fry can eat krill (all types) AND fish food AND poop AND fertilized eggs AND sperm
+            // Fry do NOT eat fish eggs - only krill, food, poop, fertilized eggs, and sperm
             ignore = !(preyType === fishTypes.KRILL || 
                       preyType === fishTypes.PALE_KRILL || 
                       preyType === fishTypes.MOM_KRILL ||
                       preyType === 'krill' || preyType === 'paleKrill' || preyType === 'momKrill' ||
-                      preyType === 'fishFood' || preyType === 'poop');
+                      preyType === 'fishFood' || preyType === 'poop' || preyType === 'fertilizedEggs' || preyType === 'sperm');
         }
         _preyCache.set(key, ignore);
     }

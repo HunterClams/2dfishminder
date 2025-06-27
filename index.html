@@ -63,14 +63,16 @@
         <h3>Controls:</h3>
         <p><strong>WASD</strong> - Move camera</p>
         <p><strong>Mouse Wheel</strong> - Zoom in/out</p>
-        <p><strong>F</strong> - Cycle spawn modes</p>
+        <p><strong>F</strong> - Cycle spawn modes (Food → Poop → Fertilized Eggs → Krill → Fry → Tuna → Squid → Off)</p>
         <p><strong>H</strong> - Cycle HUD (Controls → Full View → Off)</p>
         <p><strong>T</strong> - Toggle tuna AI debug mode</p>
+        <p><strong>F3</strong> - Toggle comprehensive debug view (all systems)</p>
         <p><strong>Ctrl+R</strong> - Reset spawn statistics</p>
         <p><strong>Ctrl+A</strong> - Test analytics (dev mode)</p>
         <p><strong>Click</strong> - Spawn items (when mode active)</p>
         <p><em>🌊 Live ecosystem population counter shows current world state</em></p>
         <p><em>📊 Player spawns tracked with Vercel Analytics</em></p>
+        <p><em>🔍 F3 shows AI states, detection ranges, pooping sequences, and more!</em></p>
     </div>
 
     <!-- 1. Utility modules (no dependencies) -->
@@ -78,11 +80,50 @@
     <script src="utils/depthUtils.js"></script>
     <script src="utils/behaviorUtils.js"></script>
     <script src="utils/squidUtils.js"></script>
+    <!-- Modular Squid AI system -->
+    <script src="utils/squidConfig.js"></script>
+    <script src="utils/squidJetSystem.js"></script>
+    <script src="utils/squidBehaviorTree.js"></script>
+    <script src="utils/squidSteeringForces.js"></script>
+    <script src="utils/squidRenderingSystem.js"></script>
+    <!-- Modular Tuna AI system -->
+    <script src="utils/tunaConfig.js"></script>
+    <script src="utils/tunaBehaviorTree.js"></script>
+    <script src="utils/tunaSteeringForces.js"></script>
     <script src="utils/tunaAI.js"></script>
+    <!-- Modular Tuna Systems -->
+    <script src="utils/tunaRenderingSystem.js"></script>
+    <script src="utils/tunaPhysicsSystem.js"></script>
+    <script src="utils/tunaLegacySystem.js"></script>
+    <script src="utils/tunaThreatSystem.js"></script>
+    <script src="utils/tunaPoopingSystem.js"></script>
+    <!-- Modular Krill AI system -->
     <script src="utils/krillAI.js"></script>
+    <script src="utils/krillLifecycleSystem.js"></script>
+    <script src="utils/krillRenderingSystem.js"></script>
+    <script src="utils/krillTransformationSystem.js"></script>
+    <!-- Modular Fry Food Sharing system -->
+    <script src="utils/fryEggLayingSystem.js"></script>
+    <script src="utils/fryFeedingCooldownSystem.js"></script>
+    <!-- Modular Fish Spawning system -->
+    <script src="utils/fishSpawningSystem.js"></script>
+    <!-- Modular Fry Fertilization system -->
+    <script src="utils/fryFertilizationSystem.js"></script>
+    <!-- Modular TrueFry Hatching system -->
+    <script src="utils/truefryHatchingSystem.js"></script>
+    <!-- Modular TrueFry Evolution system -->
+    <script src="utils/truefryEvolutionSystem.js"></script>
+    <!-- Modular Boid system -->
+    <script src="utils/boidConfig.js"></script>
+    <script src="utils/boidFlockingSystem.js"></script>
+    <script src="utils/boidFeedingSystem.js"></script>
+    <script src="utils/boidRenderingSystem.js"></script>
     <script src="utils/cameraUtils.js"></script>
     <script src="utils/inputUtils.js"></script>
     <script src="utils/fishUtils.js"></script>
+    <script src="utils/tunaOverlayUtils.js"></script>
+    <script src="utils/debugViewSystem.js"></script>
+    <script src="utils/uiRenderingSystem.js"></script>
     
     <!-- 2. Base entity class (must load before all other entities) -->
     <script src="entities/Entity.js"></script>
@@ -90,11 +131,21 @@
     <!-- 3. Entity classes (depend on Entity.js) -->
     <script src="entities/Predator.js"></script>
     <script src="entities/Boid.js"></script>
+    <script src="entities/TrueFry.js"></script>
+    <script src="entities/KrillBase.js"></script>
+    <script src="entities/KrillTypes.js"></script>
     <script src="entities/Krill.js"></script>
     <script src="entities/GiantSquid.js"></script>
+    <script src="entities/FishFood.js"></script>
+    <script src="entities/FishEgg.js"></script>
+    <script src="entities/FertilizedEgg.js"></script>
+    <script src="entities/Sperm.js"></script>
+    <script src="entities/Poop.js"></script>
+    <script src="entities/Bubble.js"></script>
     
     <!-- 4. System modules -->
     <script src="systems/EntityCounter.js"></script>
+    <script src="systems/GameEntities.js"></script>
     
     <!-- 5. Main game file (depends on all entities and systems) -->
     <script src="game.js"></script>

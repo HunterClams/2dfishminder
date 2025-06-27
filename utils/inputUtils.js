@@ -32,14 +32,16 @@ function createInputHandler(keys, gameState) {
                 console.log(`🎮 HUD State: ${gameState.hudState}`);
                 event.preventDefault();
             } else if (key === 'f') {
-                // Cycle through spawn modes: off -> food -> krill -> poop -> fry -> tuna -> squid -> off
+                // Cycle through spawn modes: off -> food -> poop -> fertilized eggs -> krill -> fry -> tuna -> squid -> off
                 if (gameState.spawnMode === 'off') {
                     gameState.spawnMode = 'food';
                 } else if (gameState.spawnMode === 'food') {
-                    gameState.spawnMode = 'krill';
-                } else if (gameState.spawnMode === 'krill') {
                     gameState.spawnMode = 'poop';
                 } else if (gameState.spawnMode === 'poop') {
+                    gameState.spawnMode = 'fertilizedEggs';
+                } else if (gameState.spawnMode === 'fertilizedEggs') {
+                    gameState.spawnMode = 'krill';
+                } else if (gameState.spawnMode === 'krill') {
                     gameState.spawnMode = 'fry';
                 } else if (gameState.spawnMode === 'fry') {
                     gameState.spawnMode = 'tuna';
@@ -61,7 +63,7 @@ function createInputHandler(keys, gameState) {
                     window.entityCounter.triggerAnalytics();
                 }
                 event.preventDefault();
-            } else if (key === 't') {
+            } else if (key === 't' || key === 'T') {
                 // Cycle through behavior state display: Off -> Tuna -> Squid -> Fry -> Krill -> Off
                 if (!gameState.behaviorDebug || gameState.behaviorDebug === 'off') {
                     gameState.behaviorDebug = 'tuna';
@@ -148,10 +150,11 @@ function setupMouseTracking(canvas, camera, mouseWorldPos) {
 // Get current spawn mode info
 function getSpawnModeInfo(spawnMode) {
     const modes = {
-        'off': { name: 'OFF', color: 'rgba(255, 255, 255, 0.6)', message: 'Press F to cycle: Food → Krill → Poop → Fry → Tuna → Squid → Off' },
+        'off': { name: 'OFF', color: 'rgba(255, 255, 255, 0.6)', message: 'Press F to cycle: Food → Poop → Fertilized Eggs → Krill → Fry → Tuna → Squid → Off' },
         'food': { name: 'FOOD MODE', color: 'rgba(0, 255, 0, 0.8)', message: 'Click to spawn food' },
-        'krill': { name: 'KRILL MODE', color: 'rgba(255, 150, 100, 0.8)', message: 'Click to spawn krill' },
         'poop': { name: 'POOP MODE', color: 'rgba(139, 69, 19, 0.8)', message: 'Click to spawn poop' },
+        'fertilizedEggs': { name: 'FERTILIZED EGGS MODE', color: 'rgba(255, 182, 193, 0.8)', message: 'Click to spawn fertilized eggs (1-3)' },
+        'krill': { name: 'KRILL MODE', color: 'rgba(255, 150, 100, 0.8)', message: 'Click to spawn krill' },
         'fry': { name: 'FRY MODE', color: 'rgba(100, 200, 255, 0.8)', message: 'Click to spawn fry (1-5 random types)' },
         'tuna': { name: 'TUNA MODE', color: 'rgba(255, 100, 100, 0.8)', message: 'Click to spawn tuna (1-3 random types)' },
         'squid': { name: 'SQUID MODE', color: 'rgba(150, 50, 200, 0.8)', message: 'Click to spawn giant squid (apex predator)' }
