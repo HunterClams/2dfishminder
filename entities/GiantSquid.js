@@ -47,6 +47,10 @@ class GiantSquid extends (window.Entity || Entity) {
         this.jetSystem = new window.SquidJetSystem();
         this.jetSystem.initializeJetSystem(this);
         
+        // Initialize bioluminescence system
+        this.bioluminescenceSystem = new window.SquidBioluminescenceSystem();
+        this.bioluminescenceSystem.initializeBioluminescenceSystem(this);
+        
         // Initialize behavior tree
         this.behaviorTree = new window.SquidBehaviorTree();
         this.behaviorTree.initializeBehaviorTree(this);
@@ -56,6 +60,9 @@ class GiantSquid extends (window.Entity || Entity) {
         
         // Initialize rendering system
         this.renderingSystem = new window.SquidRenderingSystem();
+        
+        // Initialize flocking system for squid repulsion
+        this.flockingSystem = new window.SquidFlockingSystem();
         
         // Set this controller as the delegate for the behavior tree
         this.behaviorTree.setController(this);
@@ -100,11 +107,27 @@ class GiantSquid extends (window.Entity || Entity) {
         // Update jet propulsion system
         this.jetSystem.updateJetSystem(this);
         
+        // Update bioluminescence system
+        this.bioluminescenceSystem.updateBioluminescenceSystem(this);
+        
         // Update animation timers
         this.jetSystem.updateAnimationTimers(this);
         
         // Maintain depth preference (especially important if spawned at surface)
         this.maintainDepth();
+        
+        // Apply squid flocking (repulsion from other squids)
+        if (window.gameEntities && window.gameEntities.squid) {
+            // Debug logging for flocking system
+            if (window.gameState && window.gameState.squidDebug && this.stateTimer % 120 === 0) {
+                console.log(`🦑 Squid flocking system called:`, {
+                    totalSquids: window.gameEntities.squid.length,
+                    currentSquidPosition: { x: Math.round(this.x), y: Math.round(this.y) },
+                    currentSquidVelocity: { x: Math.round(this.velocity.x * 100) / 100, y: Math.round(this.velocity.y * 100) / 100 }
+                });
+            }
+            this.flockingSystem.flock(this, window.gameEntities.squid);
+        }
         
         // Update behavior tree
         this.behaviorTree.updateBehaviorTree(this, fish, predators, krill);

@@ -88,6 +88,7 @@ class Boid extends (window.Entity || Entity) {
         this.hunger = 0;
         this.huntCooldown = 0;
         this.animationFrame = 0;
+        this.frameCount = 0; // Add frame counter for debug logging
     }
 
     getPreferredDepth() {
@@ -113,12 +114,126 @@ class Boid extends (window.Entity || Entity) {
     }
 
     flock(boids, predators, food, krill = []) {
-        if (this.flockingSystem && this.flockingSystem.flock) {
-            this.flockingSystem.flock(this, boids, predators, food, krill);
+        // TEMPORARILY USE ORIGINAL WORKING FLOCKING CODE
+        const CONSTANTS = window.CONSTANTS || { PERCEPTION_RADIUS: 50, SEPARATION_RADIUS: 30 };
+        const perceptionRadiusSquared = CONSTANTS.PERCEPTION_RADIUS * CONSTANTS.PERCEPTION_RADIUS;
+        const separationRadiusSquared = CONSTANTS.SEPARATION_RADIUS * CONSTANTS.SEPARATION_RADIUS;
+        
+        let alignment = { x: 0, y: 0 };
+        let cohesion = { x: 0, y: 0 };
+        let separation = { x: 0, y: 0 };
+        let alignCount = 0, cohesionCount = 0, separationCount = 0;
+        
+        // Single pass through nearby boids
+        for (let other of boids) {
+            if (other === this) continue;
+            
+            const distSquared = this.distanceSquared(this, other);
+            
+            if (distSquared < perceptionRadiusSquared) {
+                alignment.x += other.velocity.x;
+                alignment.y += other.velocity.y;
+                alignCount++;
+                
+                cohesion.x += other.x;
+                cohesion.y += other.y;
+                cohesionCount++;
+            }
+            
+            if (distSquared < separationRadiusSquared) {
+                const dist = Math.sqrt(distSquared);
+                const diff = { x: (this.x - other.x) / dist, y: (this.y - other.y) / dist };
+                separation.x += diff.x;
+                separation.y += diff.y;
+                separationCount++;
+            }
         }
+        
+        // Calculate steering forces
+        const forces = { x: 0, y: 0 };
+        
+        if (alignCount > 0) {
+            alignment.x /= alignCount;
+            alignment.y /= alignCount;
+            const alignSteering = this.calculateSteering(alignment, this.maxSpeed, this.maxForce);
+            forces.x += alignSteering.x;
+            forces.y += alignSteering.y;
+        }
+        
+        if (cohesionCount > 0) {
+            cohesion.x = (cohesion.x / cohesionCount) - this.x;
+            cohesion.y = (cohesion.y / cohesionCount) - this.y;
+            const cohesionSteering = this.calculateSteering(cohesion, this.maxSpeed, this.maxForce);
+            forces.x += cohesionSteering.x;
+            forces.y += cohesionSteering.y;
+        }
+        
+        if (separationCount > 0) {
+            separation.x /= separationCount;
+            separation.y /= separationCount;
+            const separationSteering = this.calculateSteering(separation, this.maxSpeed, this.maxForce);
+            forces.x += separationSteering.x * 1.5;
+            forces.y += separationSteering.y * 1.5;
+        }
+        
+        // Apply forces
+        this.velocity.x += forces.x;
+        this.velocity.y += forces.y;
+        
+        // Limit velocity
+        if (window.Utils && window.Utils.limitVelocity) {
+            window.Utils.limitVelocity(this.velocity, this.maxSpeed);
+        }
+    }
+    
+    distanceSquared(obj1, obj2) {
+        return (obj1.x - obj2.x) ** 2 + (obj1.y - obj2.y) ** 2;
+    }
+    
+    calculateSteering(target, maxSpeed, maxForce) {
+        // Simplified steering calculation
+        const desired = this.normalize(target);
+        desired.x *= maxSpeed;
+        desired.y *= maxSpeed;
+        
+        const steer = {
+            x: desired.x - this.velocity.x,
+            y: desired.y - this.velocity.y
+        };
+        
+        // Limit steering force
+        const mag = Math.sqrt(steer.x * steer.x + steer.y * steer.y);
+        if (mag > maxForce) {
+            steer.x = (steer.x / mag) * maxForce;
+            steer.y = (steer.y / mag) * maxForce;
+        }
+        
+        return steer;
+    }
+    
+    normalize(vector) {
+        const mag = Math.sqrt(vector.x * vector.x + vector.y * vector.y);
+        if (mag === 0) return { x: 0, y: 0 };
+        return { x: vector.x / mag, y: vector.y / mag };
     }
 
     update(boids, predators, food, krill, poop, fertilizedEggs = []) {
+        // Update frame counter
+        this.frameCount++;
+        
+        // Debug logging for fry movement
+        if (window.gameState && window.gameState.fryDebug && this.frameCount % 60 === 0) {
+            console.log(`🐟 Fry update:`, {
+                fishType: this.fishType,
+                position: { x: Math.round(this.x), y: Math.round(this.y) },
+                velocity: { x: Math.round(this.velocity.x * 100) / 100, y: Math.round(this.velocity.y * 100) / 100 },
+                behaviorState: this.behaviorState,
+                maxSpeed: this.maxSpeed,
+                energy: this.energy
+            });
+        }
+        
+        // Apply flocking and feeding systems (direct velocity modification like original)
         this.flock(boids, predators, food, krill);
         this.checkForFood(krill, food, poop, fertilizedEggs);
         this.move();

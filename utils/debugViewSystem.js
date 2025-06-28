@@ -3,17 +3,17 @@ class DebugViewSystem {
     constructor() {
         this.isEnabled = false;
         this.config = {
-            SHOW_AI_STATES: true,
-            SHOW_DETECTION_RANGES: true,
-            SHOW_PATHFINDING: true,
-            SHOW_PHYSICS: true,
-            SHOW_SPAWNING: true,
-            SHOW_POOPING: true,
-            SHOW_FEEDING: true,
-            SHOW_LIFECYCLE: true,
-            SHOW_PERFORMANCE: true,
-            SHOW_ENTITY_INFO: true,
-            SHOW_SYSTEM_STATUS: true,
+            SHOW_AI_STATES: false,
+            SHOW_DETECTION_RANGES: false,
+            SHOW_PATHFINDING: false,
+            SHOW_PHYSICS: false,
+            SHOW_SPAWNING: false,
+            SHOW_POOPING: false,
+            SHOW_FEEDING: false,
+            SHOW_LIFECYCLE: false,
+            SHOW_PERFORMANCE: false,
+            SHOW_ENTITY_INFO: false,
+            SHOW_SYSTEM_STATUS: false,
             TEXT_COLOR: '#00ff00',
             LINE_COLOR: '#ff0000',
             CIRCLE_COLOR: '#ffff00',
@@ -71,12 +71,36 @@ class DebugViewSystem {
     }
     
     /**
+     * Update debug config based on global debug state
+     */
+    updateDebugConfig() {
+        const isGlobalDebugOn = window.debugManager && window.debugManager.isGlobalDebugOn();
+        
+        // Update all config options based on global debug state
+        this.config.SHOW_AI_STATES = isGlobalDebugOn;
+        this.config.SHOW_DETECTION_RANGES = isGlobalDebugOn;
+        this.config.SHOW_PATHFINDING = isGlobalDebugOn;
+        this.config.SHOW_PHYSICS = isGlobalDebugOn;
+        this.config.SHOW_SPAWNING = isGlobalDebugOn;
+        this.config.SHOW_POOPING = isGlobalDebugOn;
+        this.config.SHOW_FEEDING = isGlobalDebugOn;
+        this.config.SHOW_LIFECYCLE = isGlobalDebugOn;
+        this.config.SHOW_PERFORMANCE = isGlobalDebugOn;
+        this.config.SHOW_ENTITY_INFO = isGlobalDebugOn;
+        this.config.SHOW_SYSTEM_STATUS = isGlobalDebugOn;
+        
+        // Update enabled state
+        this.isEnabled = isGlobalDebugOn;
+    }
+    
+    /**
      * Main draw method for debug overlay
      */
     draw(ctx) {
-        // Only render if global debug is enabled
-        if (!(window.debugManager && window.debugManager.isGlobalDebugOn())) return;
+        // Update config based on current debug state
+        this.updateDebugConfig();
         
+        // Only render if debug is enabled
         if (!this.isEnabled || !ctx || !window.gameEntities) return;
         
         ctx.save();

@@ -13,7 +13,7 @@ class Sperm extends (window.Entity || Entity) {
         // Initialize velocity for sinking motion (like poop)
         this.velocity = {
             x: (Math.random() - 0.5) * 0.5, // Small horizontal drift
-            y: 0.5 + Math.random() * 1.0 // Downward sinking motion (0.5 to 1.5 pixels per frame)
+            y: 0.2 + Math.random() * 0.6 // Slower downward sinking motion (0.2 to 0.8 pixels per frame)
         };
         
         // Swimming animation
@@ -78,7 +78,7 @@ class Sperm extends (window.Entity || Entity) {
         ctx.restore();
         
         // Debug visualization
-        if (window.gameState?.fryDebug) {
+        if (window.gameState?.spermDebug) {
             this.drawDebugInfo();
         }
     }
@@ -148,7 +148,7 @@ class Sperm extends (window.Entity || Entity) {
                 }
             }
             
-            if (window.gameState?.fryDebug) {
+            if (window.gameState?.spermDebug) {
                 console.log(`🐟 Fish sperm eaten by ${entity.fishType || 'entity'}`);
             }
             

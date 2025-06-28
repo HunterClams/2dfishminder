@@ -1,4 +1,6 @@
 // GameEntities system - manages all game entities and their lifecycle
+// Enhanced with comprehensive optimization systems
+
 class GameEntities {
     constructor() {
         this.fish = [];
@@ -17,6 +19,9 @@ class GameEntities {
         
         // Initialize entity counter
         this.entityCounter = window.EntityCounter ? new window.EntityCounter() : null;
+        
+        // Initialize optimization systems
+        this.initializeOptimizationSystems();
         
         // Fish spawning system is only used for initialization, not stored as instance variable
         
@@ -56,7 +61,139 @@ class GameEntities {
         this.fishEggs = [];
         console.log('🥚 Fish eggs array initialized (empty)');
         
-        console.log('🎮 GameEntities system initialized');
+        console.log('🎮 GameEntities system initialized with optimizations');
+    }
+    
+    // Initialize all optimization systems
+    initializeOptimizationSystems() {
+        // Initialize spatial partitioning
+        if (window.SpatialPartitioningSystem) {
+            this.spatialPartitioning = new window.SpatialPartitioningSystem(100);
+            console.log('🗺️ Spatial partitioning system initialized');
+        }
+        
+        // Initialize enhanced object pools
+        if (window.EnhancedObjectPools) {
+            this.enhancedObjectPools = new window.EnhancedObjectPools();
+            window.enhancedObjectPools = this.enhancedObjectPools; // Make globally accessible
+            console.log('🔄 Enhanced object pools initialized');
+        }
+        
+        // Initialize batch processing
+        if (window.BatchProcessingSystem) {
+            this.batchProcessing = new window.BatchProcessingSystem(20);
+            this.setupBatchProcessing();
+            console.log('⚡ Batch processing system initialized');
+        }
+        
+        // Initialize LOD system
+        if (window.LODSystem) {
+            this.lodSystem = new window.LODSystem();
+            console.log('📊 LOD system initialized');
+        }
+        
+        // Initialize enhanced rendering system
+        if (window.EnhancedRenderingSystem) {
+            this.enhancedRendering = new window.EnhancedRenderingSystem();
+            this.enhancedRendering.initializeLOD();
+            console.log('🎨 Enhanced rendering system initialized');
+        }
+        
+        // Initialize performance monitoring
+        if (window.PerformanceMonitoringSystem) {
+            this.performanceMonitoring = new window.PerformanceMonitoringSystem();
+            window.performanceMonitoringSystem = this.performanceMonitoring; // Make globally accessible
+            console.log('📈 Performance monitoring system initialized');
+        }
+        
+        // Performance monitoring
+        this.spatialStats = {
+            lastUpdate: 0,
+            updateInterval: 300 // Update stats every 5 seconds
+        };
+    }
+    
+    // Setup batch processing for different entity types
+    setupBatchProcessing() {
+        // Register fish batch processing (regular fry only) - smaller batch size for better responsiveness
+        this.batchProcessing.registerBatchType('fry', (fry, index) => {
+            fry.update(this.fish, this.predators, this.fishFood, 
+                       [...this.krill, ...this.paleKrill, ...this.momKrill], 
+                       this.poop, this.fertilizedEggs);
+        });
+        // Register truefry batch processing - smaller batch size for better responsiveness
+        this.batchProcessing.registerBatchType('truefry', (truefry, index) => {
+            truefry.update(this.fish, this.predators, this.fishFood, 
+                       [...this.krill, ...this.paleKrill, ...this.momKrill], 
+                       this.poop, this.fertilizedEggs);
+        });
+        // Register predator batch processing
+        this.batchProcessing.registerBatchType('predator', (predator, index) => {
+            predator.update(this.fish, [...this.krill, ...this.paleKrill, ...this.momKrill], this.squid);
+        });
+        // Register krill batch processing - smaller batch size for better responsiveness
+        this.batchProcessing.registerBatchType('krill', (krill, index) => {
+            krill.update([...this.krill, ...this.paleKrill, ...this.momKrill], 
+                        this.predators, this.fishFood, this.poop);
+        });
+        
+        // Configure smaller batch sizes for better responsiveness
+        this.batchProcessing.batchSize = 10; // Reduced from 20 to 10 for more frequent updates
+    }
+    
+    // Update spatial partitioning for all entities
+    updateSpatialPartitioning() {
+        if (!this.spatialPartitioning) return;
+        
+        // Update fish positions
+        this.fish.forEach(fish => {
+            this.spatialPartitioning.updateEntity(fish, 'fish');
+        });
+        
+        // Update predators
+        this.predators.forEach(predator => {
+            this.spatialPartitioning.updateEntity(predator, 'predator');
+        });
+        
+        // Update krill
+        this.krill.forEach(krill => {
+            this.spatialPartitioning.updateEntity(krill, 'krill');
+        });
+        
+        this.paleKrill.forEach(krill => {
+            this.spatialPartitioning.updateEntity(krill, 'paleKrill');
+        });
+        
+        this.momKrill.forEach(krill => {
+            this.spatialPartitioning.updateEntity(krill, 'momKrill');
+        });
+        
+        // Update food and other entities
+        this.fishFood.forEach(food => {
+            this.spatialPartitioning.updateEntity(food, 'food');
+        });
+        
+        this.poop.forEach(poop => {
+            this.spatialPartitioning.updateEntity(poop, 'poop');
+        });
+        
+        this.sperm.forEach(sperm => {
+            this.spatialPartitioning.updateEntity(sperm, 'sperm');
+        });
+        
+        this.fishEggs.forEach(egg => {
+            this.spatialPartitioning.updateEntity(egg, 'egg');
+        });
+        
+        this.fertilizedEggs.forEach(egg => {
+            this.spatialPartitioning.updateEntity(egg, 'fertilizedEgg');
+        });
+        
+        // Update performance stats periodically
+        if (window.gameState && window.gameState.frameCount - this.spatialStats.lastUpdate > this.spatialStats.updateInterval) {
+            this.spatialPartitioning.logPerformanceStats();
+            this.spatialStats.lastUpdate = window.gameState.frameCount;
+        }
     }
     
     // Initialize the ecosystem with starting entities
@@ -359,8 +496,16 @@ class GameEntities {
         }
     }
     
-    // Update all entities
+    // Update all entities with optimization systems
     update() {
+        // Update spatial partitioning first
+        this.updateSpatialPartitioning();
+        
+        // Update performance monitoring
+        if (this.performanceMonitoring) {
+            this.performanceMonitoring.update();
+        }
+        
         // Track krill counts before update for debugging
         const krillCountsBefore = {
             regular: this.krill.length,
@@ -373,7 +518,7 @@ class GameEntities {
             this.bubbles[i].update();
         }
         
-        // Update fish food and poop
+        // Update food and poop
         for (let i = this.fishFood.length - 1; i >= 0; i--) {
             const food = this.fishFood[i];
             food.update();
@@ -429,28 +574,67 @@ class GameEntities {
             }
         }
         
-        // Update entities with cached references
-        this.fish.forEach(f => {
-            f.update(this.fish, this.predators, this.fishFood, [...this.krill, ...this.paleKrill, ...this.momKrill], this.poop, this.fertilizedEggs);
-        });
+        // Use batch processing for main entities if available
+        if (this.batchProcessing) {
+            // Temporarily disable batch processing for all entities to ensure smooth movement
+            // Process all entities with traditional updates for better responsiveness
+            
+            // Process predators (tuna) with traditional updates
+            this.predators.forEach(p => {
+                p.update(this.fish, [...this.krill, ...this.paleKrill, ...this.momKrill], this.squid);
+            });
+            
+            // Process krill and fry with traditional updates for better responsiveness
+            this.krill.forEach(k => {
+                k.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
+            });
+            
+            this.paleKrill.forEach(pk => {
+                pk.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
+            });
+            
+            this.momKrill.forEach(mk => {
+                mk.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
+            });
+            
+            // Process all fish (both regular fry and truefry) with traditional updates
+            this.fish.forEach(f => {
+                f.update(this.fish, this.predators, this.fishFood, 
+                        [...this.krill, ...this.paleKrill, ...this.momKrill], 
+                        this.poop, this.fertilizedEggs);
+            });
+            
+            // Debug logging for entity counts
+            if (window.gameState?.fryDebug) {
+                console.log(`🐟 Processing: ${this.fish.length} fish, ${this.predators.length} predators, ${this.krill.length + this.paleKrill.length + this.momKrill.length} krill`);
+            }
+        } else {
+            // Fallback to traditional updates
+            this.fish.forEach(f => {
+                f.update(this.fish, this.predators, this.fishFood, [...this.krill, ...this.paleKrill, ...this.momKrill], this.poop, this.fertilizedEggs);
+            });
+            
+            this.predators.forEach(p => {
+                p.update(this.fish, [...this.krill, ...this.paleKrill, ...this.momKrill], this.squid);
+            });
+            
+            this.krill.forEach(k => {
+                k.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
+            });
+            
+            this.paleKrill.forEach(pk => {
+                pk.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
+            });
+            
+            this.momKrill.forEach(mk => {
+                mk.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
+            });
+        }
         
         // Process fry egg laying system
         if (this.fryEggLayingSystem) {
             this.fryEggLayingSystem.processAllFry(this.fish, this);
         }
-        
-        // Process fry fertilization system (handles spawning sperm to fertilize eggs)
-        // DISABLED: FrySpawningSystem handles both fertilization and spawning comprehensively
-        // if (this.fryFertilizationSystem) {
-        //     if (window.ConsoleDebugSystem) {
-        //         window.ConsoleDebugSystem.log('FRY', `Calling fry fertilization system with ${this.fish.length} fry and ${this.fishEggs.length} eggs`);
-        //     } else if (window.gameState?.fryDebug) {
-        //         console.log(`🐟 Calling fry fertilization system with ${this.fish.length} fry and ${this.fishEggs.length} eggs`);
-        //     }
-        //     this.fryFertilizationSystem.processAllFry(this.fish, this.fishEggs, this);
-        // } else if (window.gameState?.fryDebug) {
-        //     console.warn(`🐟 Fry fertilization system not available!`);
-        // }
         
         // Process fry spawning system (comprehensive system - handles both fertilization and spawning)
         if (this.frySpawningSystem) {
@@ -527,59 +711,40 @@ class GameEntities {
             this.tunaPoopingSystem.update(this.predators, this);
         }
         
-        this.predators.forEach(p => {
-            p.update(this.fish, [...this.krill, ...this.paleKrill, ...this.momKrill], this.squid);
-        });
-        
-        // Update krill - THIS WAS MISSING!
-        this.krill.forEach(k => {
-            k.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
-        });
-        
-        this.paleKrill.forEach(pk => {
-            pk.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
-        });
-        
-        this.momKrill.forEach(mk => {
-            mk.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
-        });
-        
         // Handle krill lifecycle transformations
         this.updateKrillLifecycle();
         
-        // Update giant squid
+        // Update squid
         this.squid.forEach(s => {
-            s.update(this.fish, this.predators, this.krill);
+            s.update(this.fish, this.predators, [...this.krill, ...this.paleKrill, ...this.momKrill]);
         });
         
-        // Update entity counter
+        // Clean up optimization systems
+        this.cleanupOptimizationSystems();
+
+        // --- FIX: Update population counter every frame ---
         if (this.entityCounter) {
             this.entityCounter.updateWorldCounts(this, window.ObjectPools);
         }
+    }
+    
+    // Clean up optimization systems
+    cleanupOptimizationSystems() {
+        // Clean up enhanced object pools
+        if (this.enhancedObjectPools) {
+            this.enhancedObjectPools.cleanup();
+        }
         
-        // Track krill counts after update for debugging
-        const krillCountsAfter = {
-            regular: this.krill.length,
-            pale: this.paleKrill.length,
-            mom: this.momKrill.length
-        };
-        
-        // Log any significant changes in krill counts
-        if (window.ConsoleDebugSystem) {
-            const totalBefore = krillCountsBefore.regular + krillCountsBefore.pale + krillCountsBefore.mom;
-            const totalAfter = krillCountsAfter.regular + krillCountsAfter.pale + krillCountsAfter.mom;
-            
-            if (Math.abs(totalAfter - totalBefore) > 0) {
-                window.ConsoleDebugSystem.log('KRILL', `Count change: ${totalBefore} → ${totalAfter} (Regular: ${krillCountsBefore.regular}→${krillCountsAfter.regular}, Pale: ${krillCountsBefore.pale}→${krillCountsAfter.pale}, Mom: ${krillCountsBefore.mom}→${krillCountsAfter.mom})`, 'debug');
+        // Log performance stats periodically
+        if (window.gameState && window.gameState.frameCount % 600 === 0) {
+            if (this.enhancedObjectPools) {
+                this.enhancedObjectPools.logPerformanceStats();
             }
-        } else if (window.gameState?.krillDebug) {
-            const totalBefore = krillCountsBefore.regular + krillCountsBefore.pale + krillCountsBefore.mom;
-            const totalAfter = krillCountsAfter.regular + krillCountsAfter.pale + krillCountsAfter.mom;
-            
-            if (Math.abs(totalAfter - totalBefore) > 0) {
-                if (window.ConsoleDebugSystem) {
-                    window.ConsoleDebugSystem.log('KRILL', `Count change: ${totalBefore} → ${totalAfter} (Regular: ${krillCountsBefore.regular}→${krillCountsAfter.regular}, Pale: ${krillCountsBefore.pale}→${krillCountsAfter.pale}, Mom: ${krillCountsBefore.mom}→${krillCountsAfter.mom})`, 'debug');
-                }
+            if (this.enhancedRendering) {
+                this.enhancedRendering.logPerformanceStats();
+            }
+            if (this.lodSystem) {
+                this.lodSystem.logPerformanceStats();
             }
         }
     }
@@ -659,7 +824,7 @@ class GameEntities {
         }
     }
     
-    // Draw all entities
+    // Draw all entities with enhanced rendering
     draw() {
         // Debug: Log krill counts
         if (window.gameState?.krillDebug) {
@@ -668,36 +833,35 @@ class GameEntities {
             }
         }
         
-        // Draw regular krill
-        for (let krill of this.krill) {
-            if (window.krillRenderingSystem) {
-                window.krillRenderingSystem.drawRegularKrill(krill);
-            } else {
-                if (window.gameState?.krillDebug) {
-                    if (window.ConsoleDebugSystem) {
-                        window.ConsoleDebugSystem.logWarning('KRILL', 'KrillRenderingSystem not available!');
-                    }
-                }
-            }
-        }
-        
-        // Draw pale krill
-        for (let paleKrill of this.paleKrill) {
-            if (window.krillRenderingSystem) {
-                window.krillRenderingSystem.drawPaleKrill(paleKrill);
-            }
-        }
-        
-        // Draw mom krill with debug logging
-        if (window.gameState?.krillDebug && this.momKrill.length > 0) {
-            if (window.ConsoleDebugSystem) {
-                window.ConsoleDebugSystem.log('KRILL', `Drawing ${this.momKrill.length} MomKrill`, 'debug');
-            }
-        }
-        for (let momKrill of this.momKrill) {
-            if (window.krillRenderingSystem) {
-                window.krillRenderingSystem.drawMomKrill(momKrill);
-            }
+        // Use enhanced rendering system if available
+        if (this.enhancedRendering) {
+            // Draw regular krill with enhanced rendering
+            this.krill.forEach(krill => {
+                this.enhancedRendering.renderEntity(krill, 'krill');
+            });
+            
+            // Draw pale krill with enhanced rendering
+            this.paleKrill.forEach(paleKrill => {
+                this.enhancedRendering.renderEntity(paleKrill, 'krill');
+            });
+            
+            // Draw mom krill with enhanced rendering
+            this.momKrill.forEach(momKrill => {
+                this.enhancedRendering.renderEntity(momKrill, 'krill');
+            });
+            
+            // Draw fish with enhanced rendering
+            this.fish.forEach(fish => {
+                this.enhancedRendering.renderEntity(fish, 'boid');
+            });
+            
+            // Draw predators with enhanced rendering
+            this.predators.forEach(predator => {
+                this.enhancedRendering.renderEntity(predator, 'predator');
+            });
+        } else {
+            // Fallback to traditional rendering
+            this.drawTraditional();
         }
         
         // Draw bubbles
@@ -737,6 +901,51 @@ class GameEntities {
             this.poop.forEach(poop => poop.draw());
         }
         
+        // Draw squid
+        this.squid.forEach(s => {
+            s.draw();
+        });
+        
+        // Draw debug information
+        if (this.debugViewSystem && window.camera) {
+            this.debugViewSystem.draw(window.ctx, this, window.camera);
+        }
+    }
+    
+    // Traditional drawing method (fallback)
+    drawTraditional() {
+        // Draw regular krill
+        for (let krill of this.krill) {
+            if (window.krillRenderingSystem) {
+                window.krillRenderingSystem.drawRegularKrill(krill);
+            } else {
+                if (window.gameState?.krillDebug) {
+                    if (window.ConsoleDebugSystem) {
+                        window.ConsoleDebugSystem.logWarning('KRILL', 'KrillRenderingSystem not available!');
+                    }
+                }
+            }
+        }
+        
+        // Draw pale krill
+        for (let paleKrill of this.paleKrill) {
+            if (window.krillRenderingSystem) {
+                window.krillRenderingSystem.drawPaleKrill(paleKrill);
+            }
+        }
+        
+        // Draw mom krill with debug logging
+        if (window.gameState?.krillDebug && this.momKrill.length > 0) {
+            if (window.ConsoleDebugSystem) {
+                window.ConsoleDebugSystem.log('KRILL', `Drawing ${this.momKrill.length} MomKrill`, 'debug');
+            }
+        }
+        for (let momKrill of this.momKrill) {
+            if (window.krillRenderingSystem) {
+                window.krillRenderingSystem.drawMomKrill(momKrill);
+            }
+        }
+        
         // Draw entities
         if (window.gameState?.fryDebug) {
             const trueFryCount = this.fish.filter(f => f.fishType === 'truefry1' || f.fishType === 'truefry2').length;
@@ -766,18 +975,27 @@ class GameEntities {
         this.predators.forEach(p => {
             p.draw();
         });
-        this.squid.forEach(s => {
-            s.draw();
-        });
+    }
+    
+    // Get optimization performance report
+    getOptimizationReport() {
+        const report = {
+            spatialPartitioning: this.spatialPartitioning ? this.spatialPartitioning.getStats() : null,
+            objectPooling: this.enhancedObjectPools ? this.enhancedObjectPools.getStats() : null,
+            batchProcessing: this.batchProcessing ? this.batchProcessing.getStats() : null,
+            lodSystem: this.lodSystem ? this.lodSystem.getStats() : null,
+            rendering: this.enhancedRendering ? this.enhancedRendering.getStats() : null,
+            performance: this.performanceMonitoring ? this.performanceMonitoring.getPerformanceReport() : null
+        };
         
-        // Draw debug information
-        if (this.debugViewSystem && window.camera) {
-            this.debugViewSystem.draw(window.ctx, this, window.camera);
-        }
+        return report;
     }
     
     // Get entity counts for UI
     getEntityCounts() {
+        const trueFry1 = this.fish.filter(f => f.constructor.name === 'TrueFry1').length;
+        const trueFry2 = this.fish.filter(f => f.constructor.name === 'TrueFry2').length;
+        const regularFry = this.fish.filter(f => f.constructor.name !== 'TrueFry1' && f.constructor.name !== 'TrueFry2').length;
         return {
             fish: this.fish.length,
             krill: this.krill.length,
@@ -789,7 +1007,10 @@ class GameEntities {
             fishFood: this.fishFood.length,
             poop: this.poop.length,
             fishEggs: this.fishEggs.length,
-            fertilizedEggs: this.fertilizedEggs.length
+            fertilizedEggs: this.fertilizedEggs.length,
+            trueFry1,
+            trueFry2,
+            regularFry
         };
     }
 }

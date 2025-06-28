@@ -8,6 +8,8 @@ class UIRenderingSystem {
             FOOD_SPRITE_SIZE: 60,      // 3x 20
             POOP_SPRITE_SIZE: 60,      // 3x 20
             FERTILIZED_EGG_SIZE: 60,   // 3x 20
+            FISH_EGG_SIZE: 60,         // 3x 20
+            SPERM_SIZE: 60,            // 3x 20
             KRILL_SPRITE_SIZE: 40,     // Keep original size
             FRY_SPRITE_SIZE: 90,       // 3x 30
             TUNA_SPRITE_SIZE: 35,      // Keep original size
@@ -26,6 +28,8 @@ class UIRenderingSystem {
                 truefry1: 'rgba(100, 150, 255, 0.8)',
                 truefry2: 'rgba(150, 200, 255, 0.8)',
                 fertilizedEggs: 'rgba(255, 182, 193, 0.8)',
+                fishEggs: 'rgba(255, 255, 224, 0.8)',    // Light yellow for fish eggs
+                sperm: 'rgba(255, 255, 255, 0.8)',       // White for sperm
                 krill: 'rgba(255, 150, 100, 0.8)',
                 fry: 'rgba(128, 128, 128, 0.8)',
                 tuna: 'rgba(255, 100, 100, 0.8)',
@@ -40,6 +44,8 @@ class UIRenderingSystem {
                 truefry1: 'rgba(100, 150, 255, 0.7)',
                 truefry2: 'rgba(150, 200, 255, 0.7)',
                 fertilizedEggs: 'rgba(255, 182, 193, 0.7)',
+                fishEggs: 'rgba(255, 255, 224, 0.7)',    // Light yellow for fish eggs
+                sperm: 'rgba(255, 255, 255, 0.7)',       // White for sperm
                 krill: 'rgba(255, 150, 100, 0.5)',
                 fry: 'rgba(100, 200, 255, 0.7)',
                 tuna: 'rgba(255, 100, 100, 0.7)',
@@ -76,6 +82,10 @@ class UIRenderingSystem {
         if (spawnMode === 'food') {
             this.drawClumpedSpawnIndicator(ctx, mouseWorldPos, spriteToUse, 3, 60, 54, indicatorOpacity, tintStrength);
         } else if (spawnMode === 'poop') {
+            this.drawClumpedSpawnIndicator(ctx, mouseWorldPos, spriteToUse, 3, 60, 54, indicatorOpacity, tintStrength);
+        } else if (spawnMode === 'fishEggs') {
+            this.drawClumpedSpawnIndicator(ctx, mouseWorldPos, spriteToUse, 3, 60, 54, indicatorOpacity, tintStrength);
+        } else if (spawnMode === 'sperm') {
             this.drawClumpedSpawnIndicator(ctx, mouseWorldPos, spriteToUse, 3, 60, 54, indicatorOpacity, tintStrength);
         } else {
             // Single sprite for other spawn modes
@@ -167,6 +177,12 @@ class UIRenderingSystem {
             case 'fertilizedEggs':
                 this.drawFertilizedEggMode(ctx, sprites);
                 break;
+            case 'fishEggs':
+                this.drawFishEggMode(ctx, sprites);
+                break;
+            case 'sperm':
+                this.drawSpermMode(ctx, sprites);
+                break;
             case 'krill':
                 this.drawKrillMode(ctx, sprites);
                 break;
@@ -195,6 +211,8 @@ class UIRenderingSystem {
             truefry1: sprites.truefry1,
             truefry2: sprites.truefry2,
             fertilizedEggs: sprites.fertilizedEgg,
+            fishEggs: sprites.fishEgg,
+            sperm: sprites.fishSperm,
             krill: sprites.krillSpawnIcon,
             fry: sprites.smallFry2,
             tuna: sprites.tuna,
@@ -462,6 +480,72 @@ class UIRenderingSystem {
         }
         
         ctx.fillText('FERTILIZED EGGS MODE - Click to spawn (1-3)', this.config.TEXT_OFFSET_X, this.config.TEXT_OFFSET_Y);
+    }
+
+    /**
+     * Draw fish egg mode UI
+     * @param {CanvasRenderingContext2D} ctx - Canvas context
+     * @param {Object} sprites - Sprite collection
+     */
+    drawFishEggMode(ctx, sprites) {
+        const size = this.config.FISH_EGG_SIZE;
+        
+        // Validate fish egg sprite before drawing
+        const fishEggSprite = sprites.fishEgg;
+        if (!fishEggSprite || !(fishEggSprite instanceof HTMLImageElement) || !fishEggSprite.complete || fishEggSprite.naturalWidth === 0) {
+            console.warn('🚨 Invalid fish egg sprite in UIRenderingSystem drawFishEggMode:', {
+                fishEggSprite: fishEggSprite,
+                type: typeof fishEggSprite,
+                isImage: fishEggSprite instanceof HTMLImageElement,
+                complete: fishEggSprite?.complete,
+                naturalWidth: fishEggSprite?.naturalWidth
+            });
+            return; // Skip drawing if sprite is invalid
+        }
+        
+        try {
+            ctx.drawImage(fishEggSprite, this.config.UI_START_X, this.config.UI_START_Y, size, size);
+        } catch (error) {
+            console.error('🚨 drawImage error in UIRenderingSystem drawFishEggMode:', error, {
+                fishEggSprite: fishEggSprite,
+                size: size
+            });
+        }
+        
+        ctx.fillText('FISH EGGS MODE - Click to spawn (1-3)', this.config.TEXT_OFFSET_X, this.config.TEXT_OFFSET_Y);
+    }
+
+    /**
+     * Draw sperm mode UI
+     * @param {CanvasRenderingContext2D} ctx - Canvas context
+     * @param {Object} sprites - Sprite collection
+     */
+    drawSpermMode(ctx, sprites) {
+        const size = this.config.SPERM_SIZE;
+        
+        // Validate sperm sprite before drawing
+        const spermSprite = sprites.fishSperm;
+        if (!spermSprite || !(spermSprite instanceof HTMLImageElement) || !spermSprite.complete || spermSprite.naturalWidth === 0) {
+            console.warn('🚨 Invalid sperm sprite in UIRenderingSystem drawSpermMode:', {
+                spermSprite: spermSprite,
+                type: typeof spermSprite,
+                isImage: spermSprite instanceof HTMLImageElement,
+                complete: spermSprite?.complete,
+                naturalWidth: spermSprite?.naturalWidth
+            });
+            return; // Skip drawing if sprite is invalid
+        }
+        
+        try {
+            ctx.drawImage(spermSprite, this.config.UI_START_X, this.config.UI_START_Y, size, size);
+        } catch (error) {
+            console.error('🚨 drawImage error in UIRenderingSystem drawSpermMode:', error, {
+                spermSprite: spermSprite,
+                size: size
+            });
+        }
+        
+        ctx.fillText('SPERM MODE - Click to spawn (1-3)', this.config.TEXT_OFFSET_X, this.config.TEXT_OFFSET_Y);
     }
 
     /**

@@ -40,6 +40,11 @@ class TrueFry1 extends Boid {
         this.nutritionLevel = 0.6;
         this.hunger = Math.random() * 0.5;
         
+        // TrueFry specific feeding properties
+        this.lastEatTime = 0;
+        this.eatCooldown = 1000; // 1 second cooldown between eating
+        this.canEat = true;
+        
         // Prevent spawning state (TrueFry cannot enter spawning)
         this.canSpawn = false;
         this.behaviorState = 'foraging'; // Start in foraging state
@@ -50,7 +55,7 @@ class TrueFry1 extends Boid {
     }
     
     update(boids, predators, food, krill = [], poop = [], fertilizedEggs = []) {
-        // Standard boid behaviors
+        // Re-enable flocking and feeding systems
         this.flock(boids, predators, food, krill);
         this.checkForFood(krill, food, poop, fertilizedEggs);
         this.move();
@@ -59,19 +64,140 @@ class TrueFry1 extends Boid {
         // Update evolution timer (cap at evolutionDuration to prevent going over 100%)
         this.evolutionTimer = Math.min(this.evolutionTimer + 16, this.evolutionDuration);
         
+        // Update eating cooldown
+        if (!this.canEat) {
+            const currentTime = Date.now();
+            if (currentTime - this.lastEatTime >= this.eatCooldown) {
+                this.canEat = true;
+            }
+        }
+        
         // Let the TrueFryTransformationSystem handle evolution logic
         // This class only updates the timer and sets flags
     }
     
-    // Override food consumption to trigger evolution
+    // Override food consumption to trigger evolution with 1-second cooldown
     consumeFood(food) {
+        if (!this.canEat) return false; // Cannot eat during cooldown
+        
+        // Call parent method for basic food consumption
         super.consumeFood(food);
+        
+        // TrueFry specific progression
         this.hasEatenThisStage++;
+        this.lastEatTime = Date.now();
+        this.canEat = false; // Start cooldown
+        
+        if (window.gameState?.fryDebug) {
+            console.log(`🐟 TrueFry1 ate food! Progress: ${this.hasEatenThisStage}/1 (${this.evolutionTimer}/${this.evolutionDuration}ms)`);
+        }
+        
+        return true;
     }
     
     consumePoop(poop, poopArray, index) {
+        if (!this.canEat) return false; // Cannot eat during cooldown
+        
+        // Call parent method for basic poop consumption
         super.consumePoop(poop, poopArray, index);
+        
+        // TrueFry specific progression
         this.hasEatenThisStage++;
+        this.lastEatTime = Date.now();
+        this.canEat = false; // Start cooldown
+        
+        if (window.gameState?.fryDebug) {
+            console.log(`🐟 TrueFry1 ate poop! Progress: ${this.hasEatenThisStage}/1 (${this.evolutionTimer}/${this.evolutionDuration}ms)`);
+        }
+        
+        return true;
+    }
+    
+    // Override checkForFood to use TrueFry specific logic
+    checkForFood(krillArray, fishFoodArray, poopArray, fertilizedEggsArray = []) {
+        if (!this.canEat) return false; // Cannot eat during cooldown
+        
+        // Use parent method but with TrueFry specific food sources
+        const foodSources = [
+            { array: krillArray, name: 'krill', range: 25 },
+            { array: fishFoodArray, name: 'fishFood', range: 20 },
+            { array: poopArray.filter(p => p.state >= 2), name: 'poop', range: 22 },
+            { array: fertilizedEggsArray, name: 'fertilizedEggs', range: 25 }
+        ];
+        
+        let closestFood = null;
+        let closestDistance = Infinity;
+        
+        // Find closest food
+        for (let foodSource of foodSources) {
+            if (!foodSource.array || foodSource.array.length === 0) continue;
+            
+            for (let i = foodSource.array.length - 1; i >= 0; i--) {
+                const food = foodSource.array[i];
+                const distance = Math.sqrt((this.x - food.x) ** 2 + (this.y - food.y) ** 2);
+                
+                // Check if within eating range
+                if (distance < foodSource.range) {
+                    // Eat the food immediately
+                    if (foodSource.name === 'krill') {
+                        this.consumeFood(food);
+                        foodSource.array.splice(i, 1);
+                    } else if (foodSource.name === 'fishFood') {
+                        this.consumeFood(food);
+                        foodSource.array.splice(i, 1);
+                    } else if (foodSource.name === 'poop') {
+                        this.consumePoop(food, poopArray, poopArray.indexOf(food));
+                    } else if (foodSource.name === 'fertilizedEggs') {
+                        this.consumeFood(food);
+                        foodSource.array.splice(i, 1);
+                    }
+                    return true;
+                }
+                
+                // Track closest food for hunting behavior
+                if (distance < closestDistance && distance < 120) {
+                    closestFood = { food, source: foodSource, distance, index: i };
+                    closestDistance = distance;
+                }
+            }
+        }
+        
+        // Update behavior state based on food availability
+        if (closestFood) {
+            this.behaviorState = 'hunting';
+            this.huntTarget = closestFood.food;
+            
+            // Apply seeking force toward closest food (use proper steering)
+            const seekForce = this.calculateSeekForce(closestFood.food);
+            // Apply steering force instead of directly modifying velocity
+            this.acceleration.x += seekForce.x * 0.5; // Reduced force multiplier
+            this.acceleration.y += seekForce.y * 0.5;
+        } else {
+            // No food nearby - return to normal flocking behavior
+            this.behaviorState = 'foraging';
+            this.huntTarget = null;
+            // Don't apply any additional forces - let flocking handle movement
+        }
+        
+        return false;
+    }
+    
+    calculateSeekForce(target) {
+        const desired = {
+            x: target.x - this.x,
+            y: target.y - this.y
+        };
+        
+        const mag = Math.sqrt(desired.x * desired.x + desired.y * desired.y);
+        if (mag > 0) {
+            desired.x = (desired.x / mag) * this.maxSpeed;
+            desired.y = (desired.y / mag) * this.maxSpeed;
+        }
+        
+        return {
+            x: desired.x - this.velocity.x,
+            y: desired.y - this.velocity.y
+        };
     }
     
     draw() {
@@ -199,18 +325,17 @@ class TrueFry1 extends Boid {
         ctx.textAlign = 'center';
         ctx.fillText('TRUEFRY1', this.x, this.y - this.size/2 - 10);
         
-        const evolutionPercent = this.evolutionTimer / this.evolutionDuration;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.font = '8px Arial';
-        ctx.fillText(`Evolution: ${(evolutionPercent * 100).toFixed(1)}%`, this.x, this.y + this.size/2 + 15);
+        // Show eating cooldown status
+        if (!this.canEat) {
+            const remainingCooldown = Math.max(0, this.eatCooldown - (Date.now() - this.lastEatTime));
+            ctx.fillStyle = '#FF5722';
+            ctx.fillText(`CD: ${Math.ceil(remainingCooldown/100)}s`, this.x, this.y - this.size/2 - 20);
+        }
         
-        // Evolution bar
-        const barWidth = 20;
-        const barHeight = 3;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(this.x - barWidth/2, this.y + this.size/2 + 20, barWidth, barHeight);
-        ctx.fillStyle = '#4CAF50';
-        ctx.fillRect(this.x - barWidth/2, this.y + this.size/2 + 20, barWidth * evolutionPercent, barHeight);
+        // Show progression info
+        ctx.fillStyle = '#2196F3';
+        ctx.fillText(`Food: ${this.hasEatenThisStage}/1`, this.x, this.y + this.size/2 + 10);
+        ctx.fillText(`Time: ${Math.floor(this.evolutionTimer/1000)}s`, this.x, this.y + this.size/2 + 20);
         
         ctx.restore();
     }
@@ -255,6 +380,11 @@ class TrueFry2 extends Boid {
         this.nutritionLevel = 0.7;
         this.hunger = Math.random() * 0.4;
         
+        // TrueFry specific feeding properties
+        this.lastEatTime = 0;
+        this.eatCooldown = 1000; // 1 second cooldown between eating
+        this.canEat = true;
+        
         // Prevent spawning state (TrueFry2 cannot lay eggs or spawn)
         this.canSpawn = false;
         this.behaviorState = 'foraging'; // Start in foraging state
@@ -265,7 +395,7 @@ class TrueFry2 extends Boid {
     }
     
     update(boids, predators, food, krill = [], poop = [], fertilizedEggs = []) {
-        // Standard boid behaviors
+        // Re-enable flocking and feeding systems
         this.flock(boids, predators, food, krill);
         this.checkForFood(krill, food, poop, fertilizedEggs);
         this.move();
@@ -274,19 +404,140 @@ class TrueFry2 extends Boid {
         // Update evolution timer (cap at evolutionDuration to prevent going over 100%)
         this.evolutionTimer = Math.min(this.evolutionTimer + 16, this.evolutionDuration);
         
+        // Update eating cooldown
+        if (!this.canEat) {
+            const currentTime = Date.now();
+            if (currentTime - this.lastEatTime >= this.eatCooldown) {
+                this.canEat = true;
+            }
+        }
+        
         // Let the TrueFryTransformationSystem handle evolution logic
         // This class only updates the timer and sets flags
     }
     
-    // Override food consumption to trigger evolution
+    // Override food consumption to trigger evolution with 1-second cooldown
     consumeFood(food) {
+        if (!this.canEat) return false; // Cannot eat during cooldown
+        
+        // Call parent method for basic food consumption
         super.consumeFood(food);
+        
+        // TrueFry specific progression
         this.hasEatenThisStage++;
+        this.lastEatTime = Date.now();
+        this.canEat = false; // Start cooldown
+        
+        if (window.gameState?.fryDebug) {
+            console.log(`🐟 TrueFry2 ate food! Progress: ${this.hasEatenThisStage}/5 (${this.evolutionTimer}/${this.evolutionDuration}ms)`);
+        }
+        
+        return true;
     }
     
     consumePoop(poop, poopArray, index) {
+        if (!this.canEat) return false; // Cannot eat during cooldown
+        
+        // Call parent method for basic poop consumption
         super.consumePoop(poop, poopArray, index);
+        
+        // TrueFry specific progression
         this.hasEatenThisStage++;
+        this.lastEatTime = Date.now();
+        this.canEat = false; // Start cooldown
+        
+        if (window.gameState?.fryDebug) {
+            console.log(`🐟 TrueFry2 ate poop! Progress: ${this.hasEatenThisStage}/5 (${this.evolutionTimer}/${this.evolutionDuration}ms)`);
+        }
+        
+        return true;
+    }
+    
+    // Override checkForFood to use TrueFry specific logic
+    checkForFood(krillArray, fishFoodArray, poopArray, fertilizedEggsArray = []) {
+        if (!this.canEat) return false; // Cannot eat during cooldown
+        
+        // Use parent method but with TrueFry specific food sources
+        const foodSources = [
+            { array: krillArray, name: 'krill', range: 25 },
+            { array: fishFoodArray, name: 'fishFood', range: 20 },
+            { array: poopArray.filter(p => p.state >= 2), name: 'poop', range: 22 },
+            { array: fertilizedEggsArray, name: 'fertilizedEggs', range: 25 }
+        ];
+        
+        let closestFood = null;
+        let closestDistance = Infinity;
+        
+        // Find closest food
+        for (let foodSource of foodSources) {
+            if (!foodSource.array || foodSource.array.length === 0) continue;
+            
+            for (let i = foodSource.array.length - 1; i >= 0; i--) {
+                const food = foodSource.array[i];
+                const distance = Math.sqrt((this.x - food.x) ** 2 + (this.y - food.y) ** 2);
+                
+                // Check if within eating range
+                if (distance < foodSource.range) {
+                    // Eat the food immediately
+                    if (foodSource.name === 'krill') {
+                        this.consumeFood(food);
+                        foodSource.array.splice(i, 1);
+                    } else if (foodSource.name === 'fishFood') {
+                        this.consumeFood(food);
+                        foodSource.array.splice(i, 1);
+                    } else if (foodSource.name === 'poop') {
+                        this.consumePoop(food, poopArray, poopArray.indexOf(food));
+                    } else if (foodSource.name === 'fertilizedEggs') {
+                        this.consumeFood(food);
+                        foodSource.array.splice(i, 1);
+                    }
+                    return true;
+                }
+                
+                // Track closest food for hunting behavior
+                if (distance < closestDistance && distance < 120) {
+                    closestFood = { food, source: foodSource, distance, index: i };
+                    closestDistance = distance;
+                }
+            }
+        }
+        
+        // Update behavior state based on food availability
+        if (closestFood) {
+            this.behaviorState = 'hunting';
+            this.huntTarget = closestFood.food;
+            
+            // Apply seeking force toward closest food (use proper steering)
+            const seekForce = this.calculateSeekForce(closestFood.food);
+            // Apply steering force instead of directly modifying velocity
+            this.acceleration.x += seekForce.x * 0.5; // Reduced force multiplier
+            this.acceleration.y += seekForce.y * 0.5;
+        } else {
+            // No food nearby - return to normal flocking behavior
+            this.behaviorState = 'foraging';
+            this.huntTarget = null;
+            // Don't apply any additional forces - let flocking handle movement
+        }
+        
+        return false;
+    }
+    
+    calculateSeekForce(target) {
+        const desired = {
+            x: target.x - this.x,
+            y: target.y - this.y
+        };
+        
+        const mag = Math.sqrt(desired.x * desired.x + desired.y * desired.y);
+        if (mag > 0) {
+            desired.x = (desired.x / mag) * this.maxSpeed;
+            desired.y = (desired.y / mag) * this.maxSpeed;
+        }
+        
+        return {
+            x: desired.x - this.velocity.x,
+            y: desired.y - this.velocity.y
+        };
     }
     
     draw() {
@@ -414,18 +665,17 @@ class TrueFry2 extends Boid {
         ctx.textAlign = 'center';
         ctx.fillText('TRUEFRY2', this.x, this.y - this.size/2 - 10);
         
-        const evolutionPercent = this.evolutionTimer / this.evolutionDuration;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.font = '8px Arial';
-        ctx.fillText(`Evolution: ${(evolutionPercent * 100).toFixed(1)}%`, this.x, this.y + this.size/2 + 15);
+        // Show eating cooldown status
+        if (!this.canEat) {
+            const remainingCooldown = Math.max(0, this.eatCooldown - (Date.now() - this.lastEatTime));
+            ctx.fillStyle = '#FF5722';
+            ctx.fillText(`CD: ${Math.ceil(remainingCooldown/100)}s`, this.x, this.y - this.size/2 - 20);
+        }
         
-        // Evolution bar
-        const barWidth = 20;
-        const barHeight = 3;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(this.x - barWidth/2, this.y + this.size/2 + 20, barWidth, barHeight);
+        // Show progression info
         ctx.fillStyle = '#2196F3';
-        ctx.fillRect(this.x - barWidth/2, this.y + this.size/2 + 20, barWidth * evolutionPercent, barHeight);
+        ctx.fillText(`Food: ${this.hasEatenThisStage}/5`, this.x, this.y + this.size/2 + 10);
+        ctx.fillText(`Time: ${Math.floor(this.evolutionTimer/1000)}s`, this.x, this.y + this.size/2 + 20);
         
         ctx.restore();
     }

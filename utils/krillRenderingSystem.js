@@ -25,6 +25,10 @@ class KrillRenderingSystem {
         let depthOpacity = window.Utils.getDepthOpacity(krill.y, visualProps.baseOpacity);
         let tintStrength = window.Utils.getDepthTint(krill.y);
         
+        // Apply depth effects (reduced by 50% for krill, then additional 20% reduction)
+        depthOpacity = visualProps.baseOpacity * 0.4 + depthOpacity * 0.4; // 40% of original shader strength
+        tintStrength *= 0.4; // 40% of original tint strength
+        
         // Get current sprite frame
         const currentSpriteKey = krill.spriteFrames[Math.floor(krill.animationFrame)];
         
@@ -60,7 +64,7 @@ class KrillRenderingSystem {
         
         // Debug visualization
         if (window.debugManager && window.debugManager.isDebugOn('krill')) {
-            this.drawDebugInfo(krill);
+            this.drawRegularKrillDebug(krill);
         }
     }
 
@@ -77,6 +81,10 @@ class KrillRenderingSystem {
         let depthOpacity = window.Utils.getDepthOpacity(paleKrill.y, visualProps.baseOpacity);
         let tintStrength = window.Utils.getDepthTint(paleKrill.y);
         
+        // Apply depth effects (reduced by 50% for krill, then additional 20% reduction)
+        depthOpacity = visualProps.baseOpacity * 0.4 + depthOpacity * 0.4; // 40% of original shader strength
+        tintStrength *= 0.4; // 40% of original tint strength
+        
         // Get current sprite frame
         const currentSpriteKey = paleKrill.spriteFrames[Math.floor(paleKrill.animationFrame)];
         if (!sprites[currentSpriteKey]) {
@@ -90,7 +98,7 @@ class KrillRenderingSystem {
         
         // Debug visualization
         if (window.debugManager && window.debugManager.isDebugOn('krill')) {
-            this.drawDebugInfo(paleKrill);
+            this.drawPaleKrillDebug(paleKrill);
         }
     }
 
@@ -107,6 +115,10 @@ class KrillRenderingSystem {
         let depthOpacity = window.Utils.getDepthOpacity(momKrill.y, visualProps.baseOpacity);
         let tintStrength = window.Utils.getDepthTint(momKrill.y);
         
+        // Apply depth effects (reduced by 50% for krill, then additional 20% reduction)
+        depthOpacity = visualProps.baseOpacity * 0.4 + depthOpacity * 0.4; // 40% of original shader strength
+        tintStrength *= 0.4; // 40% of original tint strength
+        
         // Get current sprite frame
         const currentSpriteKey = momKrill.spriteFrames[Math.floor(momKrill.animationFrame)];
         if (!sprites[currentSpriteKey]) {
@@ -120,7 +132,7 @@ class KrillRenderingSystem {
         
         // Debug visualization
         if (window.debugManager && window.debugManager.isDebugOn('krill')) {
-            this.drawDebugInfo(momKrill);
+            this.drawMomKrillDebug(momKrill);
         }
     }
 

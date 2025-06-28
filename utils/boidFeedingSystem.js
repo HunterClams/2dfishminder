@@ -89,13 +89,15 @@ class BoidFeedingSystem {
                 boid.behaviorState = 'hunting';
                 boid.huntTarget = closestFood.food;
                 
-                // Apply seeking force toward closest food
+                // Apply seeking force toward closest food (like original working version)
                 const seekForce = this.calculateSeekForce(boid, closestFood.food);
                 boid.velocity.x += seekForce.x * 0.8;
                 boid.velocity.y += seekForce.y * 0.8;
             } else {
+                // No food nearby - return to normal flocking behavior
                 boid.behaviorState = 'foraging';
                 boid.huntTarget = null;
+                // Don't apply any additional forces - let flocking handle movement
             }
         } else {
             // During feeding or spawning state, clear hunt target but keep state

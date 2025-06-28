@@ -52,7 +52,15 @@ const gameState = {
     showUI: true,
     hudState: 'full', // 'controls', 'full', or 'off'
     lastFrameTime: 0,
-    frameCount: 0
+    frameCount: 0,
+    fryDebug: true, // Enable fry movement debugging
+    frySpawningDebug: false,
+    tunaDebug: false,
+    squidDebug: false,
+    krillDebug: false,
+    performanceDebug: false,
+    spatialDebug: false,
+    consoleDebug: false,
     // All debug flags are now managed by DebugManager and default to false
 };
 
@@ -81,6 +89,35 @@ if (window.DebugManager) {
 } else {
     console.warn('⚠️ DebugManager not found - debug functionality disabled');
 }
+
+// Initialize optimization systems
+function initializeOptimizationSystems() {
+    console.log('🚀 Initializing optimization systems...');
+    
+    // Initialize performance monitoring
+    if (window.PerformanceMonitoringSystem) {
+        window.performanceMonitoringSystem = new window.PerformanceMonitoringSystem();
+        console.log('📈 Performance monitoring system initialized globally');
+    }
+    
+    // Log optimization system status
+    const optimizationStatus = {
+        spatialPartitioning: !!window.SpatialPartitioningSystem,
+        enhancedObjectPools: !!window.EnhancedObjectPools,
+        batchProcessing: !!window.BatchProcessingSystem,
+        lodSystem: !!window.LODSystem,
+        enhancedRendering: !!window.EnhancedRenderingSystem,
+        performanceMonitoring: !!window.PerformanceMonitoringSystem
+    };
+    
+    console.log('📊 Optimization systems status:', optimizationStatus);
+    
+    const enabledCount = Object.values(optimizationStatus).filter(Boolean).length;
+    console.log(`✅ ${enabledCount}/6 optimization systems enabled`);
+}
+
+// Initialize optimization systems
+initializeOptimizationSystems();
 
 const camera = { x: 0, y: 0, zoom: 1, minZoom: 0.5, maxZoom: 4.0, viewWidth: 0, viewHeight: 0 };
 const keys = { w: false, a: false, s: false, d: false, shift: false };
@@ -257,7 +294,7 @@ canvas.addEventListener('click', (event) => {
     gameEntities.spawnEntity(gameState.spawnMode, centerX, centerY);
 });
 
-// Highly optimized animation loop with frame limiting
+// Highly optimized animation loop with frame limiting and optimization systems
 function animate(currentTime = 0) {
     // Frame rate limiting
     if (currentTime - gameState.lastFrameTime < 1000 / CONSTANTS.UPDATE_FREQUENCY) {
@@ -273,6 +310,11 @@ function animate(currentTime = 0) {
         window.ConsoleDebugSystem.resetFrameCounters();
     }
     
+    // Update performance monitoring
+    if (window.performanceMonitoringSystem) {
+        window.performanceMonitoringSystem.update(currentTime);
+    }
+    
     window.updateCamera(camera, keys, CONSTANTS, WORLD_WIDTH, WORLD_HEIGHT);
     window.applyCamera(ctx);
     
@@ -281,7 +323,7 @@ function animate(currentTime = 0) {
     ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     drawBorders();
     
-    // Update and draw using GameEntities system
+    // Update and draw using GameEntities system with optimizations
     if (gameEntities) {
         gameEntities.update();
         gameEntities.draw();
@@ -297,6 +339,11 @@ function animate(currentTime = 0) {
     // Clean up pools more frequently to prevent lag
     if (gameState.frameCount % 180 === 0) { // Every 3 seconds instead of 5
         ObjectPools.cleanup();
+        
+        // Clean up enhanced object pools if available
+        if (window.enhancedObjectPools) {
+            window.enhancedObjectPools.cleanup();
+        }
     }
     
     // Draw spawn indicator
@@ -311,6 +358,14 @@ function animate(currentTime = 0) {
     // Draw entity counter UI (replaces old ecosystem info)
     if (gameEntities && gameEntities.entityCounter) {
         gameEntities.entityCounter.drawUI(ctx, sprites, gameState);
+    }
+    
+    // Draw optimization performance info if debug is enabled
+    if (window.debugManager && window.debugManager.isPerformanceModeOn()) {
+        if (gameEntities && gameEntities.getOptimizationReport) {
+            const report = gameEntities.getOptimizationReport();
+            drawOptimizationInfo(ctx, report);
+        }
     }
     
     // Draw controls and spawn UI when hudState is 'controls' or 'full'
@@ -328,6 +383,42 @@ function animate(currentTime = 0) {
     }
     
     requestAnimationFrame(animate);
+}
+
+// Draw optimization performance information
+function drawOptimizationInfo(ctx, report) {
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
+    ctx.font = '12px Arial';
+    let y = 70;
+    
+    if (report.spatialPartitioning) {
+        ctx.fillText(`Spatial: ${report.spatialPartitioning.totalEntities} entities, ${report.spatialPartitioning.totalCells} cells`, 10, y);
+        y += 15;
+    }
+    
+    if (report.objectPooling) {
+        ctx.fillText(`Pooling: Vectors ${report.objectPooling.vectorEfficiency}, Forces ${report.objectPooling.forceEfficiency}`, 10, y);
+        y += 15;
+    }
+    
+    if (report.batchProcessing) {
+        ctx.fillText(`Batch: ${report.batchProcessing.totalBatchesProcessed} batches, ${report.batchProcessing.totalEntitiesProcessed} entities`, 10, y);
+        y += 15;
+    }
+    
+    if (report.lodSystem) {
+        ctx.fillText(`LOD: H${report.lodSystem.highLOD} M${report.lodSystem.mediumLOD} L${report.lodSystem.lowLOD}`, 10, y);
+        y += 15;
+    }
+    
+    if (report.rendering) {
+        ctx.fillText(`Render: F${report.rendering.fullRenders} S${report.rendering.simplifiedRenders} M${report.rendering.minimalRenders}`, 10, y);
+        y += 15;
+    }
+    
+    if (report.performance) {
+        ctx.fillText(`Perf: ${report.performance.averageFrameTime}, Pool: ${report.performance.poolEfficiency}`, 10, y);
+    }
 }
 
 function startAnimation() {

@@ -64,6 +64,14 @@ const SQUID_CONFIG = {
     BIO_INTENSITY_MIN: 0.1,
     BIO_INTENSITY_MAX: 0.7,
     
+    // Enhanced bioluminescence settings (matching old system)
+    BIOLUMINESCENCE_FULL_OPACITY: 1.0, // Full brightness for abyssal sprites
+    BIOLUMINESCENCE_BLEND_MODE: 'screen', // Additive blending for glow effect
+    BIOLUMINESCENCE_FADE_START: 0.7, // Start fading at 70% depth
+    BIOLUMINESCENCE_FADE_END: 0.8, // Full intensity at 80% depth
+    BIOLUMINESCENCE_ABYSSAL_START: 0.8, // Abyssal zone starts at 80% depth
+    BIOLUMINESCENCE_ABYSSAL_END: 1.0, // Abyssal zone ends at 100% depth
+    
     // Animation speeds
     FIN_UNDULATION_SPEED: 0.1,
     TENTACLE_PULSE_SPEED: 0.05,

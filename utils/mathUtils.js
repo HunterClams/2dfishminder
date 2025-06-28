@@ -1,5 +1,6 @@
 // Math utilities for the underwater game
 // Core mathematical functions used throughout the game
+// Enhanced with object pooling for better performance
 
 // Fast distance calculation (no sqrt for comparisons)
 function distanceSquared(obj1, obj2) {
@@ -23,8 +24,48 @@ function normalize(vector) {
     };
 }
 
-// Optimized steering calculation for AI movement
+// Optimized steering calculation for AI movement with object pooling
 function calculateSteering(seeker, target, maxSpeed, maxForce) {
+    const pool = window.enhancedObjectPools;
+    if (!pool) {
+        // Fallback to original implementation
+        return calculateSteeringOriginal(seeker, target, maxSpeed, maxForce);
+    }
+    
+    const desired = pool.getVector(target.x - seeker.x, target.y - seeker.y);
+    const steer = pool.getSteeringForce();
+    
+    const mag = Math.hypot(desired.x, desired.y);
+    
+    if (mag === 0) {
+        pool.releaseVector(desired);
+        pool.releaseSteeringForce(steer);
+        return { x: 0, y: 0 };
+    }
+    
+    desired.x = (desired.x / mag) * maxSpeed;
+    desired.y = (desired.y / mag) * maxSpeed;
+    steer.x = desired.x - seeker.velocity.x;
+    steer.y = desired.y - seeker.velocity.y;
+    
+    const steerMag = Math.hypot(steer.x, steer.y);
+    
+    if (steerMag > maxForce) {
+        steer.x = (steer.x / steerMag) * maxForce;
+        steer.y = (steer.y / steerMag) * maxForce;
+    }
+    
+    const result = { x: steer.x, y: steer.y };
+    
+    // Release pooled objects
+    pool.releaseVector(desired);
+    pool.releaseSteeringForce(steer);
+    
+    return result;
+}
+
+// Original implementation as fallback
+function calculateSteeringOriginal(seeker, target, maxSpeed, maxForce) {
     const dx = target.x - seeker.x;
     const dy = target.y - seeker.y;
     const mag = Math.hypot(dx, dy);
@@ -83,10 +124,37 @@ function handleEdges(entity, margin, damping, worldWidth, worldHeight) {
     return bounced;
 }
 
+// Enhanced vector operations with pooling
+function addVectors(v1, v2) {
+    const pool = window.enhancedObjectPools;
+    if (!pool) {
+        return { x: v1.x + v2.x, y: v1.y + v2.y };
+    }
+    
+    const result = pool.getVector(v1.x + v2.x, v1.y + v2.y);
+    const finalResult = { x: result.x, y: result.y };
+    pool.releaseVector(result);
+    return finalResult;
+}
+
+function multiplyVector(vector, scalar) {
+    const pool = window.enhancedObjectPools;
+    if (!pool) {
+        return { x: vector.x * scalar, y: vector.y * scalar };
+    }
+    
+    const result = pool.getVector(vector.x * scalar, vector.y * scalar);
+    const finalResult = { x: result.x, y: result.y };
+    pool.releaseVector(result);
+    return finalResult;
+}
+
 // Make functions available globally
 window.distanceSquared = distanceSquared;
 window.distance = distance;
 window.normalize = normalize;
 window.calculateSteering = calculateSteering;
 window.limitVelocity = limitVelocity;
-window.handleEdges = handleEdges; 
+window.handleEdges = handleEdges;
+window.addVectors = addVectors;
+window.multiplyVector = multiplyVector; 

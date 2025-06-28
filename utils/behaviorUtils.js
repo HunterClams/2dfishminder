@@ -14,9 +14,9 @@ function shouldIgnorePrey(predatorType, preyType, fishTypes) {
             ignore = preyType === fishTypes.SMALL_FRY_3;
             // All tuna ignore krill (standardized behavior)
             if (preyType === fishTypes.KRILL) ignore = true;
-            // Tuna can eat TrueFry but NOT fertilized eggs (let them hatch first!)
+            // Tuna can eat TrueFry and both types of eggs
             if (preyType === 'truefry' || preyType === 'truefry1' || preyType === 'truefry2') ignore = false;
-            if (preyType === 'fertilizedEggs') ignore = true;
+            if (preyType === 'fertilizedEggs' || preyType === 'fishEggs' || preyType === 'fishEgg') ignore = false;
         } else if (predatorType === fishTypes.SMALL_FRY_2 || 
                    predatorType === fishTypes.SMALL_FRY_3 || 
                    predatorType === fishTypes.SMALL_FRY_4) {

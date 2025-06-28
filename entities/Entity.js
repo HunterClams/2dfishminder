@@ -78,22 +78,9 @@ class Entity {
             return; // Skip drawing if sprite is invalid
         }
         
-        // Check if this is a small fry that should not have depth shader
-        const isSmallFry = this.fishType === 'smallFry2' || 
-                          this.fishType === 'smallFry3' || 
-                          this.fishType === 'smallFry4';
-        
-        // Apply depth shader only if not a small fry
-        let depthOpacity, tintStrength;
-        if (isSmallFry) {
-            // Small fry get fixed opacity without depth effects
-            depthOpacity = opacity;
-            tintStrength = 0;
-        } else {
-            // Other entities get full depth shader effects
-            depthOpacity = Utils.getDepthOpacity(this.y, opacity);
-            tintStrength = Utils.getDepthTint(this.y);
-        }
+        // Apply depth shader to ALL fry types (including small fry)
+        const depthOpacity = Utils.getDepthOpacity(this.y, opacity);
+        const tintStrength = Utils.getDepthTint(this.y);
         
         ctx.save();
         ctx.translate(this.x, this.y);
@@ -169,6 +156,37 @@ class Entity {
         if (this.currentSprite) {
             this.drawSprite(this.currentSprite, this.size, 1, this.angle);
         }
+    }
+    
+    // Base food consumption method
+    consumeFood(food) {
+        // Basic food consumption logic
+        this.energy = Math.min(this.energy + 20, 100);
+        this.hunger = Math.max(this.hunger - 0.3, 0);
+        
+        if (window.gameState?.fryDebug) {
+            console.log(`🍽️ ${this.constructor.name} consumed food. Energy: ${this.energy}, Hunger: ${this.hunger}`);
+        }
+        
+        return true;
+    }
+    
+    // Base poop consumption method
+    consumePoop(poop, poopArray, index) {
+        // Basic poop consumption logic
+        this.energy = Math.min(this.energy + 15, 100);
+        this.hunger = Math.max(this.hunger - 0.2, 0);
+        
+        // Remove poop from array if index is valid
+        if (index >= 0 && index < poopArray.length) {
+            poopArray.splice(index, 1);
+        }
+        
+        if (window.gameState?.fryDebug) {
+            console.log(`💩 ${this.constructor.name} consumed poop. Energy: ${this.energy}, Hunger: ${this.hunger}`);
+        }
+        
+        return true;
     }
 }
 

@@ -20,7 +20,7 @@ class SquidRenderingSystem {
 
         // Choose sprite based on movement state
         let sprite, abyssalSprite;
-        const isBlinking = jetSystem.isBlinking(squid);
+        const isBlinking = squid.bioluminescenceSystem ? squid.bioluminescenceSystem.isBlinking(squid) : false;
         
         // Use global sprites safely
         const sprites = window.sprites || {};
@@ -35,6 +35,20 @@ class SquidRenderingSystem {
             abyssalSprite = isBlinking ? sprites.abyssalSquid1Blink : sprites.abyssalSquid1;
         }
         
+        // Debug logging for sprite selection
+        if (window.gameState && window.gameState.squidDebug && squid.stateTimer % 60 === 0) {
+            console.log(`🦑 Squid sprite selection:`, {
+                baseSprite: sprite ? 'loaded' : 'missing',
+                abyssalSprite: abyssalSprite ? 'loaded' : 'missing',
+                isBlinking: isBlinking,
+                mantleContracted: jetSystem.isMantleContracted(squid),
+                isJetting: jetSystem.isJetting(squid),
+                availableSprites: Object.keys(sprites).filter(key => key.includes('abyssal')),
+                baseSpriteDimensions: sprite ? `${sprite.naturalWidth}x${sprite.naturalHeight}` : 'N/A',
+                abyssalSpriteDimensions: abyssalSprite ? `${abyssalSprite.naturalWidth}x${abyssalSprite.naturalHeight}` : 'N/A'
+            });
+        }
+        
         // Calculate angle based on movement direction
         let angle = 0;
         if (squid.currentSpeed > 0.5) {
@@ -46,10 +60,15 @@ class SquidRenderingSystem {
         const reducedOpacity = baseOpacity * squid.depthOpacityMultiplier + (1 - squid.depthOpacityMultiplier);
         
         // Draw base squid sprite
-        this.drawSprite(squid, sprite, squid.size, reducedOpacity, angle);
+        squid.drawSprite(sprite, squid.size, reducedOpacity, angle);
         
-        // Draw bioluminescent effects
-        this.drawBioluminescence(squid, abyssalSprite, reducedOpacity, angle);
+        // Draw bioluminescent effects using the new system
+        if (squid.bioluminescenceSystem) {
+            squid.bioluminescenceSystem.drawBioluminescence(squid, abyssalSprite, reducedOpacity, angle);
+        } else {
+            // Fallback to old system if bioluminescence system not available
+            this.drawBioluminescence(squid, abyssalSprite, reducedOpacity, angle);
+        }
         
         // Draw grabbed prey if consuming
         this.drawGrabbedPrey(squid, reducedOpacity, angle);
@@ -128,8 +147,8 @@ class SquidRenderingSystem {
                 bioIntensity = this.config.BIO_INTENSITY_MIN + (faintProgress * (this.config.BIO_INTENSITY_MAX - this.config.BIO_INTENSITY_MIN));
             }
             
-            // Apply 50% depth shader effect to abyssal sprites
-            const spotReducedOpacity = baseOpacity * 0.5;
+            // Full brightness for abyssal sprites - no depth shader tint (like the old system)
+            const spotReducedOpacity = 1.0; // Maximum opacity, no depth effects
             
             // Draw bioluminescent overlay with additive blending for glow effect
             const ctx = window.ctx;
@@ -279,6 +298,22 @@ class SquidRenderingSystem {
             } else if (squid.jetCooldown > 0) {
                 ctx.fillStyle = '#666666'; // Gray for cooldown
                 ctx.fillText(`COOLDOWN: ${squid.jetCooldown}`, squid.x, jetY - 2);
+            }
+        }
+        
+        // Bioluminescence status indicator
+        if (squid.bioluminescenceSystem) {
+            const bioState = squid.bioluminescenceSystem.getBioluminescenceState(squid);
+            if (bioState.isActive) {
+                const bioY = stateY - 70;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(squid.x - 60, bioY - 20, 120, 25);
+                
+                const bioColor = bioState.isBlinking ? '#00ffff' : '#0088ff'; // Cyan when blinking, blue when steady
+                ctx.fillStyle = bioColor;
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`BIO: ${bioState.depthPercent}% (${Math.round(bioState.intensity * 100)}%)`, squid.x, bioY - 2);
             }
         }
         
