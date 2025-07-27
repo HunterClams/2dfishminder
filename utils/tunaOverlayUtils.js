@@ -56,14 +56,7 @@ const TunaSpriteUtils = {
      * @returns {string} Sprite key for the eaten sprite
      */
     getEatenSpriteKey(tuna) {
-        const sprites = window.sprites || {};
-        
-        // Determine which eaten sprite to use based on tuna type
-        if (tuna.tunaType === 'tuna2') {
-            return sprites.tuna2Eaten ? 'tuna2Eaten' : 'tunaEaten';
-        } else {
-            return 'tunaEaten';
-        }
+        return 'tunaEaten';
     },
 
     /**

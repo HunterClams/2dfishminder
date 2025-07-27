@@ -309,7 +309,7 @@ class BoidFlockingSystem {
         const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         if (window.Utils && window.Utils.handleEdges) {
-            window.Utils.handleEdges(boid, 20, 0.8, WORLD_WIDTH, WORLD_HEIGHT);
+            window.Utils.handleEdges(boid, 50, 0.9, WORLD_WIDTH, WORLD_HEIGHT);
         }
     }
     

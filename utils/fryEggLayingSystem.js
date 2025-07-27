@@ -6,7 +6,7 @@ class FryEggLayingSystem {
         this.config = {
             DETECTION_RANGE: 80, // Range for fry to detect each other in feeding state
             EGG_COUNT_MIN: 1, // Minimum eggs to spawn
-            EGG_COUNT_MAX: 3, // Maximum eggs to spawn
+            EGG_COUNT_MAX: 4, // Maximum eggs to spawn (increased from 3 to 4)
             EGG_LAYING_COOLDOWN: 15000, // 15 seconds cooldown between laying
             LAYING_CHANCE: 0.8 // 80% chance to lay when conditions are met
         };

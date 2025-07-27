@@ -113,16 +113,16 @@ class TrueFry1 extends Boid {
         return true;
     }
     
-    // Override checkForFood to use TrueFry specific logic
     checkForFood(krillArray, fishFoodArray, poopArray, fertilizedEggsArray = []) {
         if (!this.canEat) return false; // Cannot eat during cooldown
         
         // Use parent method but with TrueFry specific food sources
+        // TrueFry should NOT eat fertilized eggs - they are future fry!
         const foodSources = [
             { array: krillArray, name: 'krill', range: 25 },
             { array: fishFoodArray, name: 'fishFood', range: 20 },
-            { array: poopArray.filter(p => p.state >= 2), name: 'poop', range: 22 },
-            { array: fertilizedEggsArray, name: 'fertilizedEggs', range: 25 }
+            { array: poopArray.filter(p => p.state >= 2), name: 'poop', range: 22 }
+            // Removed fertilizedEggsArray - TrueFry should not eat fertilized eggs
         ];
         
         let closestFood = null;
@@ -147,10 +147,8 @@ class TrueFry1 extends Boid {
                         foodSource.array.splice(i, 1);
                     } else if (foodSource.name === 'poop') {
                         this.consumePoop(food, poopArray, poopArray.indexOf(food));
-                    } else if (foodSource.name === 'fertilizedEggs') {
-                        this.consumeFood(food);
-                        foodSource.array.splice(i, 1);
                     }
+                    // Removed fertilizedEggs eating - TrueFry should not eat fertilized eggs
                     return true;
                 }
                 
@@ -214,16 +212,17 @@ class TrueFry1 extends Boid {
         }
         
         // Use the same angle calculation as regular fry
-        const angle = Math.atan2(this.velocity.y, Math.abs(this.velocity.x)) * 0.5;
+        this.angle = Math.atan2(this.velocity.y, this.velocity.x);
         
-        // Apply deep water shader effects for TrueFry with 75% opacity
-        const baseOpacity = window.Utils.getDepthOpacity(this.y, 0.9) * 0.75; // 75% opacity
-        const tintStrength = window.Utils.getDepthTint(this.y);
+        // Calculate depth-based opacity and tint
+        const depthFactor = window.Utils?.getDepthFactor ? window.Utils.getDepthFactor(this.y) : 1;
+        const opacity = window.Utils?.getDepthOpacity ? window.Utils.getDepthOpacity(this.y, 0.8) : 0.8;
+        const tint = window.Utils?.getDepthTint ? window.Utils.getDepthTint(this.y) : { r: 1, g: 1, b: 1 };
         
-        // Draw with deep water shader effects
-        this.drawWithDeepWaterShader(sprite, this.size, baseOpacity, angle, tintStrength);
+        // Use enhanced rendering with deep water shader
+        this.drawWithDeepWaterShader(sprite, this.size, opacity, this.angle, depthFactor);
         
-        // Debug info
+        // Draw debug info if enabled
         if (window.gameState?.fryDebug) {
             this.drawDebugInfo();
         }
@@ -233,61 +232,33 @@ class TrueFry1 extends Boid {
         const ctx = window.ctx;
         if (!ctx) return;
         
+        // Save context state
         ctx.save();
+        
+        // Apply camera transform
         ctx.translate(this.x, this.y);
+        ctx.rotate(angle);
         
-        // Flip sprite based on horizontal movement direction
-        if (this.velocity.x < 0) {
-            ctx.scale(-1, 1);
+        // Apply depth-based tinting
+        const tintIntensity = Math.max(0.3, 1 - tintStrength * 0.7);
+        ctx.filter = `brightness(${tintIntensity}) saturate(${0.8 + tintStrength * 0.2})`;
+        
+        // Draw sprite with size and opacity
+        const drawSize = size * 0.8; // Slightly smaller than regular fry
+        ctx.globalAlpha = opacity;
+        ctx.drawImage(sprite, -drawSize/2, -drawSize/2, drawSize, drawSize);
+        
+        // Add TrueFry-specific visual effects
+        if (this.behaviorState === 'hunting') {
+            // Add hunting indicator
+            ctx.globalAlpha = 0.6;
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(0, 0, drawSize * 0.6, 0, Math.PI * 2);
+            ctx.fill();
         }
         
-        // Apply rotation if provided (for directional movement)
-        if (angle !== 0) {
-            ctx.rotate(angle);
-        }
-        
-        if (tintStrength > 0) {
-            // Create temporary canvas for proper transparency handling
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = size;
-            tempCanvas.height = size;
-            
-            // Draw sprite on temp canvas with validation
-            try {
-                tempCtx.drawImage(sprite, 0, 0, size, size);
-            } catch (error) {
-                console.error('🚨 drawImage error in TrueFry temp canvas:', error, {
-                    sprite: sprite,
-                    size: size,
-                    fishType: this.fishType
-                });
-                ctx.restore();
-                return;
-            }
-            
-            // Apply deep water tint using source-atop (only affects non-transparent pixels)
-            tempCtx.globalCompositeOperation = 'source-atop';
-            tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
-            tempCtx.fillRect(0, 0, size, size);
-            
-            // Draw the tinted sprite to main canvas
-            ctx.globalAlpha = opacity;
-            ctx.drawImage(tempCanvas, -size/2, -size/2);
-        } else {
-            // No tint needed, draw normally with validation
-            ctx.globalAlpha = opacity;
-            try {
-                ctx.drawImage(sprite, -size/2, -size/2, size, size);
-            } catch (error) {
-                console.error('🚨 drawImage error in TrueFry main canvas:', error, {
-                    sprite: sprite,
-                    size: size,
-                    fishType: this.fishType
-                });
-            }
-        }
-        
+        // Restore context state
         ctx.restore();
     }
     
@@ -295,23 +266,27 @@ class TrueFry1 extends Boid {
         const ctx = window.ctx;
         if (!ctx) return;
         
-        // Apply deep water shader effects to fallback drawing too with 75% opacity
-        const baseOpacity = window.Utils.getDepthOpacity(this.y, 0.8) * 0.75; // 75% opacity
-        const tintStrength = window.Utils.getDepthTint(this.y);
-        
         ctx.save();
-        ctx.globalAlpha = baseOpacity;
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
         
-        if (tintStrength > 0) {
-            // Apply blue tint for deep water effect
-            ctx.fillStyle = `rgba(76, 175, 80, ${1 - tintStrength * 0.3})`; // Green with blue tint
-        } else {
-            ctx.fillStyle = '#4CAF50';
-        }
+        // Draw TrueFry as a distinctive shape
+        ctx.fillStyle = '#FFB6C1'; // Light pink for TrueFry
+        ctx.strokeStyle = '#FF69B4';
+        ctx.lineWidth = 2;
         
+        const size = this.size * 0.8;
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, size/2, size/3, 0, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
+        
+        // Add TrueFry indicator
+        ctx.fillStyle = '#FF1493';
+        ctx.beginPath();
+        ctx.arc(size/3, -size/4, 2, 0, Math.PI * 2);
+        ctx.fill();
+        
         ctx.restore();
     }
     
@@ -320,23 +295,10 @@ class TrueFry1 extends Boid {
         if (!ctx) return;
         
         ctx.save();
-        ctx.fillStyle = '#4CAF50';
+        ctx.fillStyle = 'rgba(255, 182, 193, 0.8)';
         ctx.font = '10px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('TRUEFRY1', this.x, this.y - this.size/2 - 10);
-        
-        // Show eating cooldown status
-        if (!this.canEat) {
-            const remainingCooldown = Math.max(0, this.eatCooldown - (Date.now() - this.lastEatTime));
-            ctx.fillStyle = '#FF5722';
-            ctx.fillText(`CD: ${Math.ceil(remainingCooldown/100)}s`, this.x, this.y - this.size/2 - 20);
-        }
-        
-        // Show progression info
-        ctx.fillStyle = '#2196F3';
-        ctx.fillText(`Food: ${this.hasEatenThisStage}/1`, this.x, this.y + this.size/2 + 10);
-        ctx.fillText(`Time: ${Math.floor(this.evolutionTimer/1000)}s`, this.x, this.y + this.size/2 + 20);
-        
+        ctx.fillText(`TF1: ${this.hasEatenThisStage}/1`, this.x + 15, this.y - 10);
+        ctx.fillText(`${Math.round(this.evolutionTimer/this.evolutionDuration*100)}%`, this.x + 15, this.y);
         ctx.restore();
     }
 }
@@ -357,35 +319,35 @@ class TrueFry2 extends Boid {
             this.velocity = velocity;
         }
         
-        // TrueFry2 specific properties (override Boid defaults)
-        this.size = 20; // Slightly larger than TrueFry1
+        // TrueFry2 specific properties (larger than TrueFry1)
+        this.size = 18; // Increased from 12px to 18px
         this.maxSpeed = 3.2;
         this.maxForce = 0.07;
         this.frameSpeed = 0.12;
         
-        // Enhanced schooling (slightly increased swarm tendencies)
-        this.cohesionRadius = 95; // Slightly larger than TrueFry1
-        this.alignmentRadius = 75; // Slightly larger than TrueFry1
-        this.separationRadius = 28; // Slightly tighter than TrueFry1
-        this.schoolingUrge = 1.3; // Enhanced schooling urge
+        // Enhanced schooling (stronger swarm tendencies)
+        this.cohesionRadius = 100; // Larger than TrueFry1
+        this.alignmentRadius = 80; // Larger than TrueFry1
+        this.separationRadius = 35; // Slightly larger than TrueFry1
+        this.schoolingUrge = 1.4; // Stronger schooling urge
         
         // Evolution properties
         this.evolutionTimer = 0;
-        this.evolutionDuration = 7000; // 7 seconds
+        this.evolutionDuration = 10000; // 10 seconds
         this.hasEatenThisStage = 0; // Track count of food eaten, not boolean
         this.canTransform = true;
         
         // Energy and nutrition
-        this.energy = 110;
+        this.energy = 120;
         this.nutritionLevel = 0.7;
         this.hunger = Math.random() * 0.4;
         
         // TrueFry specific feeding properties
         this.lastEatTime = 0;
-        this.eatCooldown = 1000; // 1 second cooldown between eating
+        this.eatCooldown = 800; // 0.8 second cooldown between eating
         this.canEat = true;
         
-        // Prevent spawning state (TrueFry2 cannot lay eggs or spawn)
+        // Prevent spawning state (TrueFry cannot enter spawning)
         this.canSpawn = false;
         this.behaviorState = 'foraging'; // Start in foraging state
         
@@ -416,7 +378,7 @@ class TrueFry2 extends Boid {
         // This class only updates the timer and sets flags
     }
     
-    // Override food consumption to trigger evolution with 1-second cooldown
+    // Override food consumption to trigger evolution with 0.8-second cooldown
     consumeFood(food) {
         if (!this.canEat) return false; // Cannot eat during cooldown
         
@@ -429,7 +391,7 @@ class TrueFry2 extends Boid {
         this.canEat = false; // Start cooldown
         
         if (window.gameState?.fryDebug) {
-            console.log(`🐟 TrueFry2 ate food! Progress: ${this.hasEatenThisStage}/5 (${this.evolutionTimer}/${this.evolutionDuration}ms)`);
+            console.log(`🐟 TrueFry2 ate food! Progress: ${this.hasEatenThisStage}/2 (${this.evolutionTimer}/${this.evolutionDuration}ms)`);
         }
         
         return true;
@@ -447,22 +409,22 @@ class TrueFry2 extends Boid {
         this.canEat = false; // Start cooldown
         
         if (window.gameState?.fryDebug) {
-            console.log(`🐟 TrueFry2 ate poop! Progress: ${this.hasEatenThisStage}/5 (${this.evolutionTimer}/${this.evolutionDuration}ms)`);
+            console.log(`🐟 TrueFry2 ate poop! Progress: ${this.hasEatenThisStage}/2 (${this.evolutionTimer}/${this.evolutionDuration}ms)`);
         }
         
         return true;
     }
     
-    // Override checkForFood to use TrueFry specific logic
     checkForFood(krillArray, fishFoodArray, poopArray, fertilizedEggsArray = []) {
         if (!this.canEat) return false; // Cannot eat during cooldown
         
         // Use parent method but with TrueFry specific food sources
+        // TrueFry should NOT eat fertilized eggs - they are future fry!
         const foodSources = [
             { array: krillArray, name: 'krill', range: 25 },
             { array: fishFoodArray, name: 'fishFood', range: 20 },
-            { array: poopArray.filter(p => p.state >= 2), name: 'poop', range: 22 },
-            { array: fertilizedEggsArray, name: 'fertilizedEggs', range: 25 }
+            { array: poopArray.filter(p => p.state >= 2), name: 'poop', range: 22 }
+            // Removed fertilizedEggsArray - TrueFry should not eat fertilized eggs
         ];
         
         let closestFood = null;
@@ -487,10 +449,8 @@ class TrueFry2 extends Boid {
                         foodSource.array.splice(i, 1);
                     } else if (foodSource.name === 'poop') {
                         this.consumePoop(food, poopArray, poopArray.indexOf(food));
-                    } else if (foodSource.name === 'fertilizedEggs') {
-                        this.consumeFood(food);
-                        foodSource.array.splice(i, 1);
                     }
+                    // Removed fertilizedEggs eating - TrueFry should not eat fertilized eggs
                     return true;
                 }
                 
@@ -554,16 +514,17 @@ class TrueFry2 extends Boid {
         }
         
         // Use the same angle calculation as regular fry
-        const angle = Math.atan2(this.velocity.y, Math.abs(this.velocity.x)) * 0.5;
+        this.angle = Math.atan2(this.velocity.y, this.velocity.x);
         
-        // Apply deep water shader effects for TrueFry
-        const baseOpacity = window.Utils.getDepthOpacity(this.y, 0.9);
-        const tintStrength = window.Utils.getDepthTint(this.y);
+        // Calculate depth-based opacity and tint
+        const depthFactor = window.Utils?.getDepthFactor ? window.Utils.getDepthFactor(this.y) : 1;
+        const opacity = window.Utils?.getDepthOpacity ? window.Utils.getDepthOpacity(this.y, 0.8) : 0.8;
+        const tint = window.Utils?.getDepthTint ? window.Utils.getDepthTint(this.y) : { r: 1, g: 1, b: 1 };
         
-        // Draw with deep water shader effects
-        this.drawWithDeepWaterShader(sprite, this.size, baseOpacity, angle, tintStrength);
+        // Use enhanced rendering with deep water shader
+        this.drawWithDeepWaterShader(sprite, this.size, opacity, this.angle, depthFactor);
         
-        // Debug info
+        // Draw debug info if enabled
         if (window.gameState?.fryDebug) {
             this.drawDebugInfo();
         }
@@ -573,61 +534,33 @@ class TrueFry2 extends Boid {
         const ctx = window.ctx;
         if (!ctx) return;
         
+        // Save context state
         ctx.save();
+        
+        // Apply camera transform
         ctx.translate(this.x, this.y);
+        ctx.rotate(angle);
         
-        // Flip sprite based on horizontal movement direction
-        if (this.velocity.x < 0) {
-            ctx.scale(-1, 1);
+        // Apply depth-based tinting
+        const tintIntensity = Math.max(0.3, 1 - tintStrength * 0.7);
+        ctx.filter = `brightness(${tintIntensity}) saturate(${0.8 + tintStrength * 0.2})`;
+        
+        // Draw sprite with size and opacity
+        const drawSize = size * 0.9; // Larger than TrueFry1
+        ctx.globalAlpha = opacity;
+        ctx.drawImage(sprite, -drawSize/2, -drawSize/2, drawSize, drawSize);
+        
+        // Add TrueFry-specific visual effects
+        if (this.behaviorState === 'hunting') {
+            // Add hunting indicator
+            ctx.globalAlpha = 0.6;
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(0, 0, drawSize * 0.7, 0, Math.PI * 2);
+            ctx.fill();
         }
         
-        // Apply rotation if provided (for directional movement)
-        if (angle !== 0) {
-            ctx.rotate(angle);
-        }
-        
-        if (tintStrength > 0) {
-            // Create temporary canvas for proper transparency handling
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = size;
-            tempCanvas.height = size;
-            
-            // Draw sprite on temp canvas with validation
-            try {
-                tempCtx.drawImage(sprite, 0, 0, size, size);
-            } catch (error) {
-                console.error('🚨 drawImage error in TrueFry temp canvas:', error, {
-                    sprite: sprite,
-                    size: size,
-                    fishType: this.fishType
-                });
-                ctx.restore();
-                return;
-            }
-            
-            // Apply deep water tint using source-atop (only affects non-transparent pixels)
-            tempCtx.globalCompositeOperation = 'source-atop';
-            tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
-            tempCtx.fillRect(0, 0, size, size);
-            
-            // Draw the tinted sprite to main canvas
-            ctx.globalAlpha = opacity;
-            ctx.drawImage(tempCanvas, -size/2, -size/2);
-        } else {
-            // No tint needed, draw normally with validation
-            ctx.globalAlpha = opacity;
-            try {
-                ctx.drawImage(sprite, -size/2, -size/2, size, size);
-            } catch (error) {
-                console.error('🚨 drawImage error in TrueFry main canvas:', error, {
-                    sprite: sprite,
-                    size: size,
-                    fishType: this.fishType
-                });
-            }
-        }
-        
+        // Restore context state
         ctx.restore();
     }
     
@@ -635,23 +568,30 @@ class TrueFry2 extends Boid {
         const ctx = window.ctx;
         if (!ctx) return;
         
-        // Apply deep water shader effects to fallback drawing too
-        const baseOpacity = window.Utils.getDepthOpacity(this.y, 0.8);
-        const tintStrength = window.Utils.getDepthTint(this.y);
-        
         ctx.save();
-        ctx.globalAlpha = baseOpacity;
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
         
-        if (tintStrength > 0) {
-            // Apply blue tint for deep water effect
-            ctx.fillStyle = `rgba(33, 150, 243, ${1 - tintStrength * 0.3})`; // Blue with blue tint
-        } else {
-            ctx.fillStyle = '#2196F3';
-        }
+        // Draw TrueFry2 as a distinctive shape
+        ctx.fillStyle = '#DDA0DD'; // Plum color for TrueFry2
+        ctx.strokeStyle = '#9932CC';
+        ctx.lineWidth = 2;
         
+        const size = this.size * 0.9;
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, size/2, size/3, 0, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
+        
+        // Add TrueFry2 indicator (two dots)
+        ctx.fillStyle = '#8A2BE2';
+        ctx.beginPath();
+        ctx.arc(size/3, -size/4, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(size/3, size/4, 2, 0, Math.PI * 2);
+        ctx.fill();
+        
         ctx.restore();
     }
     
@@ -660,27 +600,14 @@ class TrueFry2 extends Boid {
         if (!ctx) return;
         
         ctx.save();
-        ctx.fillStyle = '#2196F3';
+        ctx.fillStyle = 'rgba(221, 160, 221, 0.8)';
         ctx.font = '10px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('TRUEFRY2', this.x, this.y - this.size/2 - 10);
-        
-        // Show eating cooldown status
-        if (!this.canEat) {
-            const remainingCooldown = Math.max(0, this.eatCooldown - (Date.now() - this.lastEatTime));
-            ctx.fillStyle = '#FF5722';
-            ctx.fillText(`CD: ${Math.ceil(remainingCooldown/100)}s`, this.x, this.y - this.size/2 - 20);
-        }
-        
-        // Show progression info
-        ctx.fillStyle = '#2196F3';
-        ctx.fillText(`Food: ${this.hasEatenThisStage}/5`, this.x, this.y + this.size/2 + 10);
-        ctx.fillText(`Time: ${Math.floor(this.evolutionTimer/1000)}s`, this.x, this.y + this.size/2 + 20);
-        
+        ctx.fillText(`TF2: ${this.hasEatenThisStage}/2`, this.x + 15, this.y - 10);
+        ctx.fillText(`${Math.round(this.evolutionTimer/this.evolutionDuration*100)}%`, this.x + 15, this.y);
         ctx.restore();
     }
 }
 
-// Export for global access
+// Make classes globally accessible
 window.TrueFry1 = TrueFry1;
 window.TrueFry2 = TrueFry2; 

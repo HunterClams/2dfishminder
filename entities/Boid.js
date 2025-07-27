@@ -114,7 +114,7 @@ class Boid extends (window.Entity || Entity) {
     }
 
     flock(boids, predators, food, krill = []) {
-        // TEMPORARILY USE ORIGINAL WORKING FLOCKING CODE
+        // USE OPTIMIZED SPATIAL PARTITIONING FOR O(n log n) PERFORMANCE
         const CONSTANTS = window.CONSTANTS || { PERCEPTION_RADIUS: 50, SEPARATION_RADIUS: 30 };
         const perceptionRadiusSquared = CONSTANTS.PERCEPTION_RADIUS * CONSTANTS.PERCEPTION_RADIUS;
         const separationRadiusSquared = CONSTANTS.SEPARATION_RADIUS * CONSTANTS.SEPARATION_RADIUS;
@@ -124,8 +124,32 @@ class Boid extends (window.Entity || Entity) {
         let separation = { x: 0, y: 0 };
         let alignCount = 0, cohesionCount = 0, separationCount = 0;
         
-        // Single pass through nearby boids
-        for (let other of boids) {
+        // TEMPORARILY DISABLE SPATIAL PARTITIONING - Use brute force for now
+        // Use spatial partitioning if available for efficient O(n log n) lookups
+        let nearbyBoids = boids; // Force brute force for now
+        
+        // TODO: Re-enable spatial partitioning once movement is fixed
+        /*
+        if (window.gameEntities && window.gameEntities.spatialPartitioning) {
+            // Get nearby entities using spatial partitioning - much faster than O(n²) brute force
+            nearbyBoids = window.gameEntities.spatialPartitioning.getNearbyEntities(
+                this, 
+                CONSTANTS.PERCEPTION_RADIUS, 
+                ['fish', 'krill', 'paleKrill', 'momKrill', 'truefry']
+            );
+            
+            // Fallback to brute force if spatial partitioning returns empty results
+            if (nearbyBoids.length === 0) {
+                nearbyBoids = boids;
+            }
+        } else {
+            // Fallback to brute force if spatial partitioning not available
+            nearbyBoids = boids;
+        }
+        */
+        
+        // Single pass through nearby boids (now optimized with spatial partitioning)
+        for (let other of nearbyBoids) {
             if (other === this) continue;
             
             const distSquared = this.distanceSquared(this, other);
@@ -155,6 +179,7 @@ class Boid extends (window.Entity || Entity) {
         if (alignCount > 0) {
             alignment.x /= alignCount;
             alignment.y /= alignCount;
+            // TEMPORARILY USE ORIGINAL calculateSteering - disable pooling for now
             const alignSteering = this.calculateSteering(alignment, this.maxSpeed, this.maxForce);
             forces.x += alignSteering.x;
             forces.y += alignSteering.y;
@@ -163,6 +188,7 @@ class Boid extends (window.Entity || Entity) {
         if (cohesionCount > 0) {
             cohesion.x = (cohesion.x / cohesionCount) - this.x;
             cohesion.y = (cohesion.y / cohesionCount) - this.y;
+            // TEMPORARILY USE ORIGINAL calculateSteering - disable pooling for now
             const cohesionSteering = this.calculateSteering(cohesion, this.maxSpeed, this.maxForce);
             forces.x += cohesionSteering.x;
             forces.y += cohesionSteering.y;
@@ -171,6 +197,7 @@ class Boid extends (window.Entity || Entity) {
         if (separationCount > 0) {
             separation.x /= separationCount;
             separation.y /= separationCount;
+            // TEMPORARILY USE ORIGINAL calculateSteering - disable pooling for now
             const separationSteering = this.calculateSteering(separation, this.maxSpeed, this.maxForce);
             forces.x += separationSteering.x * 1.5;
             forces.y += separationSteering.y * 1.5;

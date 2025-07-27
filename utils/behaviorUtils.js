@@ -10,7 +10,7 @@ function shouldIgnorePrey(predatorType, preyType, fishTypes) {
     const key = `${predatorType}-${preyType}`;
     if (!_preyCache.has(key)) {
         let ignore = false;
-        if (predatorType === 'tuna' || predatorType === 'tuna2') {
+        if (predatorType === 'tuna') {
             ignore = preyType === fishTypes.SMALL_FRY_3;
             // All tuna ignore krill (standardized behavior)
             if (preyType === fishTypes.KRILL) ignore = true;
@@ -54,7 +54,7 @@ function shouldFlee(fishType, predatorType, fishTypes) {
     if (!_fleeCache.has(key)) {
         let shouldFleeFlag = true;
         
-        if (fishType === fishTypes.SMALL_FRY_3 && (predatorType === 'tuna' || predatorType === 'tuna2')) {
+        if (fishType === fishTypes.SMALL_FRY_3 && predatorType === 'tuna') {
             shouldFleeFlag = false; // SmallFry3 doesn't flee from any tuna (standardized)
         } else if (fishType === fishTypes.KRILL) {
             // Krill flee from all predators but with reduced panic

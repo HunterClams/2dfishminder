@@ -7,40 +7,203 @@
     <style>
         body {
             margin: 0;
-            padding: 10px;
+            padding: 0;
             background-color: #001122;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             font-family: Arial, sans-serif;
+            overflow: hidden;
         }
         canvas {
-            border: 2px solid #0066cc;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 102, 204, 0.5);
+            border: none;
+            display: block;
+            width: 100vw;
+            height: 100vh;
         }
         .instructions {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 15px;
+            right: 15px;
             color: white;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            max-width: 250px;
+            background: linear-gradient(135deg, rgba(0, 20, 40, 0.95), rgba(0, 40, 80, 0.95));
+            padding: 20px;
+            border-radius: 12px;
+            font-size: 13px;
+            max-width: 320px;
+            border: 1px solid rgba(0, 150, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
+        
+        .instructions h3 {
+            margin: 0 0 15px 0;
+            color: #00ccff;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid rgba(0, 150, 255, 0.3);
+            padding-bottom: 8px;
+        }
+        
+        .control-section {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(0, 30, 60, 0.3);
+            border-radius: 8px;
+            border-left: 3px solid #00ccff;
+        }
+        
+        .control-section h4 {
+            margin: 0 0 8px 0;
+            color: #66ccff;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .control-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 6px 0;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(0, 150, 255, 0.1);
+        }
+        
+        .control-item:last-child {
+            border-bottom: none;
+        }
+        
+        .control-key {
+            background: linear-gradient(135deg, #004080, #0066cc);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            min-width: 40px;
+            text-align: center;
+            border: 1px solid rgba(0, 150, 255, 0.5);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .control-description {
+            color: #b3d9ff;
+            font-size: 12px;
+            margin-left: 10px;
+            flex: 1;
+        }
+        
+        .info-section {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 40, 80, 0.3);
+            border-radius: 8px;
+            border-left: 3px solid #00ff88;
+        }
+        
+        .info-section h4 {
+            margin: 0 0 8px 0;
+            color: #66ffaa;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .info-item {
+            color: #b3ffcc;
+            font-size: 11px;
+            margin: 4px 0;
+            line-height: 1.4;
+        }
+        
         .ecosystem-info {
             position: absolute;
-            bottom: 10px;
-            left: 10px;
+            bottom: 15px;
+            left: 15px;
             color: white;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 11px;
-            max-width: 300px;
+            background: linear-gradient(135deg, rgba(0, 20, 40, 0.95), rgba(0, 40, 80, 0.95));
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 12px;
+            max-width: 280px;
+            border: 1px solid rgba(0, 150, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        /* Hover effects for better interactivity */
+        .control-item:hover {
+            background: rgba(0, 150, 255, 0.1);
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .control-key:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            transition: all 0.2s ease;
+        }
+        
+        /* Responsive design for smaller screens */
+        @media (max-width: 1400px) {
+            .instructions {
+                max-width: 280px;
+                font-size: 12px;
+                padding: 15px;
+            }
+            
+            .control-key {
+                min-width: 35px;
+                font-size: 10px;
+                padding: 2px 6px;
+            }
+            
+            .control-description {
+                font-size: 11px;
+            }
+        }
+        
+        @media (max-width: 1200px) {
+            .instructions {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin: 10px auto;
+                max-width: 90%;
+            }
+            
+            .ecosystem-info {
+                position: relative;
+                bottom: auto;
+                left: auto;
+                margin: 10px auto;
+                max-width: 90%;
+            }
+        }
+        
+        /* Animation for smooth appearance */
+        .instructions, .ecosystem-info {
+            animation: fadeInUp 0.5s ease-out;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
     </style>
 <script src="https://unpkg.com/@vercel/analytics@1.5.0/dist/index.umd.js"></script>
@@ -58,24 +221,73 @@
     }
 </script></head>
 <body>
-    <canvas id="gameCanvas" width="1200" height="800"></canvas>
+    <canvas id="gameCanvas"></canvas>
     <div class="instructions">
-        <h3>Controls:</h3>
-        <p><strong>WASD</strong> - Move camera</p>
-        <p><strong>Mouse Wheel</strong> - Zoom in/out</p>
-        <p><strong>F</strong> - Cycle spawn modes (Food → Poop → Fish Eggs → Sperm → Fertilized Eggs → Krill → Fry → Tuna → Squid → Off)</p>
-        <p><strong>H</strong> - Cycle HUD (Controls → Full View → Off)</p>
-        <p><strong>F3</strong> - Toggle comprehensive debug view (visual overlays + console logging)</p>
-        <p><strong>T</strong> - Cycle debug overlays (Tuna → Squid → Fry → Krill → TrueFry → Eggs → Food → Poop → Sperm → Off)</p>
-        <p><strong>V</strong> - Toggle verbose logging</p>
-        <p><strong>P</strong> - Toggle performance mode</p>
-        <p><strong>Ctrl+R</strong> - Reset spawn statistics</p>
-        <p><strong>Ctrl+A</strong> - Test analytics (dev mode)</p>
-        <p><strong>Click</strong> - Spawn items (when mode active)</p>
-        <p><em>🌊 Live ecosystem population counter shows current world state</em></p>
-        <p><em>📊 Player spawns tracked with Vercel Analytics</em></p>
-        <p><em>🔍 F3 shows AI states, detection ranges, spawning sequences, and more!</em></p>
-        <p><em>🐟 Fry spawning system: 1000px egg detection, 10px offset swimming, 3 sperm per spawn</em></p>
+        <h3>🎮 Game Controls</h3>
+        
+        <div class="control-section">
+            <h4>🎯 Camera & Movement</h4>
+            <div class="control-item">
+                <span class="control-key">WASD</span>
+                <span class="control-description">Move camera around the world</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">Wheel</span>
+                <span class="control-description">Zoom in and out</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">Shift</span>
+                <span class="control-description">Boost camera speed</span>
+            </div>
+        </div>
+        
+        <div class="control-section">
+            <h4>🐟 Spawning & Interaction</h4>
+            <div class="control-item">
+                <span class="control-key">F</span>
+                <span class="control-description">Cycle spawn modes</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">Click</span>
+                <span class="control-description">Spawn items (when mode active)</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">Left</span>
+                <span class="control-description">Follow creature (spawn mode OFF)</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">Right</span>
+                <span class="control-description">Stop following creature</span>
+            </div>
+        </div>
+        
+        <div class="control-section">
+            <h4>🔧 Interface & Debug</h4>
+            <div class="control-item">
+                <span class="control-key">H</span>
+                <span class="control-description">Cycle HUD display</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">F3</span>
+                <span class="control-description">Toggle debug overlays</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">T</span>
+                <span class="control-description">Cycle debug modes</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">P</span>
+                <span class="control-description">Toggle performance mode</span>
+            </div>
+        </div>
+        
+        <div class="info-section">
+            <h4>💡 Game Features</h4>
+            <div class="info-item">🌊 Live ecosystem population counter</div>
+            <div class="info-item">📊 Player spawns tracked with analytics</div>
+            <div class="info-item">🔍 F3 shows AI states & detection ranges</div>
+            <div class="info-item">🐟 Fry spawning: 1000px egg detection</div>
+        </div>
     </div>
 
     <!-- 1. Utility modules (no dependencies) -->
@@ -87,6 +299,7 @@
     <script src="utils/depthUtils.js"></script>
     <script src="utils/behaviorUtils.js"></script>
     <script src="utils/squidUtils.js"></script>
+    <script src="utils/cameraFollowSystem.js"></script>
     <!-- Optimization systems -->
     <script src="utils/spatialPartitioningSystem.js"></script>
     <script src="utils/enhancedObjectPools.js"></script>
@@ -94,6 +307,9 @@
     <script src="utils/lodSystem.js"></script>
     <script src="utils/enhancedRenderingSystem.js"></script>
     <script src="utils/performanceMonitoringSystem.js"></script>
+    <script src="utils/memoryManagementSystem.js"></script>
+    <script src="utils/distanceOptimizationSystem.js"></script>
+    <script src="utils/aiWorkerSystem.js"></script>
     <!-- Modular Squid AI system -->
     <script src="utils/squidConfig.js"></script>
     <script src="utils/squidJetSystem.js"></script>

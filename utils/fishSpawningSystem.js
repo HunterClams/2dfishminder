@@ -61,13 +61,7 @@ class FishSpawningSystem {
             'tuna': {
                 preferredZone: 'MID',
                 spawnZone: 'mid',
-                count: 15,
-                preferredDepth: 0.4
-            },
-            'tuna2': {
-                preferredZone: 'MID',
-                spawnZone: 'mid', 
-                count: 15,
+                count: 30, // Increased from 15 to compensate for removing tuna2
                 preferredDepth: 0.4
             },
             
@@ -182,7 +176,6 @@ class FishSpawningSystem {
                     break;
                     
                 case 'tuna':
-                case 'tuna2':
                     entity = new window.Predator(creatureType);
                     entity.x = position.x;
                     entity.y = position.y;

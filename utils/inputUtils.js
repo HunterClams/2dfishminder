@@ -58,6 +58,12 @@ function createInputHandler(keys, gameState) {
                 } else {
                     gameState.spawnMode = 'off';
                 }
+                
+                // Stop camera following when spawn mode is activated
+                if (window.cameraFollowSystem && gameState.spawnMode !== 'off') {
+                    window.cameraFollowSystem.stopFollowing();
+                }
+                
                 event.preventDefault();
             } else if (key === 'r' && event.ctrlKey) {
                 // Reset player spawn statistics (Ctrl+R)

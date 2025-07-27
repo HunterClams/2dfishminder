@@ -83,8 +83,8 @@ class BoidFeedingSystem {
             }
         }
         
-        // Update behavior state based on food availability (only if not feeding or spawning)
-        if (boid.behaviorState !== 'feeding' && boid.behaviorState !== 'spawning') {
+        // Update behavior state based on food availability (only if not feeding, spawning, or in spawning cooldown)
+        if (boid.behaviorState !== 'feeding' && boid.behaviorState !== 'spawning' && boid.behaviorState !== 'spawning_cooldown') {
             if (closestFood) {
                 boid.behaviorState = 'hunting';
                 boid.huntTarget = closestFood.food;
@@ -100,7 +100,7 @@ class BoidFeedingSystem {
                 // Don't apply any additional forces - let flocking handle movement
             }
         } else {
-            // During feeding or spawning state, clear hunt target but keep state
+            // During feeding, spawning, or spawning cooldown state, clear hunt target but keep state
             boid.huntTarget = null;
         }
         

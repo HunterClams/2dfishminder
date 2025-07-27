@@ -38,6 +38,13 @@ class KrillBase extends Boid {
         this.postMigrationRest = false;
         this.postMigrationRestStart = null;
         
+        // Individual variation properties for more natural movement
+        this.individualSpeedVariation = 0.8 + Math.random() * 0.4; // 0.8x to 1.2x speed
+        this.individualWanderStrength = 0.8 + Math.random() * 0.4; // 0.8x to 1.2x wander
+        this.individualCohesionVariation = 0.7 + Math.random() * 0.6; // 0.7x to 1.3x cohesion
+        this.individualTimingOffset = Math.random() * 0.2; // Random timing offset for migration
+        this.individualOscillationPhase = Math.random() * Math.PI * 2; // Random oscillation phase
+        
         // Animation and visual properties
         this.animationFrame = 0;
         this.animationSpeed = 0.08;
@@ -83,8 +90,8 @@ class KrillBase extends Boid {
     edges() {
         const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
-        const margin = 50;
-        const damping = 0.8;
+        const margin = 60;
+        const damping = 0.9;
         
         // Handle horizontal boundaries
         if (this.x < margin) {
@@ -106,7 +113,7 @@ class KrillBase extends Boid {
     }
     
     // Main update function using the simplified AI system
-    update(boids, predators, food, poop) {
+    update(boids, predators, food, poop, sperm = []) {
         // Update cached nearby krill periodically for performance
         const currentTime = Date.now();
         if (currentTime - this.lastNearbyUpdate > this.nearbyUpdateInterval) {
@@ -121,7 +128,8 @@ class KrillBase extends Boid {
                 this.nearbyKrill,
                 predators,
                 food,
-                poop
+                poop,
+                sperm
             );
             
             // Store AI results for debug visualization
@@ -135,7 +143,7 @@ class KrillBase extends Boid {
             this.edges();
         } else {
             // Fallback to basic behavior if AI system not loaded
-            this.basicUpdate(boids, predators, food, poop);
+            this.basicUpdate(boids, predators, food, poop, sperm);
             
             // Standard movement and bounds checking for fallback
             this.move();
@@ -143,14 +151,14 @@ class KrillBase extends Boid {
         }
         
         // Handle food consumption (improved from unmodularized version)
-        this.checkForFood(food, poop);
+        this.checkForFood(food, poop, sperm);
         
         // Update animation
         this.updateAnimation();
     }
     
     // Improved food consumption methods from unmodularized version
-    checkForFood(fishFoodArray, poopArray) {
+    checkForFood(fishFoodArray, poopArray, spermArray = []) {
         // Check for poop consumption (preferred food)
         for (let i = poopArray.length - 1; i >= 0; i--) {
             const poop = poopArray[i];
@@ -158,6 +166,18 @@ class KrillBase extends Boid {
                 const distSquared = this.distanceSquared(this, poop);
                 if (distSquared < this.eatRadiusSquared) {
                     this.consumePoop(poop, poopArray, i);
+                    break; // Only eat one per frame
+                }
+            }
+        }
+        
+        // Check for sperm consumption (high nutrition, easy to catch)
+        for (let i = spermArray.length - 1; i >= 0; i--) {
+            const sperm = spermArray[i];
+            if (!sperm.eaten) {
+                const distSquared = this.distanceSquared(this, sperm);
+                if (distSquared < this.eatRadiusSquared) {
+                    this.consumeSperm(sperm, spermArray, i);
                     break; // Only eat one per frame
                 }
             }
@@ -209,6 +229,40 @@ class KrillBase extends Boid {
         poopArray.splice(index, 1);
     }
     
+    consumeSperm(sperm, spermArray, index) {
+        sperm.eaten = true;
+        
+        if (window.gameState?.krillDebug) {
+            console.log(`🦐 Krill consumed sperm! Type: ${this.constructor.name}, Food consumed: ${this.foodConsumed + 1}`);
+        }
+        
+        // High nutrition from sperm (protein-rich!)
+        this.nutritionLevel = Math.min(1.0, this.nutritionLevel + 0.12);
+        this.energy = Math.min(1.0, this.energy + 0.15);
+        this.hunger = Math.max(0, this.hunger - 0.25);
+        
+        // Food value for reproduction (sperm is nutritious)
+        this.foodConsumed = (this.foodConsumed || 0) + 2;
+        
+        // Visual effect
+        if (Math.random() < 0.6 && window.ObjectPools) {
+            window.ObjectPools.getEatingBubble(sperm.x, sperm.y);
+        }
+        
+        // Handle transformation for regular krill - sperm is very nutritious
+        if (this.canTransform && this.constructor.name === 'Krill' && this.foodConsumed >= 5 && !this.shouldTransform) {
+            this.shouldTransform = true;
+            this.transformTo = 'momKrill';
+            
+            if (window.gameState?.krillDebug) {
+                console.log(`🦐 Krill ready for transformation after eating sperm! Food consumed: ${this.foodConsumed}`);
+            }
+        }
+        
+        // Remove consumed sperm
+        spermArray.splice(index, 1);
+    }
+    
     consumeFishFood(food) {
         food.eaten = true;
         
@@ -229,9 +283,9 @@ class KrillBase extends Boid {
             window.ObjectPools.getEatingBubble(food.x, food.y);
         }
         
-        // Handle transformation for regular krill - only after eating 3+ fish food
+        // Handle transformation for regular krill - only after eating 5+ food
         // AND only if not already set to transform
-        if (this.canTransform && this.constructor.name === 'Krill' && this.foodConsumed >= 3 && !this.shouldTransform) {
+        if (this.canTransform && this.constructor.name === 'Krill' && this.foodConsumed >= 5 && !this.shouldTransform) {
             this.shouldTransform = true;
             this.transformTo = 'momKrill';
             
@@ -250,7 +304,7 @@ class KrillBase extends Boid {
     }
     
     // Fallback basic behavior if AI system unavailable
-    basicUpdate(boids, predators, food, poop) {
+    basicUpdate(boids, predators, food, poop, sperm = []) {
         // Simple flocking with other krill
         const krillOnly = boids.filter(b => b.fishType === FISH_TYPES.KRILL);
         super.flock(krillOnly, predators, food, []);
@@ -284,6 +338,7 @@ class KrillBase extends Boid {
         if (closest) {
             this.behaviorState = 'seeking';
             this.seekTarget = closest;
+            // TEMPORARILY USE ORIGINAL calculateSteering - disable pooling for now
             const seekForce = this.calculateSteering(
                 { x: closest.x - this.x, y: closest.y - this.y },
                 this.maxSpeed,
@@ -320,6 +375,9 @@ class KrillBase extends Boid {
     
     updateNearbyKrill(boids) {
         const SWARM_RADIUS = window.KRILL_CONFIG?.SWARM_RADIUS || 120;
+        
+        // TEMPORARILY DISABLE SPATIAL PARTITIONING - Use brute force for now
+        // Fallback to brute force O(n²) search if spatial partitioning not available
         this.nearbyKrill = boids.filter(b => {
             if (b === this || b.fishType !== FISH_TYPES.KRILL) return false;
             const dx = this.x - b.x;

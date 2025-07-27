@@ -33,7 +33,7 @@ const SQUID_CONFIG = {
     // Sensory system
     VISION_RANGE: 2000,
     ATTACK_RANGE: 315,
-    EDGE_BUFFER: 200,
+    EDGE_BUFFER: -892, // Allow squids to go 2 sprite lengths off the map
     EDGE_FORCE: 0.6,
     
     // Bioluminescence

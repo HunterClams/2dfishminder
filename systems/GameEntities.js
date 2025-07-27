@@ -17,6 +17,10 @@ class GameEntities {
         this.bubbles = [];
         this.squid = [];
         
+        // Pre-allocated combined arrays to eliminate array spread operations
+        this.allKrill = []; // Combined krill array
+        this.krillDirty = true; // Flag to rebuild combined array
+        
         // Initialize entity counter
         this.entityCounter = window.EntityCounter ? new window.EntityCounter() : null;
         
@@ -106,6 +110,27 @@ class GameEntities {
             console.log('📈 Performance monitoring system initialized');
         }
         
+        // Initialize memory management system
+        if (window.MemoryManagementSystem) {
+            this.memoryManagement = new window.MemoryManagementSystem();
+            window.memoryManagementSystem = this.memoryManagement; // Make globally accessible
+            console.log('🧹 Memory management system initialized');
+        }
+        
+        // Initialize distance optimization system
+        if (window.DistanceOptimizationSystem) {
+            this.distanceOptimization = new window.DistanceOptimizationSystem();
+            window.distanceOptimizationSystem = this.distanceOptimization; // Make globally accessible
+            console.log('🚀 Distance optimization system initialized');
+        }
+        
+        // Initialize AI Worker system for background processing
+        if (window.AIWorkerSystem) {
+            this.aiWorkerSystem = new window.AIWorkerSystem();
+            window.aiWorkerSystem = this.aiWorkerSystem; // Make globally accessible
+            console.log('🧠 AI Worker system initialized');
+        }
+        
         // Performance monitoring
         this.spatialStats = {
             lastUpdate: 0,
@@ -113,32 +138,40 @@ class GameEntities {
         };
     }
     
+    // Track entity in memory management system
+    trackEntityInMemory(entity, entityType) {
+        if (this.memoryManagement) {
+            this.memoryManagement.trackEntity(entity, entityType);
+        }
+    }
+    
     // Setup batch processing for different entity types
     setupBatchProcessing() {
-        // Register fish batch processing (regular fry only) - smaller batch size for better responsiveness
-        this.batchProcessing.registerBatchType('fry', (fry, index) => {
-            fry.update(this.fish, this.predators, this.fishFood, 
-                       [...this.krill, ...this.paleKrill, ...this.momKrill], 
-                       this.poop, this.fertilizedEggs);
+        // Register fish batch processing - using pre-combined arrays for efficiency
+        this.batchProcessing.registerBatchType('fish', (fish, index) => {
+            fish.update(this.fish, this.predators, this.fishFood, this.allKrill, this.poop, this.fertilizedEggs);
         });
-        // Register truefry batch processing - smaller batch size for better responsiveness
-        this.batchProcessing.registerBatchType('truefry', (truefry, index) => {
-            truefry.update(this.fish, this.predators, this.fishFood, 
-                       [...this.krill, ...this.paleKrill, ...this.momKrill], 
-                       this.poop, this.fertilizedEggs);
+        
+        // Register predator batch processing  
+        this.batchProcessing.registerBatchType('predators', (predator, index) => {
+            predator.update(this.fish, this.allKrill, this.squid);
         });
-        // Register predator batch processing
-        this.batchProcessing.registerBatchType('predator', (predator, index) => {
-            predator.update(this.fish, [...this.krill, ...this.paleKrill, ...this.momKrill], this.squid);
-        });
-        // Register krill batch processing - smaller batch size for better responsiveness
+        
+        // Register krill batch processing - using pre-combined arrays for efficiency
         this.batchProcessing.registerBatchType('krill', (krill, index) => {
-            krill.update([...this.krill, ...this.paleKrill, ...this.momKrill], 
-                        this.predators, this.fishFood, this.poop);
+            krill.update(this.allKrill, this.predators, this.fishFood, this.poop, this.sperm);
+        });
+        
+        this.batchProcessing.registerBatchType('paleKrill', (paleKrill, index) => {
+            paleKrill.update(this.allKrill, this.predators, this.fishFood, this.poop, this.sperm);
+        });
+        
+        this.batchProcessing.registerBatchType('momKrill', (momKrill, index) => {
+            momKrill.update(this.allKrill, this.predators, this.fishFood, this.poop, this.sperm);
         });
         
         // Configure smaller batch sizes for better responsiveness
-        this.batchProcessing.batchSize = 10; // Reduced from 20 to 10 for more frequent updates
+        this.batchProcessing.batchSize = 15; // Optimized batch size for performance
     }
     
     // Update spatial partitioning for all entities
@@ -250,8 +283,7 @@ class GameEntities {
         
         // Create initial predators
         for (let i = 0; i < 30; i++) {
-            const tunaType = Math.random() < 0.5 ? 'tuna' : 'tuna2';
-            const predator = new window.Predator(tunaType);
+            const predator = new window.Predator('tuna');
             predator.x = Math.random() * window.WORLD_WIDTH;
             predator.y = window.WORLD_HEIGHT * 0.6 + Math.random() * window.WORLD_HEIGHT * 0.3; // 60-90% depth for better overlap with squid
             this.predators.push(predator);
@@ -322,6 +354,7 @@ class GameEntities {
                 newKrill.x = spawnX;
                 newKrill.y = spawnY;
                 this.krill.push(newKrill);
+                this.markKrillDirty(); // Mark combined array dirty when krill added
             }
             
             if (this.entityCounter) {
@@ -465,7 +498,6 @@ class GameEntities {
         } else if (spawnMode === 'tuna') {
             // Spawn tuna with spread
             const tunaCount = 1 + Math.floor(Math.random() * 3); // 1-3 tuna
-            const tunaTypes = ['tuna', 'tuna2'];
             
             for (let i = 0; i < tunaCount; i++) {
                 const angle = Math.random() * Math.PI * 2;
@@ -473,8 +505,7 @@ class GameEntities {
                 const spawnX = centerX + Math.cos(angle) * distance;
                 const spawnY = centerY + Math.sin(angle) * distance;
                 
-                const randomTunaType = tunaTypes[Math.floor(Math.random() * tunaTypes.length)];
-                const newTuna = new window.Predator(randomTunaType);
+                const newTuna = new window.Predator('tuna');
                 newTuna.x = spawnX;
                 newTuna.y = spawnY;
                 this.predators.push(newTuna);
@@ -498,12 +529,30 @@ class GameEntities {
     
     // Update all entities with optimization systems
     update() {
+        // Update combined arrays first to eliminate array spread operations
+        this.updateCombinedArrays();
+        
         // Update spatial partitioning first
         this.updateSpatialPartitioning();
         
         // Update performance monitoring
         if (this.performanceMonitoring) {
             this.performanceMonitoring.update();
+        }
+        
+        // Perform memory management and garbage collection
+        if (this.memoryManagement) {
+            this.memoryManagement.performGarbageCollection();
+            
+            // Detect memory leaks periodically
+            if (window.gameState && window.gameState.frameCount % 3600 === 0) { // Every minute at 60fps
+                this.memoryManagement.detectMemoryLeaks();
+            }
+        }
+        
+        // Update distance optimization statistics
+        if (this.distanceOptimization) {
+            this.distanceOptimization.logOptimizationStats();
         }
         
         // Track krill counts before update for debugging
@@ -574,61 +623,31 @@ class GameEntities {
             }
         }
         
-        // Use batch processing for main entities if available
-        if (this.batchProcessing) {
-            // Temporarily disable batch processing for all entities to ensure smooth movement
-            // Process all entities with traditional updates for better responsiveness
-            
-            // Process predators (tuna) with traditional updates
-            this.predators.forEach(p => {
-                p.update(this.fish, [...this.krill, ...this.paleKrill, ...this.momKrill], this.squid);
-            });
-            
-            // Process krill and fry with traditional updates for better responsiveness
-            this.krill.forEach(k => {
-                k.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
-            });
-            
-            this.paleKrill.forEach(pk => {
-                pk.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
-            });
-            
-            this.momKrill.forEach(mk => {
-                mk.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
-            });
-            
-            // Process all fish (both regular fry and truefry) with traditional updates
-            this.fish.forEach(f => {
-                f.update(this.fish, this.predators, this.fishFood, 
-                        [...this.krill, ...this.paleKrill, ...this.momKrill], 
-                        this.poop, this.fertilizedEggs);
-            });
-            
-            // Debug logging for entity counts
-            if (window.gameState?.fryDebug) {
-                console.log(`🐟 Processing: ${this.fish.length} fish, ${this.predators.length} predators, ${this.krill.length + this.paleKrill.length + this.momKrill.length} krill`);
-            }
-        } else {
-            // Fallback to traditional updates
-            this.fish.forEach(f => {
-                f.update(this.fish, this.predators, this.fishFood, [...this.krill, ...this.paleKrill, ...this.momKrill], this.poop, this.fertilizedEggs);
-            });
-            
-            this.predators.forEach(p => {
-                p.update(this.fish, [...this.krill, ...this.paleKrill, ...this.momKrill], this.squid);
-            });
-            
-            this.krill.forEach(k => {
-                k.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
-            });
-            
-            this.paleKrill.forEach(pk => {
-                pk.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
-            });
-            
-            this.momKrill.forEach(mk => {
-                mk.update([...this.krill, ...this.paleKrill, ...this.momKrill], this.predators, this.fishFood, this.poop);
-            });
+        // TEMPORARILY DISABLE BATCH PROCESSING - Use traditional updates for smooth movement
+        // Process all entities with traditional updates for responsive movement - using pre-combined array
+        this.fish.forEach(f => {
+            f.update(this.fish, this.predators, this.fishFood, this.allKrill, this.poop, this.fertilizedEggs);
+        });
+        
+        this.predators.forEach(p => {
+            p.update(this.fish, this.allKrill, this.squid);
+        });
+        
+        this.krill.forEach(k => {
+            k.update(this.allKrill, this.predators, this.fishFood, this.poop, this.sperm);
+        });
+        
+        this.paleKrill.forEach(pk => {
+            pk.update(this.allKrill, this.predators, this.fishFood, this.poop, this.sperm);
+        });
+        
+        this.momKrill.forEach(mk => {
+            mk.update(this.allKrill, this.predators, this.fishFood, this.poop, this.sperm);
+        });
+        
+        // Debug logging for entity counts
+        if (window.gameState?.fryDebug) {
+            console.log(`🐟 Traditional updates: ${this.fish.length} fish, ${this.predators.length} predators, ${this.krill.length + this.paleKrill.length + this.momKrill.length} krill`);
         }
         
         // Process fry egg laying system
@@ -716,7 +735,7 @@ class GameEntities {
         
         // Update squid
         this.squid.forEach(s => {
-            s.update(this.fish, this.predators, [...this.krill, ...this.paleKrill, ...this.momKrill]);
+            s.update(this.fish, this.predators, this.allKrill);
         });
         
         // Clean up optimization systems
@@ -1012,6 +1031,35 @@ class GameEntities {
             trueFry2,
             regularFry
         };
+    }
+    
+    // Efficiently update combined krill arrays (eliminates O(n²) array spread operations)
+    updateCombinedArrays() {
+        if (this.krillDirty) {
+            // Clear without allocating new memory
+            this.allKrill.length = 0;
+            
+            // Use concat for better performance than spread
+            this.allKrill = this.allKrill.concat(this.krill, this.paleKrill, this.momKrill);
+            
+            this.krillDirty = false;
+            
+            // Track optimization metrics
+            if (window.performanceMonitoringSystem) {
+                window.performanceMonitoringSystem.trackArrayOperation('concats');
+                window.performanceMonitoringSystem.trackOptimization('arraySpreadEliminations');
+            }
+            
+            // Debug logging
+            if (window.gameState?.performanceDebug) {
+                console.log(`🔧 Updated combined krill array: ${this.allKrill.length} total krill`);
+            }
+        }
+    }
+    
+    // Mark combined arrays as dirty when entities are added/removed
+    markKrillDirty() {
+        this.krillDirty = true;
     }
 }
 

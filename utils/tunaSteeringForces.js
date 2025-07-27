@@ -56,32 +56,68 @@ class TunaSteeringForces {
         });
     }
 
-    // Handle wandering behavior
+    // Handle wandering behavior with improved patrolling
     handleWandering(tuna) {
-        if (!tuna.wanderTarget) {
-            tuna.wanderTarget = this.generateWanderTarget(tuna);
+        // Initialize patrolling properties if not present
+        if (!tuna.patrolCenter) {
+            tuna.patrolCenter = { x: tuna.x, y: tuna.y };
+            tuna.patrolDirection = Math.random() * Math.PI * 2;
+            tuna.patrolDistance = 0;
         }
         
-        const distToWander = window.Utils.distance(tuna, tuna.wanderTarget);
-        
-        if (distToWander < 30) {
-            tuna.wanderTarget = this.generateWanderTarget(tuna);
+        // Check if we should change patrol direction
+        if (Math.random() < window.TUNA_CONFIG.patrolDirectionChangeChance) {
+            tuna.patrolDirection = Math.random() * Math.PI * 2;
         }
         
+        // Check if we've traveled far enough to change direction
+        if (tuna.patrolDistance > window.TUNA_CONFIG.patrolTargetDistance) {
+            tuna.patrolDirection = Math.random() * Math.PI * 2;
+            tuna.patrolDistance = 0;
+        }
+        
+        // Calculate new patrol target
+        const patrolTarget = this.generatePatrolTarget(tuna);
+        
+        // Apply steering towards patrol target
         const wander = window.Utils.calculateSteering(
             tuna, 
-            tuna.wanderTarget, 
+            patrolTarget, 
             tuna.maxSpeed * window.TUNA_CONFIG.patrolSpeed, 
             tuna.maxForce
         );
         
         tuna.applyForce({
-            x: wander.x * 0.5,
-            y: wander.y * 0.5
+            x: wander.x * 0.6,
+            y: wander.y * 0.6
         });
+        
+        // Update patrol distance
+        const movement = Math.sqrt(tuna.velocity.x * tuna.velocity.x + tuna.velocity.y * tuna.velocity.y);
+        tuna.patrolDistance += movement;
     }
 
-    // Generate a random wander target
+    // Generate a patrol target within the patrol area
+    generatePatrolTarget(tuna) {
+        const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        
+        // Calculate target based on current direction and patrol area
+        const targetDistance = window.TUNA_CONFIG.patrolAreaRadius * (0.3 + Math.random() * 0.4); // 30-70% of patrol radius
+        const targetX = tuna.x + Math.cos(tuna.patrolDirection) * targetDistance;
+        const targetY = tuna.y + Math.sin(tuna.patrolDirection) * targetDistance;
+        
+        // Ensure target is within world bounds and preferred depth range
+        const clampedX = Math.max(200, Math.min(WORLD_WIDTH - 200, targetX));
+        const depthRange = window.TUNA_CONFIG.patrolDepthRange;
+        const minY = WORLD_HEIGHT * depthRange.min;
+        const maxY = WORLD_HEIGHT * depthRange.max;
+        const clampedY = Math.max(minY, Math.min(maxY, targetY));
+        
+        return { x: clampedX, y: clampedY };
+    }
+
+    // Generate a random wander target (kept for backward compatibility)
     generateWanderTarget(tuna) {
         const angle = Math.random() * Math.PI * 2;
         const distance = window.TUNA_CONFIG.wanderRadius * (0.5 + Math.random() * 0.5);
@@ -128,6 +164,13 @@ class TunaSteeringForces {
 
     // Apply general movement forces (depth preference, etc.)
     applyMovementForces(tuna) {
+        // Reset patrol center when entering patrolling state to establish new patrol area
+        if (tuna.aiState === window.TUNA_STATES.PATROLLING && !tuna.patrolCenter) {
+            tuna.patrolCenter = { x: tuna.x, y: tuna.y };
+            tuna.patrolDirection = Math.random() * Math.PI * 2;
+            tuna.patrolDistance = 0;
+        }
+        
         // Depth preference - only when not hunting or attacking, and much gentler
         if (tuna.aiState !== window.TUNA_STATES.HUNTING && tuna.aiState !== window.TUNA_STATES.ATTACKING) {
             const depthDifference = tuna.y - tuna.preferredDepth;

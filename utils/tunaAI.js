@@ -285,6 +285,10 @@ class TunaAI {
                 break;
             case this.states.PATROLLING:
                 tuna.currentSpeedBoost = 1.0;
+                // Reset patrol properties to establish new patrol area
+                tuna.patrolCenter = null;
+                tuna.patrolDirection = null;
+                tuna.patrolDistance = 0;
                 break;
             case this.states.FEEDING:
                 tuna.currentSpeedBoost = 1.0;

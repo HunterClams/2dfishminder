@@ -50,7 +50,7 @@ class TunaPhysicsSystem {
         const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         if (window.Utils && window.Utils.handleEdges) {
-            window.Utils.handleEdges(tuna, 30, 0.9);
+            window.Utils.handleEdges(tuna, 50, 0.9, WORLD_WIDTH, WORLD_HEIGHT);
         }
     }
 

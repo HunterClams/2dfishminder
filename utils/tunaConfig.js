@@ -17,13 +17,18 @@ const TUNA_CONFIG = {
     restEnergyThreshold: 30,
     huntEnergyThreshold: 50,
     maxPredictionTime: 3.0,
-    wanderRadius: 100,
-    patrolSpeed: 0.8,
+    wanderRadius: 800, // Increased from 100 to 800 for much larger patrol areas
+    patrolSpeed: 1.2, // Increased from 0.8 to 1.2 for faster patrolling
     huntSpeed: 1.35, // 35% speed boost when hunting (1.0 + 0.35)
     attackSpeed: 2.0,
     stateChangeDelay: 30, // frames
     targetSwitchCooldown: 60, // frames
-    fertilizedEggDetectionRadius: 150 // Specific detection radius for fertilized eggs
+    fertilizedEggDetectionRadius: 150, // Specific detection radius for fertilized eggs
+    // New patrolling configuration
+    patrolAreaRadius: 1200, // Large area for patrolling
+    patrolTargetDistance: 600, // Distance to travel before changing direction
+    patrolDirectionChangeChance: 0.02, // 2% chance per frame to change direction
+    patrolDepthRange: { min: 0.4, max: 0.8 } // Patrol in mid to deep waters
 };
 
 // Export for global access
