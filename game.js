@@ -126,7 +126,7 @@ const sprites = {};
 const spriteFiles = {
     bubble1: 'bubble1.png', bubble2: 'bubble2.png', smallFry2: 'smallFry2.png',
     smallFry3: 'smallFry3.png', smallFry4: 'smallFry4.png', tuna: 'tuna.png',
-    tunaFins: 'tuna fins.png', // New overlay sprite for tuna
+    tunaFins: 'tuna fins.png', // Overlay sprite for tuna
     tunaEaten: 'tuna eaten.png', // Tuna eaten overlay sprite
     fishFood: 'fishFood.png', fishEgg: 'fishEgg.png', fishSperm: 'fishsperm.png', fertilizedEgg: 'fertilizedegg.png', poop: 'poop.png', poop2: 'poop2.png', poop3: 'poop3.png',
     krill1: 'krill1.png', krill2: 'krill2.png', krill3: 'krill3.png', krillSpawnIcon: 'krillSpawnIcon.png',
@@ -224,7 +224,7 @@ const Utils = {
 // Make Utils globally accessible
 window.Utils = Utils;
 
-// Canvas management
+// Canvas management - Full screen
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -384,12 +384,6 @@ function animate(currentTime = 0) {
             const report = gameEntities.getOptimizationReport();
             drawOptimizationInfo(ctx, report);
         }
-        
-        // Draw enhanced performance monitoring info
-        if (window.performanceMonitoringSystem) {
-            const optimizationReport = window.performanceMonitoringSystem.getOptimizationReport();
-            drawEnhancedOptimizationInfo(ctx, optimizationReport);
-        }
     }
     
     // Draw camera follow system debug
@@ -447,40 +441,6 @@ function drawOptimizationInfo(ctx, report) {
     
     if (report.performance) {
         ctx.fillText(`Perf: ${report.performance.averageFrameTime}, Pool: ${report.performance.poolEfficiency}`, 10, y);
-    }
-}
-
-// Draw enhanced optimization performance information
-function drawEnhancedOptimizationInfo(ctx, report) {
-    ctx.fillStyle = 'rgba(255, 215, 0, 0.9)';
-    ctx.font = '12px Arial';
-    let y = 160;
-    
-    ctx.fillText('🚀 OPTIMIZATION REPORT:', 10, y);
-    y += 20;
-    
-    ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
-    ctx.fillText(`Array Efficiency: ${report.arrayOperationEfficiency}`, 10, y);
-    y += 15;
-    
-    ctx.fillText(`Distance Efficiency: ${report.distanceCalculationEfficiency}`, 10, y);
-    y += 15;
-    
-    ctx.fillText(`Total Optimizations: ${report.totalOptimizations}`, 10, y);
-    y += 15;
-    
-    if (report.optimizationStats.arraySpreadEliminations > 0) {
-        ctx.fillText(`Array Spread Fixes: ${report.optimizationStats.arraySpreadEliminations}`, 10, y);
-        y += 15;
-    }
-    
-    if (report.optimizationStats.distanceOptimizations > 0) {
-        ctx.fillText(`Distance Optimizations: ${report.optimizationStats.distanceOptimizations}`, 10, y);
-        y += 15;
-    }
-    
-    if (report.optimizationStats.spatialPartitioningHits > 0) {
-        ctx.fillText(`Spatial Hits: ${report.optimizationStats.spatialPartitioningHits}`, 10, y);
     }
 }
 

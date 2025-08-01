@@ -38,13 +38,6 @@ class KrillBase extends Boid {
         this.postMigrationRest = false;
         this.postMigrationRestStart = null;
         
-        // Individual variation properties for more natural movement
-        this.individualSpeedVariation = 0.8 + Math.random() * 0.4; // 0.8x to 1.2x speed
-        this.individualWanderStrength = 0.8 + Math.random() * 0.4; // 0.8x to 1.2x wander
-        this.individualCohesionVariation = 0.7 + Math.random() * 0.6; // 0.7x to 1.3x cohesion
-        this.individualTimingOffset = Math.random() * 0.2; // Random timing offset for migration
-        this.individualOscillationPhase = Math.random() * Math.PI * 2; // Random oscillation phase
-        
         // Animation and visual properties
         this.animationFrame = 0;
         this.animationSpeed = 0.08;
@@ -250,7 +243,7 @@ class KrillBase extends Boid {
         }
         
         // Handle transformation for regular krill - sperm is very nutritious
-        if (this.canTransform && this.constructor.name === 'Krill' && this.foodConsumed >= 5 && !this.shouldTransform) {
+        if (this.canTransform && this.constructor.name === 'Krill' && this.foodConsumed >= 3 && !this.shouldTransform) {
             this.shouldTransform = true;
             this.transformTo = 'momKrill';
             
@@ -283,9 +276,9 @@ class KrillBase extends Boid {
             window.ObjectPools.getEatingBubble(food.x, food.y);
         }
         
-        // Handle transformation for regular krill - only after eating 5+ food
+        // Handle transformation for regular krill - only after eating 3+ fish food
         // AND only if not already set to transform
-        if (this.canTransform && this.constructor.name === 'Krill' && this.foodConsumed >= 5 && !this.shouldTransform) {
+        if (this.canTransform && this.constructor.name === 'Krill' && this.foodConsumed >= 3 && !this.shouldTransform) {
             this.shouldTransform = true;
             this.transformTo = 'momKrill';
             
@@ -338,7 +331,6 @@ class KrillBase extends Boid {
         if (closest) {
             this.behaviorState = 'seeking';
             this.seekTarget = closest;
-            // TEMPORARILY USE ORIGINAL calculateSteering - disable pooling for now
             const seekForce = this.calculateSteering(
                 { x: closest.x - this.x, y: closest.y - this.y },
                 this.maxSpeed,
@@ -369,15 +361,36 @@ class KrillBase extends Boid {
             }
         }
         
+        // Basic depth movement
         const depthDiff = this.y - targetDepth;
         this.velocity.y -= depthDiff * 0.0001;
+        
+        // Add randomized movement during migration to break uniformity
+        if (this.behaviorState === 'migrating') {
+            // Individual migration randomization - each krill has slightly different behavior
+            const personalOffset = this.wanderOffset + currentTime * 0.0001;
+            
+            // Random horizontal drift during migration
+            const horizontalDrift = Math.sin(personalOffset) * 0.02;
+            const verticalVariation = Math.cos(personalOffset * 1.3) * 0.015;
+            
+            // Add some noise to prevent perfect synchronization
+            const noiseX = (Math.random() - 0.5) * 0.03;
+            const noiseY = (Math.random() - 0.5) * 0.02;
+            
+            // Apply randomized forces
+            this.velocity.x += horizontalDrift + noiseX;
+            this.velocity.y += verticalVariation + noiseY;
+            
+            // Slight speed variation during migration
+            const speedVariation = 0.8 + Math.sin(personalOffset * 0.7) * 0.3;
+            this.velocity.x *= speedVariation;
+            this.velocity.y *= speedVariation;
+        }
     }
     
     updateNearbyKrill(boids) {
         const SWARM_RADIUS = window.KRILL_CONFIG?.SWARM_RADIUS || 120;
-        
-        // TEMPORARILY DISABLE SPATIAL PARTITIONING - Use brute force for now
-        // Fallback to brute force O(n²) search if spatial partitioning not available
         this.nearbyKrill = boids.filter(b => {
             if (b === this || b.fishType !== FISH_TYPES.KRILL) return false;
             const dx = this.x - b.x;

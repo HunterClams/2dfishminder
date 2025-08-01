@@ -9,6 +9,18 @@ class TunaRenderingSystem {
     }
 
     /**
+     * Calculate adjusted Y position to make tuna appear 50% deeper
+     * @param {number} actualY - The actual Y position of the tuna
+     * @returns {number} Adjusted Y position for depth calculations
+     */
+    getAdjustedDepthY(actualY) {
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        // Make tuna appear 50% deeper by multiplying depth by 1.5
+        // But ensure it doesn't exceed world boundaries
+        return Math.min(actualY * 1.5, WORLD_HEIGHT);
+    }
+
+    /**
      * Initialize rendering system for a tuna
      * @param {Object} tuna - The tuna entity
      */
@@ -83,8 +95,10 @@ class TunaRenderingSystem {
             return; // Skip drawing if sprite is invalid
         }
         
-        const depthOpacity = window.Utils.getDepthOpacity(tuna.y, opacity);
-        const tintStrength = window.Utils.getDepthTint(tuna.y);
+        // Use adjusted depth Y to make tuna appear 50% deeper
+        const adjustedDepthY = this.getAdjustedDepthY(tuna.y);
+        const depthOpacity = window.Utils.getDepthOpacity(adjustedDepthY, opacity);
+        const tintStrength = window.Utils.getDepthTint(adjustedDepthY);
         
         const ctx = window.ctx;
         if (!ctx) return;
@@ -171,8 +185,10 @@ class TunaRenderingSystem {
             return; // Skip drawing if sprite is invalid
         }
         
-        const depthOpacity = window.Utils.getDepthOpacity(tuna.y, opacity);
-        let tintStrength = window.Utils.getDepthTint(tuna.y);
+        // Use adjusted depth Y to make tuna appear 50% deeper
+        const adjustedDepthY = this.getAdjustedDepthY(tuna.y);
+        const depthOpacity = window.Utils.getDepthOpacity(adjustedDepthY, opacity);
+        let tintStrength = window.Utils.getDepthTint(adjustedDepthY);
         
         // Reduce shader tint by 50% for overlay sprite
         tintStrength *= 0.5;

@@ -26,8 +26,10 @@ class SquidFlockingSystem {
     flock(squid, allSquids) {
         this.performanceStats.queries++;
         
-        // Immediate debug output to see if this is being called
-        console.log(`🦑 Squid flocking called for squid at (${Math.round(squid.x)}, ${Math.round(squid.y)}) with ${allSquids.length} total squids`);
+        // Debug output only when debug is enabled
+        if (window.gameState && window.gameState.squidDebug && squid.stateTimer % 180 === 0) {
+            console.log(`🦑 Squid flocking called for squid at (${Math.round(squid.x)}, ${Math.round(squid.y)}) with ${allSquids.length} total squids`);
+        }
         
         // Calculate repulsion forces from nearby squids
         const forces = this.calculateRepulsionForces(squid, allSquids);
@@ -49,6 +51,28 @@ class SquidFlockingSystem {
                 currentPosition: { x: Math.round(squid.x), y: Math.round(squid.y) },
                 currentVelocity: { x: Math.round(squid.velocity.x * 100) / 100, y: Math.round(squid.velocity.y * 100) / 100 }
             });
+        }
+    }
+    
+    /**
+     * Apply minimal flocking during hunting to prevent interference with hunting behavior
+     * @param {Object} squid - The squid to update
+     * @param {Array} allSquids - Array of all squids in the game
+     */
+    applyMinimalFlocking(squid, allSquids) {
+        // Only apply very minimal repulsion to prevent direct overlap during hunting
+        const forces = this.calculateRepulsionForces(squid, allSquids);
+        
+        // Apply only 10% of normal flocking force during hunting
+        const reducedForceX = forces.x * 0.1;
+        const reducedForceY = forces.y * 0.1;
+        
+        squid.velocity.x += reducedForceX;
+        squid.velocity.y += reducedForceY;
+        
+        // Limit velocity
+        if (window.Utils && window.Utils.limitVelocity) {
+            window.Utils.limitVelocity(squid.velocity, squid.maxSpeed);
         }
     }
     
@@ -82,8 +106,10 @@ class SquidFlockingSystem {
             if (distSquared < repulsionRadiusSquared) {
                 const dist = Math.sqrt(distSquared);
                 
-                // Immediate debug output for repulsion
-                console.log(`🦑 REPULSION DETECTED! Squid at (${Math.round(squid.x)}, ${Math.round(squid.y)}) repelling from squid at (${Math.round(other.x)}, ${Math.round(other.y)}) - Distance: ${Math.round(dist)}`);
+                // Debug output for repulsion only when debug is enabled
+                if (window.gameState && window.gameState.squidDebug && squid.stateTimer % 180 === 0) {
+                    console.log(`🦑 REPULSION DETECTED! Squid at (${Math.round(squid.x)}, ${Math.round(squid.y)}) repelling from squid at (${Math.round(other.x)}, ${Math.round(other.y)}) - Distance: ${Math.round(dist)}`);
+                }
                 
                 // Calculate repulsion direction (away from other squid)
                 const repulsionX = (squid.x - other.x) / dist;

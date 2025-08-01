@@ -181,8 +181,8 @@ class GameSystem {
             }
         }
 
-        // Create some ambient bubbles
-        for (let i = 0; i < 20; i++) {
+        // Create some ambient bubbles - increased to 100 for enhanced atmosphere
+        for (let i = 0; i < 100; i++) {
             const x = Math.random() * WORLD_WIDTH;
             const y = Math.random() * WORLD_HEIGHT;
             if (window.Bubble) {
@@ -235,7 +235,7 @@ class GameSystem {
             krill.update(this.entities.boids, this.entities.predators, this.entities.food, this.entities.krill, this.entities.poop);
         });
         this.entities.poop.forEach(poop => poop.update());
-        this.entities.bubbles.forEach(bubble => bubble.update());
+        // Bubbles are now updated via GameEntities particle system
         this.entities.giantSquids.forEach(squid => {
             squid.update(this.entities.boids, this.entities.predators, this.entities.krill);
         });
@@ -286,8 +286,7 @@ class GameSystem {
             }
         }
 
-        // Draw all entities
-        this.entities.bubbles.forEach(bubble => bubble.draw());
+        // Draw all entities (bubbles now handled by GameEntities particle system)
         this.entities.food.forEach(food => food.draw());
         
         // Use optimized poop rendering system

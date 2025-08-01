@@ -2,13 +2,6 @@
 // Core mathematical functions used throughout the game
 // Enhanced with object pooling for better performance
 
-// Pre-computed squared radii for performance optimization (using global CONSTANTS)
-const GAME_CONSTANTS = window.CONSTANTS || {};
-const PERCEPTION_RADIUS_SQUARED = (GAME_CONSTANTS.PERCEPTION_RADIUS || 50) * (GAME_CONSTANTS.PERCEPTION_RADIUS || 50);
-const SEPARATION_RADIUS_SQUARED = (GAME_CONSTANTS.SEPARATION_RADIUS || 30) * (GAME_CONSTANTS.SEPARATION_RADIUS || 30);
-const FEAR_RADIUS_SQUARED = (GAME_CONSTANTS.FEAR_RADIUS || 80) * (GAME_CONSTANTS.FEAR_RADIUS || 80);
-const FOOD_ATTRACTION_RADIUS_SQUARED = (GAME_CONSTANTS.FOOD_ATTRACTION_RADIUS || 60) * (GAME_CONSTANTS.FOOD_ATTRACTION_RADIUS || 60);
-
 // Fast distance calculation (no sqrt for comparisons)
 function distanceSquared(obj1, obj2) {
     const dx = obj1.x - obj2.x;
@@ -19,40 +12,6 @@ function distanceSquared(obj1, obj2) {
 // Regular distance calculation
 function distance(obj1, obj2) {
     return Math.hypot(obj1.x - obj2.x, obj1.y - obj2.y);
-}
-
-// Optimized range checks using pre-computed squared radii
-function isInPerceptionRange(obj1, obj2) {
-    return distanceSquared(obj1, obj2) < PERCEPTION_RADIUS_SQUARED;
-}
-
-function isInSeparationRange(obj1, obj2) {
-    return distanceSquared(obj1, obj2) < SEPARATION_RADIUS_SQUARED;
-}
-
-function isInFearRange(obj1, obj2) {
-    return distanceSquared(obj1, obj2) < FEAR_RADIUS_SQUARED;
-}
-
-function isInFoodAttractionRange(obj1, obj2) {
-    return distanceSquared(obj1, obj2) < FOOD_ATTRACTION_RADIUS_SQUARED;
-}
-
-// Fast inverse square root (Quake III algorithm adaptation for JavaScript)
-function fastInverseSqrt(x) {
-    const threehalfs = 1.5;
-    let x2 = x * 0.5;
-    let y = x;
-    
-    // Convert to 32-bit representation (JavaScript approximation)
-    let i = new Float32Array([y])[0];
-    i = 0x5f3759df - (i >> 1); // Magic number
-    y = new Float32Array([i])[0];
-    
-    y = y * (threehalfs - (x2 * y * y));   // 1st iteration
-    y = y * (threehalfs - (x2 * y * y));   // 2nd iteration
-    
-    return y;
 }
 
 // Normalize a vector to unit length
@@ -198,17 +157,4 @@ window.calculateSteering = calculateSteering;
 window.limitVelocity = limitVelocity;
 window.handleEdges = handleEdges;
 window.addVectors = addVectors;
-window.multiplyVector = multiplyVector;
-
-// Export optimized range check functions
-window.isInPerceptionRange = isInPerceptionRange;
-window.isInSeparationRange = isInSeparationRange;
-window.isInFearRange = isInFearRange;
-window.isInFoodAttractionRange = isInFoodAttractionRange;
-window.fastInverseSqrt = fastInverseSqrt;
-
-// Export pre-computed constants
-window.PERCEPTION_RADIUS_SQUARED = PERCEPTION_RADIUS_SQUARED;
-window.SEPARATION_RADIUS_SQUARED = SEPARATION_RADIUS_SQUARED;
-window.FEAR_RADIUS_SQUARED = FEAR_RADIUS_SQUARED;
-window.FOOD_ATTRACTION_RADIUS_SQUARED = FOOD_ATTRACTION_RADIUS_SQUARED; 
+window.multiplyVector = multiplyVector; 

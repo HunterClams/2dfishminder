@@ -2,7 +2,7 @@
 class TunaPoopingSystem {
     constructor() {
         this.config = {
-            POOP_COUNT: { min: 1, max: 3 },  // Number of poop to create (1-3)
+            POOP_COUNT: { min: 1, max: 2 },  // Number of poop to create (1-2)
             FIRST_POOP_INTERVAL: 200,         // 200ms for first poop
             SUBSEQUENT_POOP_INTERVAL: 200,    // 200ms for subsequent poop (changed from 400)
             POOP_SPREAD: 30,                  // Spread radius for poop placement
@@ -46,12 +46,12 @@ class TunaPoopingSystem {
             return;
         }
         
-        // Determine how many poop to create (ensure it's 1-3)
+        // Determine how many poop to create (ensure it's 1-2)
         props.totalPoops = this.config.POOP_COUNT.min + 
                           Math.floor(Math.random() * (this.config.POOP_COUNT.max - this.config.POOP_COUNT.min + 1));
         
         // Ensure we always get at least 1 poop
-        props.totalPoops = Math.max(1, Math.min(3, props.totalPoops));
+        props.totalPoops = Math.max(1, Math.min(2, props.totalPoops));
         
         props.poopCount = 1; // Start at 1 since we create first poop immediately
         props.isPooping = true;

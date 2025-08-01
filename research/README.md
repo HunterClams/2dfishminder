@@ -6,7 +6,7 @@ A sophisticated marine biology simulation featuring advanced AI behavioral syste
 
 ### Advanced Marine Life
 - **Fry Species**: 3 types (SmallFry2, SmallFry3, SmallFry4) with distinct behaviors and habitat preferences
-- **Tuna Predators**: 18 apex hunters (12 regular + 6 tuna2) with intelligent hunting patterns
+- **Tuna Predators**: 30 apex hunters with intelligent hunting patterns
 - **Giant Squids**: 2 abyssal apex predators with complex AI and bioluminescent effects
 - **Krill System**: 200 krill with advanced AI including 8 behavioral states and swarm intelligence
 

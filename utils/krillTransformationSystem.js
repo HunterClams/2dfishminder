@@ -292,12 +292,6 @@ class KrillTransformationSystem {
     processAllTransformations(gameEntities) {
         let transformationsProcessed = 0;
         
-        // Add null checks to prevent TypeError mentioned in memories
-        if (!gameEntities || !gameEntities.krill || !gameEntities.paleKrill || !gameEntities.momKrill) {
-            console.warn('⚠️ KrillTransformationSystem: gameEntities arrays not properly initialized');
-            return 0;
-        }
-        
         // Process regular krill transformations
         for (let i = gameEntities.krill.length - 1; i >= 0; i--) {
             const krill = gameEntities.krill[i];

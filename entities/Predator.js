@@ -160,7 +160,8 @@ class Predator extends (window.Entity || Entity) {
             this.physicsSystem.updatePhysics(this);
             this.physicsSystem.updateEnergy(this);
         } else {
-            // Fallback physics update
+            // Fallback physics update with repulsion
+            this.applyFallbackRepulsion();
             this.move();
             this.edges();
             this.energy = Math.max(0, this.energy - 0.02);
@@ -183,6 +184,59 @@ class Predator extends (window.Entity || Entity) {
                 }
                 break;
             }
+        }
+    }
+    
+    // Fallback repulsion system for when modular systems aren't available
+    applyFallbackRepulsion() {
+        if (!window.gameEntities || !window.gameEntities.predators) return;
+        
+        const repulsionRadius = 80;
+        const maxRepulsionRadius = 40;
+        const maxRepulsionForce = 0.6; // Slightly weaker for fallback
+        
+        let totalRepulsionX = 0;
+        let totalRepulsionY = 0;
+        let repulsionCount = 0;
+        
+        // Check all other predators for repulsion
+        for (let otherPredator of window.gameEntities.predators) {
+            if (otherPredator === this) continue; // Skip self
+            
+            const distance = window.Utils.distance(this, otherPredator);
+            
+            // Only apply repulsion if predators are close enough
+            if (distance < repulsionRadius && distance > 0) {
+                // Calculate repulsion strength (stronger when closer)
+                let repulsionStrength = 0;
+                if (distance <= maxRepulsionRadius) {
+                    repulsionStrength = maxRepulsionForce;
+                } else {
+                    repulsionStrength = maxRepulsionForce * (1 - (distance - maxRepulsionRadius) / (repulsionRadius - maxRepulsionRadius));
+                }
+                
+                // Calculate repulsion direction (away from other predator)
+                const angle = Math.atan2(this.y - otherPredator.y, this.x - otherPredator.x);
+                const repulsionX = Math.cos(angle) * repulsionStrength;
+                const repulsionY = Math.sin(angle) * repulsionStrength;
+                
+                totalRepulsionX += repulsionX;
+                totalRepulsionY += repulsionY;
+                repulsionCount++;
+            }
+        }
+        
+        // Apply average repulsion force if any repulsion was calculated
+        if (repulsionCount > 0) {
+            const avgRepulsionX = totalRepulsionX / repulsionCount;
+            const avgRepulsionY = totalRepulsionY / repulsionCount;
+            
+            // Apply the repulsion force directly to acceleration
+            if (!this.acceleration) {
+                this.acceleration = { x: 0, y: 0 };
+            }
+            this.acceleration.x += avgRepulsionX;
+            this.acceleration.y += avgRepulsionY;
         }
     }
 
@@ -236,8 +290,11 @@ class Predator extends (window.Entity || Entity) {
             return; // Skip drawing if sprite is invalid
         }
         
-        const depthOpacity = window.Utils.getDepthOpacity(this.y, opacity);
-        const tintStrength = window.Utils.getDepthTint(this.y);
+        // Make tuna appear 50% deeper by adjusting depth calculation
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        const adjustedDepthY = Math.min(this.y * 1.5, WORLD_HEIGHT);
+        const depthOpacity = window.Utils.getDepthOpacity(adjustedDepthY, opacity);
+        const tintStrength = window.Utils.getDepthTint(adjustedDepthY);
         
         const ctx = window.ctx;
         if (!ctx) return;
@@ -309,8 +366,11 @@ class Predator extends (window.Entity || Entity) {
             return; // Skip drawing if sprite is invalid
         }
         
-        const depthOpacity = window.Utils.getDepthOpacity(this.y, opacity);
-        let tintStrength = window.Utils.getDepthTint(this.y);
+        // Make tuna appear 50% deeper by adjusting depth calculation
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        const adjustedDepthY = Math.min(this.y * 1.5, WORLD_HEIGHT);
+        const depthOpacity = window.Utils.getDepthOpacity(adjustedDepthY, opacity);
+        let tintStrength = window.Utils.getDepthTint(adjustedDepthY);
         tintStrength *= 0.5;
         
         const ctx = window.ctx;

@@ -5,8 +5,8 @@ class TrueFryHatchingSystem {
             HATCH_DURATION_MIN: 7000, // 7 seconds minimum
             HATCH_DURATION_MAX: 13000, // 13 seconds maximum
             HATCH_RANGE: 30, // Range for hatching effect
-            SPAWN_COUNT: 1, // Exactly 1 TrueFry1 per fertilized egg
-            SPAWN_SPREAD: 20, // Reduced spread since we only spawn 1
+            SPAWN_COUNT: { min: 1, max: 3 }, // Random number of TrueFry1 per hatch
+            SPAWN_SPREAD: 40, // Spread radius for spawning multiple TrueFry1
             DEBUG: false // Disable debug logging for performance
         };
         
@@ -71,13 +71,15 @@ class TrueFryHatchingSystem {
         egg.hatched = true;
         egg.eaten = true;
         
-        // Spawn exactly 1 TrueFry1
-        const spawnCount = this.config.SPAWN_COUNT;
+        // Determine number of TrueFry1 to spawn
+        const spawnCount = Math.random() < 0.5 ? 
+            this.config.SPAWN_COUNT.min : 
+            this.config.SPAWN_COUNT.max;
         
         // Spawn TrueFry1
         for (let i = 0; i < spawnCount; i++) {
-            // Calculate spawn position with small random offset
-            const angle = Math.random() * Math.PI * 2;
+            // Calculate spawn position with spread
+            const angle = (Math.PI * 2 * i) / spawnCount;
             const distance = Math.random() * this.config.SPAWN_SPREAD;
             const spawnX = egg.x + Math.cos(angle) * distance;
             const spawnY = egg.y + Math.sin(angle) * distance;
@@ -104,9 +106,9 @@ class TrueFryHatchingSystem {
         }
         
         if (window.ConsoleDebugSystem) {
-            window.ConsoleDebugSystem.log('FRY', `Fertilized egg hatched into 1 TrueFry1 at (${egg.x.toFixed(1)}, ${egg.y.toFixed(1)})`);
+            window.ConsoleDebugSystem.log('FRY', `Fertilized egg hatched into ${spawnCount} TrueFry1 at (${egg.x.toFixed(1)}, ${egg.y.toFixed(1)})`);
         } else if (this.config.DEBUG || window.gameState?.fryDebug) {
-            console.log(`🐟 Fertilized egg hatched into 1 TrueFry1 at (${egg.x.toFixed(1)}, ${egg.y.toFixed(1)})`);
+            console.log(`🐟 Fertilized egg hatched into ${spawnCount} TrueFry1 at (${egg.x.toFixed(1)}, ${egg.y.toFixed(1)})`);
         }
     }
     

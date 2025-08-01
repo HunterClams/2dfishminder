@@ -61,9 +61,10 @@ class FishSpawningSystem {
             'tuna': {
                 preferredZone: 'MID',
                 spawnZone: 'mid',
-                count: 30, // Increased from 15 to compensate for removing tuna2
+                count: 15,
                 preferredDepth: 0.4
             },
+
             
             // Giant squid - abyssal waters
             'giantSquid': {
@@ -85,7 +86,7 @@ class FishSpawningSystem {
             'bubble': {
                 preferredZone: 'SURFACE',
                 spawnZone: 'surface',
-                count: 20,
+                count: 100,
                 preferredDepth: 0.1
             }
         };

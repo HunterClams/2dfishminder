@@ -1,19 +1,37 @@
-// Bubble class for ambient ocean bubbles
+// Bubble class for ambient ocean bubbles - Optimized for 100+ instances
 class Bubble {
     constructor() {
         this.reset();
+        this.animOffset = Math.random() * Math.PI * 2; // Randomize animation timing
+        this.framesSinceUpdate = 0; // For performance optimization
     }
     
     reset() {
+        const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         this.x = Math.random() * WORLD_WIDTH;
         this.y = Math.random() * WORLD_HEIGHT;
-        this.speed = Math.random() * 0.5 + 0.3;
+        this.speed = Math.random() * 0.7 + 0.2; // All bubbles move: 0.2-0.9 speed range
         this.sprite = Utils.getRandomBubbleSprite();
         this.size = Math.random() * 15 + 8;
+        this.opacity = Math.random() * 0.3 + 0.5; // Variable opacity for depth
+        this.framesSinceUpdate = 0;
     }
     
     update() {
+        // All bubbles move upward with their individual speed
         this.y -= this.speed;
+        
+        // Add subtle horizontal drift for more realistic movement
+        this.x += Math.sin(Date.now() * 0.001 + this.animOffset) * 0.15;
+        
+        // Wrap around world boundaries
+        const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        if (this.x < 0) this.x = WORLD_WIDTH;
+        if (this.x > WORLD_WIDTH) this.x = 0;
+        
+        // Reset when bubbles reach the top
         if (this.y < -20) {
             this.reset();
             this.y = WORLD_HEIGHT + 20;
@@ -21,34 +39,33 @@ class Bubble {
     }
     
     draw() {
-        if (!Utils.inRenderDistance(this)) return;
+        // Remove render distance check for bubbles so they appear across entire map
+        // if (!Utils.inRenderDistance(this)) return;
         
-        const depthOpacity = Utils.getDepthOpacity(this.y, 0.6);
+        // Use pre-calculated opacity for better performance
+        const finalOpacity = Utils.getDepthOpacity(this.y, this.opacity * 0.6);
         const tintStrength = Utils.getDepthTint(this.y);
         
         ctx.save();
         
-        if (tintStrength > 0) {
-            // Create temporary canvas for proper transparency handling
+        // Optimized rendering - skip temp canvas for performance when possible
+        if (tintStrength > 0.1) {
+            // Only create temp canvas for significant tinting
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
             tempCanvas.width = this.size;
             tempCanvas.height = this.size;
             
-            // Draw sprite on temp canvas
             tempCtx.drawImage(this.sprite, 0, 0, this.size, this.size);
-            
-            // Apply tint using source-atop
             tempCtx.globalCompositeOperation = 'source-atop';
             tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
             tempCtx.fillRect(0, 0, this.size, this.size);
             
-            // Draw the tinted sprite to main canvas
-            ctx.globalAlpha = depthOpacity;
+            ctx.globalAlpha = finalOpacity;
             ctx.drawImage(tempCanvas, this.x - this.size/2, this.y - this.size/2);
         } else {
-            // No tint needed, draw normally
-            ctx.globalAlpha = depthOpacity;
+            // Direct rendering for better performance
+            ctx.globalAlpha = finalOpacity;
             ctx.drawImage(this.sprite, this.x - this.size/2, this.y - this.size/2, this.size, this.size);
         }
         

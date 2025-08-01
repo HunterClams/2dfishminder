@@ -9,18 +9,12 @@
             margin: 0;
             padding: 0;
             background-color: #001122;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            font-family: Arial, sans-serif;
             overflow: hidden;
+            font-family: Arial, sans-serif;
         }
         canvas {
-            border: none;
             display: block;
-            width: 100vw;
-            height: 100vh;
+            background-color: #001122;
         }
         .instructions {
             position: absolute;
@@ -307,9 +301,6 @@
     <script src="utils/lodSystem.js"></script>
     <script src="utils/enhancedRenderingSystem.js"></script>
     <script src="utils/performanceMonitoringSystem.js"></script>
-    <script src="utils/memoryManagementSystem.js"></script>
-    <script src="utils/distanceOptimizationSystem.js"></script>
-    <script src="utils/aiWorkerSystem.js"></script>
     <!-- Modular Squid AI system -->
     <script src="utils/squidConfig.js"></script>
     <script src="utils/squidJetSystem.js"></script>
@@ -379,6 +370,7 @@
     <script src="entities/Sperm.js"></script>
     <script src="entities/Poop.js"></script>
     <script src="entities/Bubble.js"></script>
+    <script src="utils/bubbleParticleSystem.js"></script>
     
     <!-- 4. System modules -->
     <script src="systems/EntityCounter.js"></script>

@@ -6,23 +6,31 @@ class FryEggLayingSystem {
         this.config = {
             DETECTION_RANGE: 80, // Range for fry to detect each other in feeding state
             EGG_COUNT_MIN: 1, // Minimum eggs to spawn
-            EGG_COUNT_MAX: 4, // Maximum eggs to spawn (increased from 3 to 4)
+            EGG_COUNT_MAX: 3, // Maximum eggs to spawn
             EGG_LAYING_COOLDOWN: 15000, // 15 seconds cooldown between laying
-            LAYING_CHANCE: 0.8 // 80% chance to lay when conditions are met
+            LAYING_CHANCE: 0.8, // 80% chance to lay when conditions are met
+            GERMINATION_DELAY_MIN: 2000, // Minimum germination delay (2 seconds)
+            GERMINATION_DELAY_MAX: 4000 // Maximum germination delay (4 seconds)
         };
         
         // Track fry that have recently laid eggs
         this.recentLaying = new Map(); // fryId -> { lastLayTime }
         
-        console.log('🥚 FryEggLayingSystem initialized - Clean implementation');
+        // Track pending eggs that are "germinating"
+        this.pendingEggs = []; // Array of { fry, gameEntities, eggCount, positions, germinationTime }
+        
+        console.log('🥚 FryEggLayingSystem initialized - Clean implementation with germination delay');
     }
     
     /**
-     * Process all fry for egg laying
+     * Process all fry for egg laying and handle germinating eggs
      * @param {Array} allFry - Array of all fry entities
      * @param {Object} gameEntities - Game entities system
      */
     processAllFry(allFry, gameEntities) {
+        // Process pending eggs that are ready to germinate
+        this.processPendingEggs(gameEntities);
+        
         // Debug: Log fry state distribution
         if (window.gameState?.fryEggLayingDebug) {
             const stateCounts = {};
@@ -91,7 +99,7 @@ class FryEggLayingSystem {
         if (nearbyFeedingFry.length > 0) {
             // Random chance to lay eggs
             if (Math.random() < this.config.LAYING_CHANCE) {
-                this.layEggs(fry, gameEntities);
+                this.startEggGermination(fry, gameEntities);
                 
                 // Set cooldown for this fry
                 this.recentLaying.set(fryId, {
@@ -99,7 +107,7 @@ class FryEggLayingSystem {
                 });
                 
                 if (window.ConsoleDebugSystem && window.ConsoleDebugSystem.isEnabled()) {
-                    window.ConsoleDebugSystem.log('EGG_LAYING', `Fry ${fry.fishType} laid eggs and got cooldown`);
+                    window.ConsoleDebugSystem.log('EGG_LAYING', `Fry ${fry.fishType} started egg germination and got cooldown`);
                 }
             }
         }
@@ -136,48 +144,107 @@ class FryEggLayingSystem {
     }
     
     /**
-     * Lay eggs by dropping unfertilized fish eggs near the fry
-     * @param {Object} fry - The fry laying eggs
+     * Start the egg germination process with a delay
+     * @param {Object} fry - The fry starting egg germination
      * @param {Object} gameEntities - Game entities system
      */
-    layEggs(fry, gameEntities) {
+    startEggGermination(fry, gameEntities) {
         if (!gameEntities || !gameEntities.fishEggs || !window.FishEgg) {
-            console.warn('🐟 Cannot lay eggs - missing dependencies');
+            console.warn('🐟 Cannot start egg germination - missing dependencies');
             return;
         }
         
         // Random number of eggs to lay
         const eggCount = this.config.EGG_COUNT_MIN + Math.floor(Math.random() * (this.config.EGG_COUNT_MAX - this.config.EGG_COUNT_MIN + 1));
         
-        console.log(`🐟 Fry ${fry.fishType} laying ${eggCount} eggs at (${fry.x.toFixed(1)}, ${fry.y.toFixed(1)})`);
+        // Calculate random germination delay (2-4 seconds)
+        const germinationDelay = this.config.GERMINATION_DELAY_MIN + 
+            Math.random() * (this.config.GERMINATION_DELAY_MAX - this.config.GERMINATION_DELAY_MIN);
+        const germinationTime = Date.now() + germinationDelay;
+        
+        // Pre-calculate egg positions
+        const positions = [];
+        for (let i = 0; i < eggCount; i++) {
+            positions.push({
+                x: fry.x + (Math.random() - 0.5) * 20,
+                y: fry.y + (Math.random() - 0.5) * 20
+            });
+        }
+        
+        // Add to pending eggs
+        this.pendingEggs.push({
+            fry: fry,
+            gameEntities: gameEntities,
+            eggCount: eggCount,
+            positions: positions,
+            germinationTime: germinationTime
+        });
+        
+        console.log(`🐟 Fry ${fry.fishType} starting germination for ${eggCount} eggs (delay: ${Math.round(germinationDelay)}ms)`);
+        
+        // Change fry state from feeding to foraging immediately
+        fry.behaviorState = 'foraging';
+        
+        if (window.ConsoleDebugSystem && window.ConsoleDebugSystem.isEnabled()) {
+            window.ConsoleDebugSystem.log('EGG_LAYING', `Fry ${fry.fishType} started germination for ${eggCount} eggs and returned to foraging state`);
+        }
+    }
+    
+    /**
+     * Process pending eggs and create them when germination time is reached
+     * @param {Object} gameEntities - Game entities system
+     */
+    processPendingEggs(gameEntities) {
+        const now = Date.now();
+        
+        // Process eggs in reverse order so we can safely remove them
+        for (let i = this.pendingEggs.length - 1; i >= 0; i--) {
+            const pendingEgg = this.pendingEggs[i];
+            
+            // Check if germination time has been reached
+            if (now >= pendingEgg.germinationTime) {
+                this.createEggsFromGermination(pendingEgg);
+                this.pendingEggs.splice(i, 1); // Remove from pending list
+            }
+        }
+    }
+    
+    /**
+     * Create eggs from a completed germination process
+     * @param {Object} pendingEgg - The pending egg data
+     */
+    createEggsFromGermination(pendingEgg) {
+        const { fry, gameEntities, eggCount, positions } = pendingEgg;
+        
+        if (!gameEntities || !gameEntities.fishEggs || !window.FishEgg) {
+            console.warn('🐟 Cannot create eggs from germination - missing dependencies');
+            return;
+        }
+        
+        console.log(`🥚 Germination complete! Creating ${eggCount} eggs for fry ${fry.fishType}`);
         
         for (let i = 0; i < eggCount; i++) {
-            // Spawn eggs near the fry with some spread
-            const spreadX = fry.x + (Math.random() - 0.5) * 20;
-            const spreadY = fry.y + (Math.random() - 0.5) * 20;
+            const position = positions[i];
             
             // Create unfertilized fish egg
-            const newEgg = new window.FishEgg(spreadX, spreadY);
+            const newEgg = new window.FishEgg(position.x, position.y);
             gameEntities.fishEggs.push(newEgg);
             
-            console.log(`🥚 Created fish egg ${i+1}/${eggCount} at (${spreadX.toFixed(1)}, ${spreadY.toFixed(1)})`);
+            console.log(`🥚 Created fish egg ${i+1}/${eggCount} at (${position.x.toFixed(1)}, ${position.y.toFixed(1)})`);
             
             // Create visual effect (bubbles)
             if (window.ObjectPools) {
                 for (let j = 0; j < 2; j++) {
                     window.ObjectPools.getEatingBubble(
-                        spreadX + (Math.random() - 0.5) * 10,
-                        spreadY + (Math.random() - 0.5) * 10
+                        position.x + (Math.random() - 0.5) * 10,
+                        position.y + (Math.random() - 0.5) * 10
                     );
                 }
             }
         }
         
-        // Change fry state from feeding to foraging
-        fry.behaviorState = 'foraging';
-        
         if (window.ConsoleDebugSystem && window.ConsoleDebugSystem.isEnabled()) {
-            window.ConsoleDebugSystem.log('EGG_LAYING', `Fry ${fry.fishType} laid ${eggCount} eggs and returned to foraging state`);
+            window.ConsoleDebugSystem.log('EGG_LAYING', `Germination completed: ${eggCount} eggs created for fry ${fry.fishType}`);
         }
     }
     

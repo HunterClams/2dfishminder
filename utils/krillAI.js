@@ -25,8 +25,8 @@ const KRILL_CONFIG = {
     REST_THRESHOLD: 0.3,        // Energy level to enter rest state
     ENERGY_RECOVERY: 0.6,       // Energy level to exit rest state
     
-    // Post-migration resting (3x longer)
-    POST_MIGRATION_REST_DURATION: 18000, // 18 seconds (3x the normal 6 seconds)
+    // Post-migration resting (reduced to half)
+    POST_MIGRATION_REST_DURATION: 9000, // 9 seconds (reduced from 18 seconds)
     POST_MIGRATION_REST_ENERGY_GAIN: 0.001, // Slower energy recovery during post-migration rest
     
     // Behavioral ranges
@@ -189,7 +189,7 @@ class KrillBehaviorTree {
         let baseThreat = 0.5;
         
         // Different threat levels for different predator types
-        if (predator.fishType === 'tuna') {
+                        if (predator.fishType === 'tuna') {
             baseThreat = 0.3; // Tuna don't actively hunt krill
         } else if (predator.type === 'squid' || predator.type === 'giantSquid') {
             baseThreat = 0.9; // Squid are major threats
@@ -483,27 +483,8 @@ class KrillAI {
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (distance > 0) {
-                // Add randomization to swarm cohesion during migration
-                let cohesionStrength = KRILL_CONFIG.WEIGHTS.SWARM_COHESION;
-                
-                // If krill is migrating, add some randomization to cohesion
-                if (krill.behaviorState === KRILL_STATES.MIGRATING) {
-                    // Add individual variation to cohesion strength
-                    const randomVariation = 0.7 + Math.random() * 0.6; // 0.7x to 1.3x
-                    const individualCohesionVariation = krill.individualCohesionVariation || 1.0;
-                    cohesionStrength *= randomVariation * individualCohesionVariation;
-                    
-                    // Add slight random offset to swarm center attraction
-                    const randomOffsetX = (Math.random() - 0.5) * 0.3;
-                    const randomOffsetY = (Math.random() - 0.5) * 0.3;
-                    
-                    forces.swarmCohesion.x = (dx / distance) * cohesionStrength + randomOffsetX;
-                    forces.swarmCohesion.y = (dy / distance) * cohesionStrength + randomOffsetY;
-                } else {
-                    // Normal swarm cohesion for non-migration states
-                    forces.swarmCohesion.x = (dx / distance) * cohesionStrength;
-                    forces.swarmCohesion.y = (dy / distance) * cohesionStrength;
-                }
+                forces.swarmCohesion.x = (dx / distance) * KRILL_CONFIG.WEIGHTS.SWARM_COHESION;
+                forces.swarmCohesion.y = (dy / distance) * KRILL_CONFIG.WEIGHTS.SWARM_COHESION;
             }
         }
     }
@@ -517,57 +498,18 @@ class KrillAI {
         krill.migrationPhase = this.calculateMigrationPhase(); // Update phase continuously
         const phase = krill.migrationPhase;
         
-        // Add individual timing variation to prevent perfect synchronization
-        const individualTimingOffset = (krill.x * 0.0001 + krill.y * 0.00005) % 0.15; // Small offset based on position
-        const krillTimingOffset = krill.individualTimingOffset || 0; // Use krill's individual timing offset
-        const adjustedPhase = (phase + individualTimingOffset + krillTimingOffset) % 1.0;
-        
         let targetDepth;
-        let isAscending = false;
-        let isDescending = false;
-        
-        if (adjustedPhase > 0.3 && adjustedPhase < 0.7) {
+        if (phase > 0.3 && phase < 0.7) {
             // Migration upward phase (40% of cycle)
             targetDepth = WORLD_HEIGHT * KRILL_CONFIG.SURFACE_MIGRATION_DEPTH;
-            isAscending = true;
         } else {
             // Return to deep water phase (60% of cycle)
             targetDepth = WORLD_HEIGHT * KRILL_CONFIG.DEEP_WATER_PREFERENCE;
-            isDescending = true;
         }
         
-        // Apply migration force with randomization during ascending/descending
+        // Apply stronger migration force
         const depthDiff = krill.y - targetDepth;
-        const baseMigrationForce = -depthDiff * KRILL_CONFIG.WEIGHTS.MIGRATION * 0.02;
-        
-        // Add randomization during ascending and descending phases
-        if (isAscending || isDescending) {
-            // Add horizontal wandering during vertical migration
-            const baseWanderStrength = 0.015;
-            const individualWanderStrength = krill.individualWanderStrength || 1.0;
-            const wanderStrength = baseWanderStrength * individualWanderStrength;
-            const wanderAngle = (krill.wanderOffset || 0) + (Math.random() - 0.5) * 0.3;
-            forces.migration.x = Math.cos(wanderAngle) * wanderStrength;
-            
-            // Add speed variation during migration
-            const baseSpeedVariation = 0.8 + Math.random() * 0.4; // 0.8x to 1.2x speed
-            const individualSpeedVariation = krill.individualSpeedVariation || 1.0;
-            const speedVariation = baseSpeedVariation * individualSpeedVariation;
-            forces.migration.y = baseMigrationForce * speedVariation;
-            
-            // Add slight vertical oscillation for more natural movement
-            const oscillationStrength = 0.005;
-            const individualOscillationPhase = krill.individualOscillationPhase || 0;
-            const oscillationAngle = (Date.now() * 0.001) + (krill.x * 0.001) + individualOscillationPhase; // Unique per krill
-            forces.migration.y += Math.sin(oscillationAngle) * oscillationStrength;
-            
-            // Update wander offset for next frame
-            krill.wanderOffset = (krill.wanderOffset || 0) + 0.1 + (Math.random() - 0.5) * 0.2;
-        } else {
-            // During the "deep water" phase, use more uniform movement
-            forces.migration.y = baseMigrationForce;
-            forces.migration.x = 0;
-        }
+        forces.migration.y = -depthDiff * KRILL_CONFIG.WEIGHTS.MIGRATION * 0.02; // Doubled from 0.01
         
         // Override depth preference during migration
         forces.depthPreference.y = 0; // Disable depth preference force during migration
@@ -607,16 +549,6 @@ class KrillAI {
         let alignmentCount = 0;
         let cohesionCount = 0;
         
-        // Add randomization during migration
-        const isMigrating = krill.behaviorState === KRILL_STATES.MIGRATING;
-        let effectiveIntensity = intensity;
-        
-        if (isMigrating) {
-            // Add individual variation to flocking intensity during migration
-            const individualVariation = 0.8 + Math.random() * 0.4; // 0.8x to 1.2x
-            effectiveIntensity *= individualVariation;
-        }
-        
         for (let other of nearbyKrill) {
             if (other === krill) continue;
             
@@ -627,34 +559,19 @@ class KrillAI {
             if (distance > 0 && distance < KRILL_CONFIG.SWARM_RADIUS) {
                 // Separation
                 if (distance < 30) {
-                    let separationIntensity = effectiveIntensity;
-                    if (isMigrating) {
-                        // Add slight randomization to separation during migration
-                        separationIntensity *= 0.9 + Math.random() * 0.2; // 0.9x to 1.1x
-                    }
-                    forces.separation.x += (dx / distance) * separationIntensity;
-                    forces.separation.y += (dy / distance) * separationIntensity;
+                    forces.separation.x += (dx / distance) * intensity;
+                    forces.separation.y += (dy / distance) * intensity;
                     separationCount++;
                 }
                 
                 // Alignment
-                let alignmentIntensity = effectiveIntensity;
-                if (isMigrating) {
-                    // Add slight randomization to alignment during migration
-                    alignmentIntensity *= 0.85 + Math.random() * 0.3; // 0.85x to 1.15x
-                }
-                forces.alignment.x += other.velocity.x * alignmentIntensity;
-                forces.alignment.y += other.velocity.y * alignmentIntensity;
+                forces.alignment.x += other.velocity.x * intensity;
+                forces.alignment.y += other.velocity.y * intensity;
                 alignmentCount++;
                 
                 // Cohesion
-                let cohesionIntensity = effectiveIntensity * 0.005;
-                if (isMigrating) {
-                    // Add slight randomization to cohesion during migration
-                    cohesionIntensity *= 0.8 + Math.random() * 0.4; // 0.8x to 1.2x
-                }
-                forces.cohesion.x -= dx * cohesionIntensity;
-                forces.cohesion.y -= dy * cohesionIntensity;
+                forces.cohesion.x -= dx * intensity * 0.005;
+                forces.cohesion.y -= dy * intensity * 0.005;
                 cohesionCount++;
             }
         }
@@ -777,10 +694,6 @@ class KrillAI {
     calculateMigrationPhase() {
         const currentTime = Date.now();
         const cyclePosition = (currentTime % KRILL_CONFIG.MIGRATION_CYCLE_LENGTH) / KRILL_CONFIG.MIGRATION_CYCLE_LENGTH;
-        
-        // Add slight individual variation to migration timing
-        // This prevents all krill from migrating in perfect sync
-        // Note: Individual krill will add their own offset in their migration force calculation
         return cyclePosition;
     }
     

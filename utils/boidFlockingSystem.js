@@ -77,7 +77,14 @@ class BoidFlockingSystem {
     
     calculateFlockingForces(boid, nearbyBoids, perceptionRadius, separationRadius) {
         const perceptionRadiusSquared = perceptionRadius * perceptionRadius;
-        const separationRadiusSquared = separationRadius * separationRadius;
+        
+        // Enhanced separation radius for krill to give them more personal space
+        let actualSeparationRadius = separationRadius;
+        if (boid.fishType === 'krill' || boid.constructor.name.includes('Krill')) {
+            actualSeparationRadius = separationRadius * 1.5; // 50% larger separation radius for krill
+        }
+        
+        const separationRadiusSquared = actualSeparationRadius * actualSeparationRadius;
         
         let alignment = { x: 0, y: 0 };
         let cohesion = { x: 0, y: 0 };
@@ -144,13 +151,39 @@ class BoidFlockingSystem {
             separation.x /= separationCount;
             separation.y /= separationCount;
             const separationSteering = this.calculateSteering(boid, separation, boid.maxSpeed, boid.maxForce);
-            forces.x += separationSteering.x * 1.2; // Strong separation to prevent clustering
-            forces.y += separationSteering.y * 1.2;
+            
+            // Enhanced separation for krill - they need more personal space
+            let separationMultiplier = 1.2; // Default for regular boids
+            if (boid.fishType === 'krill' || boid.constructor.name.includes('Krill')) {
+                separationMultiplier = 2.0; // Much stronger repulsion for krill
+            }
+            
+            forces.x += separationSteering.x * separationMultiplier;
+            forces.y += separationSteering.y * separationMultiplier;
         }
         
         // Add small random movement to prevent perfect alignment
         const randomAngle = Math.random() * Math.PI * 2;
-        const randomForce = 0.015; // Small random force
+        let randomForce = 0.015; // Small random force for regular boids
+        
+        // Enhanced randomization for krill to break up uniform patterns
+        if (boid.fishType === 'krill' || boid.constructor.name.includes('Krill')) {
+            randomForce = 0.035; // Stronger random forces for krill
+            
+            // Additional randomization during migration
+            if (boid.behaviorState === 'migrating') {
+                randomForce = 0.05; // Even more randomization during migration
+                
+                // Add periodic directional changes
+                const timeOffset = (boid.wanderOffset || 0) + Date.now() * 0.0002;
+                const periodicX = Math.sin(timeOffset) * 0.02;
+                const periodicY = Math.cos(timeOffset * 1.7) * 0.025;
+                
+                forces.x += periodicX;
+                forces.y += periodicY;
+            }
+        }
+        
         forces.x += Math.cos(randomAngle) * randomForce;
         forces.y += Math.sin(randomAngle) * randomForce;
         

@@ -5,7 +5,7 @@ class Poop {
         this.y = y;
         this.velocity = { x: 0, y: 0.3 }; // Slow downward drift
         this.type = type; // 'regular', 'tuna', 'squid', or 'abyssal'
-        this.size = type === 'squid' ? 20 : (type === 'tuna' ? 16 : 12); // Squid poop is largest
+        this.size = type === 'squid' ? 20 : (type === 'tuna' ? 16 : 9); // Squid poop is largest, fry poop 25% smaller
         this.feedValue = type === 'squid' ? 3 : (type === 'tuna' ? 2 : 1); // Squid poop has most nutrition
         
         // Abyssal poop (from fish food) starts as poop3 (deep water state)
@@ -86,9 +86,8 @@ class Poop {
         // Safe check for Utils and inRenderDistance
         if (window.Utils && window.Utils.inRenderDistance && !window.Utils.inRenderDistance(this)) return;
         
-        // Apply full depth shader effects to poop
-        const depthOpacity = window.Utils ? window.Utils.getDepthOpacity(this.y, this.opacity) : this.opacity;
-        const tintStrength = window.Utils ? window.Utils.getDepthTint(this.y) : 0;
+        // Poop should not have deep water shader effects - always use base opacity
+        let depthOpacity = this.opacity; // No depth shader for poop
         
         // Safe check for ctx and sprites
         if (!window.ctx && !ctx) return;
@@ -108,30 +107,9 @@ class Poop {
             case 3: spriteKey = 'poop3'; break;
         }
         
-        // Apply full depth shader effects
-        if (tintStrength > 0) {
-            // Create temporary canvas for proper transparency handling
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = this.size;
-            tempCanvas.height = this.size;
-            
-            // Draw sprite on temp canvas
-            tempCtx.drawImage(spriteObj[spriteKey], 0, 0, this.size, this.size);
-            
-            // Apply tint using source-atop (only affects non-transparent pixels)
-            tempCtx.globalCompositeOperation = 'source-atop';
-            tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
-            tempCtx.fillRect(0, 0, this.size, this.size);
-            
-            // Draw the tinted sprite to main canvas
-            context.globalAlpha = depthOpacity;
-            context.drawImage(tempCanvas, -this.size/2, -this.size/2);
-        } else {
-            // No tint needed, draw normally with depth opacity
-            context.globalAlpha = depthOpacity;
-            context.drawImage(spriteObj[spriteKey], -this.size/2, -this.size/2, this.size, this.size);
-        }
+        // Draw normally without any depth effects
+        context.globalAlpha = depthOpacity;
+        context.drawImage(spriteObj[spriteKey], -this.size/2, -this.size/2, this.size, this.size);
         
         context.restore();
     }

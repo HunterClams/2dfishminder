@@ -28,6 +28,11 @@ class GiantSquid extends (window.Entity || Entity) {
         // Full shader effect applied (no reduction)
         this.depthOpacityMultiplier = 1; // Full depth shader effect
         
+        // Sprite flipping cooldown system
+        this.FLIP_COOLDOWN = 1000; // 1 second cooldown for horizontal flips
+        this.lastFlipTime = 0;
+        this.facingDirection = 1; // 1 for right, -1 for left
+        
         // Initialize with gentle downward drift (stronger if spawned at surface)
         const currentDepth = this.y / WORLD_HEIGHT;
         const downwardForce = currentDepth < 0.5 ? 0.8 : 0.2; // Stronger drift if near surface
@@ -104,6 +109,9 @@ class GiantSquid extends (window.Entity || Entity) {
             });
         }
         
+        // Update flip cooldown system
+        this.updateFacingDirection();
+        
         // Update jet propulsion system
         this.jetSystem.updateJetSystem(this);
         
@@ -116,17 +124,23 @@ class GiantSquid extends (window.Entity || Entity) {
         // Maintain depth preference (especially important if spawned at surface)
         this.maintainDepth();
         
-        // Apply squid flocking (repulsion from other squids)
+        // Apply squid flocking (repulsion from other squids) - reduced during hunting
         if (window.gameEntities && window.gameEntities.squid) {
-            // Debug logging for flocking system
-            if (window.gameState && window.gameState.squidDebug && this.stateTimer % 120 === 0) {
-                console.log(`🦑 Squid flocking system called:`, {
-                    totalSquids: window.gameEntities.squid.length,
-                    currentSquidPosition: { x: Math.round(this.x), y: Math.round(this.y) },
-                    currentSquidVelocity: { x: Math.round(this.velocity.x * 100) / 100, y: Math.round(this.velocity.y * 100) / 100 }
-                });
+            // Only apply full flocking when not hunting or attacking
+            if (this.state !== window.SQUID_STATES.HUNTING && this.state !== window.SQUID_STATES.ATTACKING) {
+                // Debug logging for flocking system
+                if (window.gameState && window.gameState.squidDebug && this.stateTimer % 120 === 0) {
+                    console.log(`🦑 Squid flocking system called:`, {
+                        totalSquids: window.gameEntities.squid.length,
+                        currentSquidPosition: { x: Math.round(this.x), y: Math.round(this.y) },
+                        currentSquidVelocity: { x: Math.round(this.velocity.x * 100) / 100, y: Math.round(this.velocity.y * 100) / 100 }
+                    });
+                }
+                this.flockingSystem.flock(this, window.gameEntities.squid);
+            } else {
+                // Apply minimal flocking during hunting to prevent interference
+                this.flockingSystem.applyMinimalFlocking(this, window.gameEntities.squid);
             }
-            this.flockingSystem.flock(this, window.gameEntities.squid);
         }
         
         // Update behavior tree
@@ -234,6 +248,127 @@ class GiantSquid extends (window.Entity || Entity) {
         }
     }
     
+    /**
+     * Update facing direction with cooldown to prevent rapid flipping
+     */
+    updateFacingDirection() {
+        const currentTime = Date.now();
+        
+        // Only update facing direction if enough time has passed since last flip (1 second cooldown)
+        if (currentTime - this.lastFlipTime >= this.FLIP_COOLDOWN) {
+            // Determine desired direction based on velocity
+            let desiredDirection = 1; // Default to right
+            if (this.velocity.x < -0.5) { // Increased threshold to avoid flipping on tiny movements
+                desiredDirection = -1; // Left
+            } else if (this.velocity.x > 0.5) {
+                desiredDirection = 1; // Right
+            }
+            // If velocity is very small, keep current direction
+            
+            // Only flip if direction actually needs to change and velocity is significant
+            if (desiredDirection !== this.facingDirection && Math.abs(this.velocity.x) > 0.5) {
+                this.facingDirection = desiredDirection;
+                this.lastFlipTime = currentTime;
+                
+                // Debug logging for flip events (only when debug is enabled)
+                if (window.gameState && window.gameState.squidDebug) {
+                    console.log(`🦑 Squid flipped to face ${this.facingDirection === 1 ? 'right' : 'left'} at velocity ${Math.round(this.velocity.x * 100) / 100}, cooldown: ${this.FLIP_COOLDOWN}ms`);
+                }
+            }
+        } else {
+            // Debug logging for cooldown prevention (only when debug is enabled)
+            if (window.gameState && window.gameState.squidDebug && Math.abs(this.velocity.x) > 0.5) {
+                const timeRemaining = this.FLIP_COOLDOWN - (currentTime - this.lastFlipTime);
+                console.log(`🦑 Squid flip blocked by cooldown: ${timeRemaining.toFixed(0)}ms remaining, velocity: ${Math.round(this.velocity.x * 100) / 100}`);
+            }
+        }
+        // If cooldown is still active, maintain current facing direction
+    }
+
+    /**
+     * Override drawSprite to use controlled facing direction instead of immediate velocity
+     */
+    drawSprite(sprite, size, opacity = 1, angle = 0) {
+        if (!window.Utils || !window.Utils.inRenderDistance(this)) return;
+        
+        // Comprehensive sprite validation
+        if (!sprite || !(sprite instanceof HTMLImageElement) || !sprite.complete || sprite.naturalWidth === 0) {
+            console.warn('🚨 Invalid sprite detected in GiantSquid drawSprite:', {
+                sprite: sprite,
+                type: typeof sprite,
+                isImage: sprite instanceof HTMLImageElement,
+                complete: sprite?.complete,
+                naturalWidth: sprite?.naturalWidth,
+                entityType: this.constructor.name,
+                fishType: this.fishType
+            });
+            return; // Skip drawing if sprite is invalid
+        }
+        
+        // Apply depth shader to giant squid
+        const depthOpacity = window.Utils.getDepthOpacity(this.y, opacity);
+        const tintStrength = window.Utils.getDepthTint(this.y);
+        
+        const ctx = window.ctx;
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        // Use controlled facing direction instead of immediate velocity direction
+        if (this.facingDirection < 0) {
+            ctx.scale(-1, 1);
+        }
+        
+        // Apply rotation if provided (for directional movement)
+        if (angle !== 0) {
+            ctx.rotate(angle);
+        }
+        
+        if (tintStrength > 0) {
+            // Create temporary canvas for proper transparency handling
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = size;
+            tempCanvas.height = size;
+            
+            // Draw sprite on temp canvas with validation
+            try {
+                tempCtx.drawImage(sprite, 0, 0, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in temp canvas (GiantSquid):', error, {
+                    sprite: sprite,
+                    size: size,
+                    entityType: this.constructor.name
+                });
+                ctx.restore();
+                return;
+            }
+            
+            // Apply tint using source-atop (only affects non-transparent pixels)
+            tempCtx.globalCompositeOperation = 'source-atop';
+            tempCtx.fillStyle = `rgba(100, 150, 255, ${tintStrength})`;
+            tempCtx.fillRect(0, 0, size, size);
+            
+            // Draw the tinted sprite to main canvas
+            ctx.globalAlpha = depthOpacity;
+            ctx.drawImage(tempCanvas, -size/2, -size/2);
+        } else {
+            // No tint needed, draw normally with validation
+            ctx.globalAlpha = depthOpacity;
+            try {
+                ctx.drawImage(sprite, -size/2, -size/2, size, size);
+            } catch (error) {
+                console.error('🚨 drawImage error in main canvas (GiantSquid):', error, {
+                    sprite: sprite,
+                    size: size,
+                    entityType: this.constructor.name,
+                    fishType: this.fishType
+                });
+            }
+        }
+        
+        ctx.restore();
+    }
+
     // Delegate drawing to rendering system
     draw() {
         this.renderingSystem.draw(this, this.jetSystem);

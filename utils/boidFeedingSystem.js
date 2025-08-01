@@ -83,8 +83,8 @@ class BoidFeedingSystem {
             }
         }
         
-        // Update behavior state based on food availability (only if not feeding, spawning, or in spawning cooldown)
-        if (boid.behaviorState !== 'feeding' && boid.behaviorState !== 'spawning' && boid.behaviorState !== 'spawning_cooldown') {
+        // Update behavior state based on food availability (only if not feeding or spawning)
+        if (boid.behaviorState !== 'feeding' && boid.behaviorState !== 'spawning') {
             if (closestFood) {
                 boid.behaviorState = 'hunting';
                 boid.huntTarget = closestFood.food;
@@ -100,7 +100,7 @@ class BoidFeedingSystem {
                 // Don't apply any additional forces - let flocking handle movement
             }
         } else {
-            // During feeding, spawning, or spawning cooldown state, clear hunt target but keep state
+            // During feeding or spawning state, clear hunt target but keep state
             boid.huntTarget = null;
         }
         
@@ -118,8 +118,6 @@ class BoidFeedingSystem {
             { array: gameEntities.momKrill, name: 'momKrill', energyGain: foodConfig.momKrill?.energyGain || 20, range: gameEntities.momKrill?.range || 25, foodValue: foodConfig.momKrill?.foodValue || 6 },
             // Fish food - same as regular krill
             { array: gameEntities.fishFood, name: 'fishFood', energyGain: foodConfig.fishFood?.energyGain || 10, range: foodConfig.fishFood?.range || 20, foodValue: foodConfig.fishFood?.foodValue || 3 },
-            // Sperm - can be eaten by all fry
-            { array: gameEntities.sperm, name: 'sperm', energyGain: foodConfig.sperm?.energyGain || 8, range: foodConfig.sperm?.range || 20, foodValue: foodConfig.sperm?.foodValue || 2 },
             // Poop (aged poop only - state 2 and 3) - different values for fry vs tuna poop
             { array: gameEntities.poop?.filter(p => p.state >= 2) || [], name: 'poop', energyGain: foodConfig.poop?.energyGain || 8, range: foodConfig.poop?.range || 22, foodValue: 'variable' }
         ];

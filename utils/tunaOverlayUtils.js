@@ -56,6 +56,9 @@ const TunaSpriteUtils = {
      * @returns {string} Sprite key for the eaten sprite
      */
     getEatenSpriteKey(tuna) {
+        const sprites = window.sprites || {};
+        
+        // Only one tuna type now - always use tunaEaten sprite
         return 'tunaEaten';
     },
 

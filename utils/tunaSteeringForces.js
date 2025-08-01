@@ -56,68 +56,180 @@ class TunaSteeringForces {
         });
     }
 
-    // Handle wandering behavior with improved patrolling
+    // Handle wandering behavior - Enhanced patrol system
     handleWandering(tuna) {
-        // Initialize patrolling properties if not present
-        if (!tuna.patrolCenter) {
-            tuna.patrolCenter = { x: tuna.x, y: tuna.y };
-            tuna.patrolDirection = Math.random() * Math.PI * 2;
-            tuna.patrolDistance = 0;
+        // Initialize patrol system if needed
+        if (!tuna.patrolTarget || !tuna.patrolDirection) {
+            this.initializePatrolSystem(tuna);
         }
         
-        // Check if we should change patrol direction
-        if (Math.random() < window.TUNA_CONFIG.patrolDirectionChangeChance) {
-            tuna.patrolDirection = Math.random() * Math.PI * 2;
+        const distToTarget = window.Utils.distance(tuna, tuna.patrolTarget);
+        
+        // Check if we've reached the current patrol target
+        if (distToTarget < 50) {
+            tuna.patrolTarget = this.generatePatrolTarget(tuna);
         }
         
-        // Check if we've traveled far enough to change direction
-        if (tuna.patrolDistance > window.TUNA_CONFIG.patrolTargetDistance) {
-            tuna.patrolDirection = Math.random() * Math.PI * 2;
-            tuna.patrolDistance = 0;
-        }
-        
-        // Calculate new patrol target
-        const patrolTarget = this.generatePatrolTarget(tuna);
-        
-        // Apply steering towards patrol target
-        const wander = window.Utils.calculateSteering(
+        // Calculate steering toward patrol target
+        const patrol = window.Utils.calculateSteering(
             tuna, 
-            patrolTarget, 
+            tuna.patrolTarget, 
             tuna.maxSpeed * window.TUNA_CONFIG.patrolSpeed, 
             tuna.maxForce
         );
         
-        tuna.applyForce({
-            x: wander.x * 0.6,
-            y: wander.y * 0.6
+        // Apply patrol forces with smooth variation
+        const patrolStrength = 0.7; // Stronger than old wandering
+        this.applySmoothForce(tuna, {
+            x: patrol.x * patrolStrength,
+            y: patrol.y * patrolStrength
         });
         
-        // Update patrol distance
-        const movement = Math.sqrt(tuna.velocity.x * tuna.velocity.x + tuna.velocity.y * tuna.velocity.y);
-        tuna.patrolDistance += movement;
+        // Apply velocity smoothing to reduce jitter
+        this.smoothTunaVelocity(tuna);
+        
+        // Add very subtle random variation to prevent perfectly straight lines (reduced for smoothness)
+        const randomVariation = 0.01; // Further reduced for even smoother movement
+        const randomAngle = Math.random() * Math.PI * 2;
+        tuna.applyForce({
+            x: Math.cos(randomAngle) * randomVariation,
+            y: Math.sin(randomAngle) * randomVariation
+        });
     }
 
-    // Generate a patrol target within the patrol area
+    // Initialize the patrol system for a tuna
+    initializePatrolSystem(tuna) {
+        // Set initial patrol direction (random)
+        tuna.patrolDirection = Math.random() * Math.PI * 2;
+        
+        // Set patrol parameters
+        tuna.patrolDistance = 300 + Math.random() * 400; // 300-700 pixel patrol range
+        tuna.patrolChangeTimer = 0;
+        tuna.patrolChangeInterval = 300 + Math.random() * 360; // 5-11 seconds between direction changes (increased for smoothness)
+        
+        // Initialize movement smoothing
+        tuna.velocityHistory = []; // Store recent velocities for smoothing
+        tuna.maxVelocityHistory = 10; // Number of velocities to average
+        tuna.smoothedVelocity = { x: 0, y: 0 };
+        
+        // Generate first patrol target
+        tuna.patrolTarget = this.generatePatrolTarget(tuna);
+        
+        // Debug logging
+        if (window.gameState && window.gameState.tunaDebug) {
+            console.log(`🐟 Tuna patrol system initialized: direction ${(tuna.patrolDirection * 180 / Math.PI).toFixed(1)}°, distance ${tuna.patrolDistance.toFixed(1)}px`);
+        }
+    }
+    
+    // Generate a patrol target that covers more distance
     generatePatrolTarget(tuna) {
         const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         
-        // Calculate target based on current direction and patrol area
-        const targetDistance = window.TUNA_CONFIG.patrolAreaRadius * (0.3 + Math.random() * 0.4); // 30-70% of patrol radius
-        const targetX = tuna.x + Math.cos(tuna.patrolDirection) * targetDistance;
-        const targetY = tuna.y + Math.sin(tuna.patrolDirection) * targetDistance;
+        // Update patrol change timer
+        tuna.patrolChangeTimer = (tuna.patrolChangeTimer || 0) + 1;
         
-        // Ensure target is within world bounds and preferred depth range
-        const clampedX = Math.max(200, Math.min(WORLD_WIDTH - 200, targetX));
-        const depthRange = window.TUNA_CONFIG.patrolDepthRange;
-        const minY = WORLD_HEIGHT * depthRange.min;
-        const maxY = WORLD_HEIGHT * depthRange.max;
-        const clampedY = Math.max(minY, Math.min(maxY, targetY));
+        // Occasionally change patrol direction for variety (less frequent for smoothness)
+        if (tuna.patrolChangeTimer >= tuna.patrolChangeInterval) {
+            // Change direction by smaller angles (30-90 degrees) for smoother turns
+            const directionChange = (Math.PI / 6) + Math.random() * (Math.PI / 3);
+            tuna.patrolDirection += Math.random() < 0.5 ? directionChange : -directionChange;
+            
+            // Reset timer with new random interval (longer intervals for smoother movement)
+            tuna.patrolChangeTimer = 0;
+            tuna.patrolChangeInterval = 300 + Math.random() * 360;
+            
+            if (window.gameState && window.gameState.tunaDebug) {
+                console.log(`🐟 Tuna changed patrol direction to ${(tuna.patrolDirection * 180 / Math.PI).toFixed(1)}°`);
+            }
+        }
         
-        return { x: clampedX, y: clampedY };
+        // Calculate target position
+        let targetX = tuna.x + Math.cos(tuna.patrolDirection) * tuna.patrolDistance;
+        let targetY = tuna.y + Math.sin(tuna.patrolDirection) * tuna.patrolDistance;
+        
+        // Keep target within world bounds with buffer
+        const buffer = 200;
+        targetX = Math.max(buffer, Math.min(WORLD_WIDTH - buffer, targetX));
+        targetY = Math.max(buffer, Math.min(WORLD_HEIGHT - buffer, targetY));
+        
+        // If target would be too close to world edge, adjust direction
+        if (targetX <= buffer || targetX >= WORLD_WIDTH - buffer || 
+            targetY <= buffer || targetY >= WORLD_HEIGHT - buffer) {
+            // Turn toward center of world
+            const centerX = WORLD_WIDTH / 2;
+            const centerY = WORLD_HEIGHT / 2;
+            tuna.patrolDirection = Math.atan2(centerY - tuna.y, centerX - tuna.x);
+            
+            // Recalculate target
+            targetX = tuna.x + Math.cos(tuna.patrolDirection) * tuna.patrolDistance;
+            targetY = tuna.y + Math.sin(tuna.patrolDirection) * tuna.patrolDistance;
+        }
+        
+        return {
+            x: targetX,
+            y: targetY
+        };
     }
-
-    // Generate a random wander target (kept for backward compatibility)
+    
+    // Smooth tuna velocity to reduce jitter
+    smoothTunaVelocity(tuna) {
+        // Add current velocity to history
+        tuna.velocityHistory.push({ x: tuna.velocity.x, y: tuna.velocity.y });
+        
+        // Keep only the most recent velocities
+        if (tuna.velocityHistory.length > tuna.maxVelocityHistory) {
+            tuna.velocityHistory.shift();
+        }
+        
+        // Calculate average velocity
+        let avgX = 0, avgY = 0;
+        for (let vel of tuna.velocityHistory) {
+            avgX += vel.x;
+            avgY += vel.y;
+        }
+        avgX /= tuna.velocityHistory.length;
+        avgY /= tuna.velocityHistory.length;
+        
+        // Apply smoothed velocity with gradual transition
+        const smoothingFactor = 0.3; // How much to blend smoothed vs current velocity
+        tuna.velocity.x = tuna.velocity.x * (1 - smoothingFactor) + avgX * smoothingFactor;
+        tuna.velocity.y = tuna.velocity.y * (1 - smoothingFactor) + avgY * smoothingFactor;
+    }
+    
+    // Apply forces smoothly to reduce jitter
+    applySmoothForce(tuna, force) {
+        // Initialize force history if needed
+        if (!tuna.forceHistory) {
+            tuna.forceHistory = [];
+            tuna.maxForceHistory = 5;
+        }
+        
+        // Add current force to history
+        tuna.forceHistory.push({ x: force.x, y: force.y });
+        
+        // Keep only the most recent forces
+        if (tuna.forceHistory.length > tuna.maxForceHistory) {
+            tuna.forceHistory.shift();
+        }
+        
+        // Calculate average force
+        let avgForceX = 0, avgForceY = 0;
+        for (let f of tuna.forceHistory) {
+            avgForceX += f.x;
+            avgForceY += f.y;
+        }
+        avgForceX /= tuna.forceHistory.length;
+        avgForceY /= tuna.forceHistory.length;
+        
+        // Apply smoothed force
+        tuna.applyForce({
+            x: avgForceX,
+            y: avgForceY
+        });
+    }
+    
+    // Generate a random wander target (kept for compatibility)
     generateWanderTarget(tuna) {
         const angle = Math.random() * Math.PI * 2;
         const distance = window.TUNA_CONFIG.wanderRadius * (0.5 + Math.random() * 0.5);
@@ -164,12 +276,8 @@ class TunaSteeringForces {
 
     // Apply general movement forces (depth preference, etc.)
     applyMovementForces(tuna) {
-        // Reset patrol center when entering patrolling state to establish new patrol area
-        if (tuna.aiState === window.TUNA_STATES.PATROLLING && !tuna.patrolCenter) {
-            tuna.patrolCenter = { x: tuna.x, y: tuna.y };
-            tuna.patrolDirection = Math.random() * Math.PI * 2;
-            tuna.patrolDistance = 0;
-        }
+        // Apply repulsion from other tuna to prevent overlapping
+        this.applyTunaRepulsion(tuna);
         
         // Depth preference - only when not hunting or attacking, and much gentler
         if (tuna.aiState !== window.TUNA_STATES.HUNTING && tuna.aiState !== window.TUNA_STATES.ATTACKING) {
@@ -198,6 +306,65 @@ class TunaSteeringForces {
             tuna.applyForce({ x: 0, y: -tuna.maxForce * 0.5 });
         }
     }
+    
+    // Apply repulsion forces between tuna to prevent overlapping
+    applyTunaRepulsion(tuna) {
+        if (!window.gameEntities || !window.gameEntities.predators) return;
+        
+        const repulsionRadius = 80; // Distance at which repulsion starts
+        const maxRepulsionRadius = 40; // Distance at which repulsion is maximum
+        const maxRepulsionForce = 0.8; // Maximum repulsion force strength
+        
+        let totalRepulsionX = 0;
+        let totalRepulsionY = 0;
+        let repulsionCount = 0;
+        
+        // Check all other tuna for repulsion
+        for (let otherTuna of window.gameEntities.predators) {
+            if (otherTuna === tuna) continue; // Skip self
+            
+            const distance = window.Utils.distance(tuna, otherTuna);
+            
+            // Only apply repulsion if tuna are close enough
+            if (distance < repulsionRadius && distance > 0) {
+                // Calculate repulsion strength (stronger when closer)
+                let repulsionStrength = 0;
+                if (distance <= maxRepulsionRadius) {
+                    // Maximum repulsion when very close
+                    repulsionStrength = maxRepulsionForce;
+                } else {
+                    // Gradual repulsion based on distance
+                    repulsionStrength = maxRepulsionForce * (1 - (distance - maxRepulsionRadius) / (repulsionRadius - maxRepulsionRadius));
+                }
+                
+                // Calculate repulsion direction (away from other tuna)
+                const angle = Math.atan2(tuna.y - otherTuna.y, tuna.x - otherTuna.x);
+                const repulsionX = Math.cos(angle) * repulsionStrength;
+                const repulsionY = Math.sin(angle) * repulsionStrength;
+                
+                totalRepulsionX += repulsionX;
+                totalRepulsionY += repulsionY;
+                repulsionCount++;
+            }
+        }
+        
+        // Apply average repulsion force if any repulsion was calculated
+        if (repulsionCount > 0) {
+            const avgRepulsionX = totalRepulsionX / repulsionCount;
+            const avgRepulsionY = totalRepulsionY / repulsionCount;
+            
+            // Apply the repulsion force
+            tuna.applyForce({
+                x: avgRepulsionX,
+                y: avgRepulsionY
+            });
+            
+            // Debug logging for repulsion events (only when debug is enabled)
+            if (window.gameState && window.gameState.tunaDebug && repulsionCount > 0) {
+                console.log(`🐟 Tuna repulsion: ${repulsionCount} nearby tuna, force: (${avgRepulsionX.toFixed(2)}, ${avgRepulsionY.toFixed(2)})`);
+            }
+        }
+    }
 
     // Attempt to eat a target
     attemptToEat(tuna, target, gameEntities) {
@@ -218,7 +385,7 @@ class TunaSteeringForces {
                 
                 preyGroup.array.splice(index, 1);
                 
-                // Start tuna pooping sequence (1-3 poop spread out over 200ms each)
+                // Start tuna pooping sequence (1-2 poop spread out over 200ms each)
                 if (window.gameEntities && window.gameEntities.tunaPoopingSystem) {
                     window.gameEntities.tunaPoopingSystem.startPooping(tuna, window.gameEntities);
                 } else if (window.gameEntities && window.gameEntities.poop && window.Poop) {

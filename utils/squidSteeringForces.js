@@ -41,15 +41,26 @@ class SquidSteeringForces {
             y: squid.huntTarget.y - squid.y
         });
         
-        // Use powerful jet for attack approach - allow jet propulsion for upward movement even when close
+        // Use jet propulsion to close distance - allow jet until much closer to target
+        const jetRange = 150; // Use jet propulsion until within 150px of target
         const needsUpwardMovement = direction.y < -0.3; // Moving significantly upward
-        const isCloseButNeedsJet = dist <= 400 && dist > 200 && needsUpwardMovement;
         
-        if (jetSystem.canJet(squid) && (dist > 400 || isCloseButNeedsJet)) {
-            jetSystem.jet(squid, direction, 0.8);
-        } else {
-            // Use fins for fine positioning
-            jetSystem.finPropulsion(squid, direction, 0.6);
+        if (jetSystem.canJet(squid) && dist > jetRange) {
+            // Use powerful jet to close distance to target
+            jetSystem.jet(squid, direction, 0.9);
+            
+            // Debug logging for jet propulsion
+            if (window.gameState && window.gameState.squidDebug && squid.stateTimer % 30 === 0) {
+                console.log(`🦑 Squid jetting toward target: distance ${Math.round(dist)}px, jet power 0.9`);
+            }
+        } else if (dist <= jetRange && dist > squid.attackRange) {
+            // Use fins for fine positioning when very close but not in attack range
+            jetSystem.finPropulsion(squid, direction, 0.7);
+            
+            // Debug logging for fin propulsion
+            if (window.gameState && window.gameState.squidDebug && squid.stateTimer % 30 === 0) {
+                console.log(`🦑 Squid using fins for fine positioning: distance ${Math.round(dist)}px, attack range ${squid.attackRange}px`);
+            }
         }
     }
 
