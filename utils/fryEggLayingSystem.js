@@ -6,7 +6,7 @@ class FryEggLayingSystem {
         this.config = {
             DETECTION_RANGE: 80, // Range for fry to detect each other in feeding state
             EGG_COUNT_MIN: 1, // Minimum eggs to spawn
-            EGG_COUNT_MAX: 3, // Maximum eggs to spawn
+            EGG_COUNT_MAX: 4, // Maximum eggs to spawn (changed from 3 to 4 as user expects)
             EGG_LAYING_COOLDOWN: 15000, // 15 seconds cooldown between laying
             LAYING_CHANCE: 0.8, // 80% chance to lay when conditions are met
             GERMINATION_DELAY_MIN: 2000, // Minimum germination delay (2 seconds)
@@ -154,7 +154,7 @@ class FryEggLayingSystem {
             return;
         }
         
-        // Random number of eggs to lay
+        // Random number of eggs to lay (changed to 1-4 as user expects)
         const eggCount = this.config.EGG_COUNT_MIN + Math.floor(Math.random() * (this.config.EGG_COUNT_MAX - this.config.EGG_COUNT_MIN + 1));
         
         // Calculate random germination delay (2-4 seconds)
@@ -162,21 +162,12 @@ class FryEggLayingSystem {
             Math.random() * (this.config.GERMINATION_DELAY_MAX - this.config.GERMINATION_DELAY_MIN);
         const germinationTime = Date.now() + germinationDelay;
         
-        // Pre-calculate egg positions
-        const positions = [];
-        for (let i = 0; i < eggCount; i++) {
-            positions.push({
-                x: fry.x + (Math.random() - 0.5) * 20,
-                y: fry.y + (Math.random() - 0.5) * 20
-            });
-        }
-        
-        // Add to pending eggs
+        // Store reference to fry instead of pre-calculating positions
+        // This way we use the fry's CURRENT position when eggs are actually created
         this.pendingEggs.push({
             fry: fry,
             gameEntities: gameEntities,
             eggCount: eggCount,
-            positions: positions,
             germinationTime: germinationTime
         });
         
@@ -214,37 +205,39 @@ class FryEggLayingSystem {
      * @param {Object} pendingEgg - The pending egg data
      */
     createEggsFromGermination(pendingEgg) {
-        const { fry, gameEntities, eggCount, positions } = pendingEgg;
+        const { fry, gameEntities, eggCount } = pendingEgg;
         
         if (!gameEntities || !gameEntities.fishEggs || !window.FishEgg) {
             console.warn('🐟 Cannot create eggs from germination - missing dependencies');
             return;
         }
         
-        console.log(`🥚 Germination complete! Creating ${eggCount} eggs for fry ${fry.fishType}`);
+        console.log(`🥚 Germination complete! Creating ${eggCount} eggs for fry ${fry.fishType} at current position (${fry.x.toFixed(1)}, ${fry.y.toFixed(1)})`);
         
         for (let i = 0; i < eggCount; i++) {
-            const position = positions[i];
+            // Calculate position based on fry's CURRENT position (not old pre-calculated position)
+            const eggX = fry.x + (Math.random() - 0.5) * 20;
+            const eggY = fry.y + (Math.random() - 0.5) * 20;
             
             // Create unfertilized fish egg
-            const newEgg = new window.FishEgg(position.x, position.y);
+            const newEgg = new window.FishEgg(eggX, eggY);
             gameEntities.fishEggs.push(newEgg);
             
-            console.log(`🥚 Created fish egg ${i+1}/${eggCount} at (${position.x.toFixed(1)}, ${position.y.toFixed(1)})`);
+            console.log(`🥚 Created fish egg ${i+1}/${eggCount} at (${eggX.toFixed(1)}, ${eggY.toFixed(1)})`);
             
             // Create visual effect (bubbles)
             if (window.ObjectPools) {
                 for (let j = 0; j < 2; j++) {
                     window.ObjectPools.getEatingBubble(
-                        position.x + (Math.random() - 0.5) * 10,
-                        position.y + (Math.random() - 0.5) * 10
+                        eggX + (Math.random() - 0.5) * 10,
+                        eggY + (Math.random() - 0.5) * 10
                     );
                 }
             }
         }
         
         if (window.ConsoleDebugSystem && window.ConsoleDebugSystem.isEnabled()) {
-            window.ConsoleDebugSystem.log('EGG_LAYING', `Germination completed: ${eggCount} eggs created for fry ${fry.fishType}`);
+            window.ConsoleDebugSystem.log('EGG_LAYING', `Germination completed: ${eggCount} eggs created for fry ${fry.fishType} at current position`);
         }
     }
     
