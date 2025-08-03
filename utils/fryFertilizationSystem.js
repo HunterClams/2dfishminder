@@ -55,6 +55,13 @@ class FryFertilizationSystem {
             // Enter spawning state when unfertilized eggs are detected at long range
             fry.behaviorState = 'spawning';
             
+            // CRITICAL FIX: Reset feeding timer to prevent timer/state conflicts
+            // When we interrupt feeding state for spawning, we must reset the timer
+            // to prevent it from interfering with future feeding behavior
+            if (fry.feedingTimer !== undefined) {
+                fry.feedingTimer = 0;
+            }
+            
             // Initialize spawning properties if not present
             if (!fry.spawningProperties) {
                 fry.spawningProperties = {
@@ -240,6 +247,12 @@ class FryFertilizationSystem {
      */
     endSpawningState(fry) {
         fry.behaviorState = 'foraging';
+        
+        // CRITICAL FIX: Reset feeding timer to prevent timer/state conflicts
+        // When transitioning out of spawning state, ensure feeding timer is clean
+        if (fry.feedingTimer !== undefined) {
+            fry.feedingTimer = 0;
+        }
         
         // Reset spawning properties if they exist
         if (fry.spawningProperties) {

@@ -176,6 +176,13 @@ class FryEggLayingSystem {
         // Change fry state from feeding to foraging immediately
         fry.behaviorState = 'foraging';
         
+        // CRITICAL FIX: Reset feeding timer to prevent timer/state conflicts
+        // When we interrupt feeding state for egg laying, we must reset the timer
+        // to prevent it from interfering with future feeding behavior
+        if (fry.feedingTimer !== undefined) {
+            fry.feedingTimer = 0;
+        }
+        
         if (window.ConsoleDebugSystem && window.ConsoleDebugSystem.isEnabled()) {
             window.ConsoleDebugSystem.log('EGG_LAYING', `Fry ${fry.fishType} started germination for ${eggCount} eggs and returned to foraging state`);
         }
