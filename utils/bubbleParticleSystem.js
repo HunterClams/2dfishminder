@@ -10,6 +10,7 @@ class BubbleParticleSystem {
         this.preRenderedSprites = new Map();
         this.batchSize = 100; // Increased batch size for better throughput
         this.currentBatch = 0;
+        this.isInitialized = false;
         
         // Advanced performance optimizations
         this.lastUpdateTime = 0;
@@ -46,9 +47,23 @@ class BubbleParticleSystem {
         this.lodDistances = [500, 1000, 1500]; // LOD switch distances
         this.cullDistance = 2500; // Distance to completely cull particles
         
-        this.initializeSystem();
-        // Silent initialization for maximum performance
-        this.startPerformanceMonitoring();
+        // Wait for sprites to be loaded before initializing
+        this.initializeWhenReady();
+    }
+    
+    initializeWhenReady() {
+        // Wait for sprites to be loaded
+        const checkSprites = () => {
+            if (window.sprites && window.sprites.bubble1 && window.sprites.bubble2) {
+                this.initializeSystem();
+                this.isInitialized = true;
+                console.log('🫧 BubbleParticleSystem initialized successfully');
+            } else {
+                // Retry in 100ms
+                setTimeout(checkSprites, 100);
+            }
+        };
+        checkSprites();
     }
     
     initializeSystem() {
@@ -76,8 +91,14 @@ class BubbleParticleSystem {
             canvas.width = config.size + 4; // Add padding for glow effects
             canvas.height = config.size + 4;
             
-            // Get base bubble sprite
-            const baseSprite = Utils.getRandomBubbleSprite();
+            // Get base bubble sprite - wait for sprites to be loaded
+            let baseSprite = null;
+            if (window.sprites && window.sprites.bubble1 && window.sprites.bubble2) {
+                baseSprite = window.getRandomBubbleSprite(window.sprites);
+            }
+            
+            // Skip if sprites not loaded yet
+            if (!baseSprite) continue;
             
             // Draw base sprite
             ctx.drawImage(baseSprite, 2, 2, config.size, config.size);
@@ -214,7 +235,7 @@ class BubbleParticleSystem {
     }
     
     render() {
-        if (!window.ctx || !window.camera) return;
+        if (!window.ctx || !window.camera || !this.isInitialized) return;
         
         // Calculate visible area for culling
         const cameraX = window.camera.x;

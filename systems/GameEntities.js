@@ -273,12 +273,16 @@ class GameEntities {
             this.squid.push(squid);
         }
         
-        // Initialize high-performance bubble particle system with 400 bubbles
-        if (window.BubbleParticleSystem) {
+        // Initialize optimized bubble system with modern best practices
+        if (window.OptimizedBubbleSystem) {
+            this.bubbleSystem = new window.OptimizedBubbleSystem(400);
+            console.log('🫧 Initialized OptimizedBubbleSystem for enhanced performance');
+        } else if (window.BubbleParticleSystem) {
+            // Fallback to particle system
             this.bubbleParticleSystem = new window.BubbleParticleSystem();
-            console.log('🫧 Initialized BubbleParticleSystem for enhanced performance with 400 bubbles');
+            console.log('🫧 Fallback: Initialized BubbleParticleSystem');
         } else {
-            // Fallback to old bubble system if particle system not available
+            // Fallback to old bubble system if no optimized systems available
             for (let i = 0; i < 100; i++) {
                 this.bubbles.push(new window.Bubble());
             }
@@ -292,7 +296,7 @@ class GameEntities {
             momKrill: this.momKrill.length,
             predators: this.predators.length,
             squid: this.squid.length,
-            bubbles: this.bubbleParticleSystem ? this.bubbleParticleSystem.maxParticles : this.bubbles.length
+            bubbles: this.bubbleSystem ? this.bubbleSystem.maxBubbles : (this.bubbleParticleSystem ? this.bubbleParticleSystem.maxParticles : this.bubbles.length)
         });
         
         // Log depth ranges for debugging
@@ -595,8 +599,10 @@ class GameEntities {
             }
         }
         
-        // Update bubble particle system
-        if (this.bubbleParticleSystem) {
+        // Update bubble systems (prioritize optimized system)
+        if (this.bubbleSystem) {
+            this.bubbleSystem.update();
+        } else if (this.bubbleParticleSystem) {
             this.bubbleParticleSystem.update();
         }
         
@@ -890,8 +896,10 @@ class GameEntities {
             this.drawTraditional();
         }
         
-        // Draw bubble particle system
-        if (this.bubbleParticleSystem) {
+        // Draw bubble systems (prioritize optimized system)
+        if (this.bubbleSystem) {
+            this.bubbleSystem.render();
+        } else if (this.bubbleParticleSystem) {
             this.bubbleParticleSystem.render();
         }
         
@@ -1029,7 +1037,7 @@ class GameEntities {
             momKrill: this.momKrill.length,
             predators: this.predators.length,
             squid: this.squid.length,
-            bubbles: this.bubbleParticleSystem ? this.bubbleParticleSystem.maxParticles : this.bubbles.length,
+            bubbles: this.bubbleSystem ? this.bubbleSystem.maxBubbles : (this.bubbleParticleSystem ? this.bubbleParticleSystem.maxParticles : this.bubbles.length),
             fishFood: this.fishFood.length,
             poop: this.poop.length,
             fishEggs: this.fishEggs.length,
