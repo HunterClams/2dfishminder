@@ -92,11 +92,11 @@ class TunaSteeringForces {
             currentState: 'searching',
             stateTimer: 0,
             lastPreyLocation: null,
-            searchRadius: 200 + Math.random() * 300, // Variable search area
+            searchRadius: 400 + Math.random() * 600, // EXPANDED: Variable search area (400-1000px, was 200-500px)
             investigationTarget: null,
             cruiseDirection: Math.random() * Math.PI * 2,
             searchSpiralCenter: { x: tuna.x, y: tuna.y },
-            searchSpiralRadius: 50,
+            searchSpiralRadius: 80, // EXPANDED: Larger spiral radius (was 50)
             searchSpiralAngle: 0
         };
         
@@ -104,6 +104,13 @@ class TunaSteeringForces {
         tuna.patrolState = 'searching';
         tuna.patrolStateTimer = 0;
         tuna.patrolTransitionCooldown = 0;
+        
+        // CRITICAL FIX: Initialize patrol distance from config
+        const config = window.TUNA_CONFIG || {};
+        tuna.patrolDistance = (config.patrolDistance || 800) + (Math.random() * 2 - 1) * (config.patrolVariation || 500);
+        tuna.patrolDirection = tuna.patrolDirection || Math.random() * Math.PI * 2;
+        tuna.patrolChangeTimer = 0;
+        tuna.patrolChangeInterval = 300 + Math.random() * 360;
         
         // Initialize movement smoothing
         tuna.velocityHistory = [];

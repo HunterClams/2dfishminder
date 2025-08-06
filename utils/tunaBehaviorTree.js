@@ -22,6 +22,27 @@ class TunaBehaviorTree {
         tuna.huntSuccess = 0;
         tuna.lastAttackTime = 0;
         tuna.restingSpot = null;
+        
+        // CRITICAL FIX: Initialize proper velocity for smooth movement
+        // Tuna maxSpeed = 3, so set initial velocity to ~70% of max speed for natural patrolling
+        const initialSpeed = tuna.maxSpeed * 0.7; // 2.1 speed (was -2 to +2 random)
+        const initialDirection = Math.random() * Math.PI * 2;
+        tuna.velocity = {
+            x: Math.cos(initialDirection) * initialSpeed,
+            y: Math.sin(initialDirection) * initialSpeed
+        };
+        
+        // Initialize patrol direction to match initial movement
+        tuna.patrolDirection = initialDirection;
+        
+        // Set current speed boost for consistent movement
+        tuna.currentSpeedBoost = 1.0;
+        
+        // Debug logging
+        if (window.gameState && window.gameState.tunaDebug) {
+            console.log(`🐟 Tuna initialized with velocity (${Math.round(tuna.velocity.x * 100) / 100}, ${Math.round(tuna.velocity.y * 100) / 100}), speed: ${Math.round(initialSpeed * 100) / 100}`);
+        }
+        
         return tuna;
     }
 

@@ -19,8 +19,8 @@ const TUNA_CONFIG = {
     maxPredictionTime: 3.0,
     wanderRadius: 100, // Keep for compatibility
     patrolSpeed: 0.9, // Increased from 0.8 for more active patrolling
-    patrolDistance: 500, // Base patrol distance
-    patrolVariation: 300, // Variation in patrol distance (±300px)
+    patrolDistance: 800, // EXPANDED: Base patrol distance (was 500)
+    patrolVariation: 500, // EXPANDED: Variation in patrol distance (±500px, was ±300px)
     huntSpeed: 1.35, // 35% speed boost when hunting (1.0 + 0.35)
     attackSpeed: 2.0,
     stateChangeDelay: 30, // frames
