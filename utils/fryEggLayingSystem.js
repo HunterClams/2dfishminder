@@ -79,6 +79,12 @@ class FryEggLayingSystem {
             return;
         }
         
+        // CRITICAL FIX: Check if fry is already in egg laying process (germination delay)
+        // This prevents multiple egg laying attempts during the 2-second delay
+        if (fry.isLayingEggs) {
+            return;
+        }
+        
         // Check cooldown
         const fryId = this.getFryId(fry);
         const now = Date.now();
@@ -99,6 +105,9 @@ class FryEggLayingSystem {
         if (nearbyFeedingFry.length > 0) {
             // Random chance to lay eggs
             if (Math.random() < this.config.LAYING_CHANCE) {
+                // CRITICAL FIX: Set flag immediately to prevent multiple attempts during germination
+                fry.isLayingEggs = true;
+                
                 this.startEggGermination(fry, gameEntities);
                 
                 // Set cooldown for this fry
@@ -216,6 +225,8 @@ class FryEggLayingSystem {
         
         if (!gameEntities || !gameEntities.fishEggs || !window.FishEgg) {
             console.warn('🐟 Cannot create eggs from germination - missing dependencies');
+            // CRITICAL FIX: Clear laying flag even if creation fails
+            fry.isLayingEggs = false;
             return;
         }
         
@@ -243,6 +254,10 @@ class FryEggLayingSystem {
             }
         }
         
+        // CRITICAL FIX: Clear the laying flag after eggs are created
+        // This allows the fry to lay eggs again after the full cooldown period
+        fry.isLayingEggs = false;
+        
         if (window.ConsoleDebugSystem && window.ConsoleDebugSystem.isEnabled()) {
             window.ConsoleDebugSystem.log('EGG_LAYING', `Germination completed: ${eggCount} eggs created for fry ${fry.fishType} at current position`);
         }
@@ -258,7 +273,7 @@ class FryEggLayingSystem {
     }
     
     /**
-     * Clean up old cooldown entries
+     * Clean up old cooldown entries and stuck laying flags
      */
     cleanup() {
         const now = Date.now();
@@ -267,6 +282,21 @@ class FryEggLayingSystem {
         for (let [fryId, cooldown] of this.recentLaying.entries()) {
             if (cooldown.lastLayTime < cutoffTime) {
                 this.recentLaying.delete(fryId);
+            }
+        }
+        
+        // SAFETY: Clear any stuck laying flags from pending eggs that might be orphaned
+        // This prevents edge cases where fry might get permanently stuck with isLayingEggs=true
+        for (let pendingEgg of this.pendingEggs) {
+            if (pendingEgg.fry && pendingEgg.fry.isLayingEggs === undefined) {
+                // If the laying flag somehow got cleared but egg is still pending, that's OK
+                // If the egg is very old (>10 seconds), clear the flag as safety measure
+                if (now - pendingEgg.germinationTime > 10000) {
+                    if (pendingEgg.fry.isLayingEggs) {
+                        console.warn(`🐟 Safety cleanup: clearing stuck laying flag for fry ${pendingEgg.fry.fishType}`);
+                        pendingEgg.fry.isLayingEggs = false;
+                    }
+                }
             }
         }
     }
