@@ -64,6 +64,9 @@ const SQUID_CONFIG = {
     BIO_INTENSITY_MIN: 0.1,
     BIO_INTENSITY_MAX: 0.7,
     
+    // Sprite orientation correction
+    SPRITE_ORIENTATION_OFFSET: -Math.PI / 4, // -45° to correct diagonal sprite (head top-right, tentacles bottom-left)
+    
     // Enhanced bioluminescence settings (matching old system)
     BIOLUMINESCENCE_FULL_OPACITY: 1.0, // Full brightness for abyssal sprites
     BIOLUMINESCENCE_BLEND_MODE: 'screen', // Additive blending for glow effect

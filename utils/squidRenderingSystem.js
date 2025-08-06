@@ -49,10 +49,15 @@ class SquidRenderingSystem {
             });
         }
         
-        // Calculate angle based on movement direction
+        // Calculate angle based on movement direction with DIAGONAL SPRITE CORRECTION
         let angle = 0;
         if (squid.currentSpeed > 0.5) {
-            angle = Math.atan2(squid.velocity.y, squid.velocity.x) * 0.3;
+            // CRITICAL FIX: Account for diagonal sprite orientation
+            // Your sprite has head in top-right, tentacles in bottom-left (45° diagonal)
+            // Standard atan2 assumes horizontal sprite, so we need to offset by the sprite orientation
+            const movementAngle = Math.atan2(squid.velocity.y, squid.velocity.x);
+            const spriteOrientationOffset = window.SQUID_CONFIG?.SPRITE_ORIENTATION_OFFSET || -Math.PI / 4;
+            angle = (movementAngle + spriteOrientationOffset) * 0.3; // Reduced rotation for subtle effect
         }
         
         // Apply full water shader effect
@@ -220,7 +225,8 @@ class SquidRenderingSystem {
         
         ctx.globalAlpha = preyOpacity;
         ctx.translate(preyX, preyY);
-        ctx.rotate(angle * 0.5);
+        // FIXED: Apply same sprite orientation correction to grabbed prey rotation
+        ctx.rotate(angle * 0.5); // Prey rotates less than main squid for more natural look
         
         try {
             ctx.drawImage(preySprite, -squid.grabbedPrey.size/2, -squid.grabbedPrey.size/2, 
