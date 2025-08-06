@@ -56,69 +56,206 @@ class TunaSteeringForces {
         });
     }
 
-    // Handle wandering behavior - Enhanced patrol system
+    // Handle wandering behavior - REALISTIC predator patrol patterns
     handleWandering(tuna) {
-        // Initialize patrol system if needed
-        if (!tuna.patrolTarget || !tuna.patrolDirection) {
-            this.initializePatrolSystem(tuna);
+        // Initialize realistic patrol system if needed
+        if (!tuna.huntingPattern || !tuna.patrolState) {
+            this.initializeRealisticPatrolSystem(tuna);
         }
         
-        const distToTarget = window.Utils.distance(tuna, tuna.patrolTarget);
+        // Update patrol pattern based on current hunting behavior
+        this.updateHuntingPattern(tuna);
         
-        // Check if we've reached the current patrol target
-        if (distToTarget < 50) {
-            tuna.patrolTarget = this.generatePatrolTarget(tuna);
+        // Apply current patrol behavior
+        switch (tuna.patrolState) {
+            case 'searching':
+                this.applySearchingBehavior(tuna);
+                break;
+            case 'cruising':
+                this.applyCruisingBehavior(tuna);
+                break;
+            case 'investigating':
+                this.applyInvestigatingBehavior(tuna);
+                break;
+            default:
+                this.applySearchingBehavior(tuna);
         }
-        
-        // Calculate steering toward patrol target
-        const patrol = window.Utils.calculateSteering(
-            tuna, 
-            tuna.patrolTarget, 
-            tuna.maxSpeed * window.TUNA_CONFIG.patrolSpeed, 
-            tuna.maxForce
-        );
-        
-        // Apply patrol forces with smooth variation
-        const patrolStrength = 0.7; // Stronger than old wandering
-        this.applySmoothForce(tuna, {
-            x: patrol.x * patrolStrength,
-            y: patrol.y * patrolStrength
-        });
         
         // Apply velocity smoothing to reduce jitter
         this.smoothTunaVelocity(tuna);
-        
-        // Add very subtle random variation to prevent perfectly straight lines (reduced for smoothness)
-        const randomVariation = 0.01; // Further reduced for even smoother movement
-        const randomAngle = Math.random() * Math.PI * 2;
-        tuna.applyForce({
-            x: Math.cos(randomAngle) * randomVariation,
-            y: Math.sin(randomAngle) * randomVariation
-        });
     }
 
-    // Initialize the patrol system for a tuna
-    initializePatrolSystem(tuna) {
-        // Set initial patrol direction (random)
-        tuna.patrolDirection = Math.random() * Math.PI * 2;
+    // Initialize REALISTIC predator patrol system
+    initializeRealisticPatrolSystem(tuna) {
+        // Realistic hunting pattern states
+        tuna.huntingPattern = {
+            currentState: 'searching',
+            stateTimer: 0,
+            lastPreyLocation: null,
+            searchRadius: 200 + Math.random() * 300, // Variable search area
+            investigationTarget: null,
+            cruiseDirection: Math.random() * Math.PI * 2,
+            searchSpiralCenter: { x: tuna.x, y: tuna.y },
+            searchSpiralRadius: 50,
+            searchSpiralAngle: 0
+        };
         
-        // Set patrol parameters
-        tuna.patrolDistance = 300 + Math.random() * 400; // 300-700 pixel patrol range
-        tuna.patrolChangeTimer = 0;
-        tuna.patrolChangeInterval = 300 + Math.random() * 360; // 5-11 seconds between direction changes (increased for smoothness)
+        // Current patrol state
+        tuna.patrolState = 'searching';
+        tuna.patrolStateTimer = 0;
+        tuna.patrolTransitionCooldown = 0;
         
         // Initialize movement smoothing
-        tuna.velocityHistory = []; // Store recent velocities for smoothing
-        tuna.maxVelocityHistory = 10; // Number of velocities to average
+        tuna.velocityHistory = [];
+        tuna.maxVelocityHistory = 8;
         tuna.smoothedVelocity = { x: 0, y: 0 };
-        
-        // Generate first patrol target
-        tuna.patrolTarget = this.generatePatrolTarget(tuna);
         
         // Debug logging
         if (window.gameState && window.gameState.tunaDebug) {
-            console.log(`🐟 Tuna patrol system initialized: direction ${(tuna.patrolDirection * 180 / Math.PI).toFixed(1)}°, distance ${tuna.patrolDistance.toFixed(1)}px`);
+            console.log(`🐟 Tuna realistic patrol initialized: ${tuna.patrolState} mode`);
         }
+    }
+    
+    // Update hunting pattern based on energy, success, and environment
+    updateHuntingPattern(tuna) {
+        tuna.patrolStateTimer++;
+        tuna.patrolTransitionCooldown = Math.max(0, tuna.patrolTransitionCooldown - 1);
+        
+        // Transition logic based on realistic predator behavior
+        if (tuna.patrolTransitionCooldown <= 0) {
+            const energyFactor = tuna.energy / 100;
+            const random = Math.random();
+            
+            switch (tuna.patrolState) {
+                case 'searching':
+                    if (tuna.patrolStateTimer > 180 && random < 0.3) { // 3 seconds of searching
+                        this.transitionPatrolState(tuna, 'cruising');
+                    } else if (tuna.patrolStateTimer > 300 && random < 0.2) { // 5 seconds, chance to investigate
+                        this.transitionPatrolState(tuna, 'investigating');
+                    }
+                    break;
+                    
+                case 'cruising':
+                    if (tuna.patrolStateTimer > 240 && random < 0.4) { // 4 seconds of cruising
+                        this.transitionPatrolState(tuna, 'searching');
+                    } else if (energyFactor < 0.6 && random < 0.3) { // Low energy, search more
+                        this.transitionPatrolState(tuna, 'searching');
+                    }
+                    break;
+                    
+                case 'investigating':
+                    if (tuna.patrolStateTimer > 120 && random < 0.5) { // 2 seconds of investigating
+                        this.transitionPatrolState(tuna, random < 0.5 ? 'searching' : 'cruising');
+                    }
+                    break;
+            }
+        }
+    }
+    
+    // Transition between patrol states
+    transitionPatrolState(tuna, newState) {
+        tuna.patrolState = newState;
+        tuna.patrolStateTimer = 0;
+        tuna.patrolTransitionCooldown = 60 + Math.random() * 120; // 1-3 seconds between transitions
+        
+        // Initialize new state
+        switch (newState) {
+            case 'searching':
+                tuna.huntingPattern.searchSpiralCenter = { x: tuna.x, y: tuna.y };
+                tuna.huntingPattern.searchSpiralRadius = 50;
+                tuna.huntingPattern.searchSpiralAngle = 0;
+                break;
+                
+            case 'cruising':
+                tuna.huntingPattern.cruiseDirection = Math.random() * Math.PI * 2;
+                break;
+                
+            case 'investigating':
+                // Pick a random nearby point to investigate
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 100 + Math.random() * 200;
+                tuna.huntingPattern.investigationTarget = {
+                    x: tuna.x + Math.cos(angle) * distance,
+                    y: tuna.y + Math.sin(angle) * distance
+                };
+                break;
+        }
+        
+        if (window.gameState && window.gameState.tunaDebug) {
+            console.log(`🐟 Tuna patrol state: ${tuna.patrolState}`);
+        }
+    }
+    
+    // Apply searching behavior - spiral pattern like real predators
+    applySearchingBehavior(tuna) {
+        const pattern = tuna.huntingPattern;
+        
+        // Spiral search pattern
+        pattern.searchSpiralAngle += 0.1; // Spiral speed
+        pattern.searchSpiralRadius = Math.min(250, pattern.searchSpiralRadius + 0.5); // Expanding spiral
+        
+        const targetX = pattern.searchSpiralCenter.x + Math.cos(pattern.searchSpiralAngle) * pattern.searchSpiralRadius;
+        const targetY = pattern.searchSpiralCenter.y + Math.sin(pattern.searchSpiralAngle) * pattern.searchSpiralRadius;
+        
+        const steering = window.Utils.calculateSteering(
+            tuna,
+            { x: targetX, y: targetY },
+            tuna.maxSpeed * 0.6, // Slower, more methodical
+            tuna.maxForce
+        );
+        
+        this.applySmoothForce(tuna, {
+            x: steering.x * 0.8,
+            y: steering.y * 0.8
+        });
+    }
+    
+    // Apply cruising behavior - straight line movement with direction changes
+    applyCruisingBehavior(tuna) {
+        const pattern = tuna.huntingPattern;
+        
+        // Occasional direction changes during cruising
+        if (Math.random() < 0.01) { // 1% chance per frame
+            pattern.cruiseDirection += (Math.random() - 0.5) * 0.5; // Small direction change
+        }
+        
+        const cruiseForce = {
+            x: Math.cos(pattern.cruiseDirection) * 0.8,
+            y: Math.sin(pattern.cruiseDirection) * 0.8
+        };
+        
+        this.applySmoothForce(tuna, cruiseForce);
+    }
+    
+    // Apply investigating behavior - move toward investigation target
+    applyInvestigatingBehavior(tuna) {
+        const pattern = tuna.huntingPattern;
+        
+        if (pattern.investigationTarget) {
+            const steering = window.Utils.calculateSteering(
+                tuna,
+                pattern.investigationTarget,
+                tuna.maxSpeed * 0.9, // Faster, more focused
+                tuna.maxForce
+            );
+            
+            this.applySmoothForce(tuna, {
+                x: steering.x * 1.0,
+                y: steering.y * 1.0
+            });
+            
+            // Check if reached investigation target
+            const dist = window.Utils.distance(tuna, pattern.investigationTarget);
+            if (dist < 30) {
+                pattern.investigationTarget = null; // Clear target when reached
+            }
+        }
+    }
+    
+    // Keep the old method for compatibility but mark as legacy
+    initializePatrolSystem(tuna) {
+        // Legacy method - redirect to new system
+        this.initializeRealisticPatrolSystem(tuna);
     }
     
     // Generate a patrol target that covers more distance
@@ -366,14 +503,15 @@ class TunaSteeringForces {
         }
     }
 
-    // Attempt to eat a target
+    // Attempt to eat a target - ENHANCED for comprehensive predation
     attemptToEat(tuna, target, gameEntities) {
         const preyArrays = [
             { array: gameEntities.fish, name: 'fish' },
             { array: gameEntities.krill, name: 'krill' },
             { array: gameEntities.paleKrill, name: 'paleKrill' },
             { array: gameEntities.momKrill, name: 'momKrill' },
-            { array: gameEntities.fertilizedEggs, name: 'fertilizedEggs' }
+            { array: gameEntities.fertilizedEggs, name: 'fertilizedEggs' },
+            { array: gameEntities.fishEggs, name: 'fishEggs' } // CRITICAL FIX: Add fishEggs to eating logic
         ];
         
         for (let preyGroup of preyArrays) {

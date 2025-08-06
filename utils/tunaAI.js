@@ -170,33 +170,42 @@ class TunaAI {
         this.steeringForces.applyFleeForces(tuna, threats);
     }
     
-    // Target selection and utility methods
+    // Target selection and utility methods - ENHANCED for aggressive predation
     findNearbyPrey(tuna, gameEntities, radius) {
         const nearbyPrey = [];
         const radiusSquared = radius * radius;
         
+        // CRITICAL FIX: Add fishEggs with 50px detection radius as requested
+        // Enhanced prey arrays with specific detection radii for different prey types
         const preyArrays = [
             { array: gameEntities.fish || [], name: 'fish', detectionRadius: radius },
             { array: gameEntities.krill || [], name: 'krill', detectionRadius: radius },
             { array: gameEntities.paleKrill || [], name: 'paleKrill', detectionRadius: radius },
             { array: gameEntities.momKrill || [], name: 'momKrill', detectionRadius: radius },
-            { array: gameEntities.fertilizedEggs || [], name: 'fertilizedEggs', detectionRadius: window.TUNA_CONFIG?.fertilizedEggDetectionRadius || 150 }
+            { array: gameEntities.fertilizedEggs || [], name: 'fertilizedEggs', detectionRadius: window.TUNA_CONFIG?.fertilizedEggDetectionRadius || 150 },
+            { array: gameEntities.fishEggs || [], name: 'fishEggs', detectionRadius: 50 } // NEW: Hunt unfertilized fish eggs with 50px radius
         ];
         
         for (let preyGroup of preyArrays) {
             const detectionRadiusSquared = preyGroup.detectionRadius * preyGroup.detectionRadius;
             
             for (let prey of preyGroup.array) {
-                // Check if this is a TrueFry (they have fishType 'truefry', 'truefry1', or 'truefry2')
-                const isTrueFry = prey.fishType === 'truefry' || prey.fishType === 'truefry1' || prey.fishType === 'truefry2';
+                // CRITICAL FIX: Bypass shouldIgnorePrey for comprehensive fry hunting
+                // Tuna should be aggressive predators that hunt ALL fry types and eggs
+                const isEgg = preyGroup.name === 'fertilizedEggs' || preyGroup.name === 'fishEggs';
+                const isFry = prey.fishType && (prey.fishType.includes('fry') || prey.fishType.includes('truefry'));
+                const isKrill = preyGroup.name.includes('rill');
                 
-                if (window.Utils && !window.Utils.shouldIgnorePrey(tuna.tunaType, prey.fishType)) {
+                // Allow hunting of ALL fry types, eggs, and krill - no behavioral restrictions
+                const shouldHunt = isEgg || isFry || isKrill;
+                
+                if (shouldHunt) {
                     const distSquared = window.Utils.distanceSquared(tuna, prey);
                     if (distSquared < detectionRadiusSquared) {
                         nearbyPrey.push({
                             entity: prey,
                             distance: Math.sqrt(distSquared),
-                            priority: this.calculatePreyPriority(tuna, prey)
+                            priority: this.calculatePreyPriority(tuna, prey, preyGroup.name)
                         });
                     }
                 }
@@ -206,25 +215,50 @@ class TunaAI {
         return nearbyPrey.sort((a, b) => b.priority - a.priority);
     }
     
-    calculatePreyPriority(tuna, prey) {
+    calculatePreyPriority(tuna, prey, preyType = 'unknown') {
         const distance = window.Utils.distance(tuna, prey);
         const maxDistance = this.config.huntRadius;
         
         let priority = 1.0;
         priority *= (maxDistance - distance) / maxDistance;
         
-        const sizeRatio = prey.size / tuna.size;
-        if (sizeRatio > 0.3 && sizeRatio < 0.8) {
-            priority *= 1.5;
-        } else if (sizeRatio < 0.2) {
-            priority *= 0.7;
+        // ENHANCED: Prey-type specific priority bonuses for realistic predation
+        if (preyType === 'fishEggs') {
+            // Fish eggs are easy targets - high priority
+            priority *= 2.0;
+        } else if (preyType === 'fertilizedEggs') {
+            // Fertilized eggs are nutritious - very high priority
+            priority *= 2.5;
+        } else if (prey.fishType && prey.fishType.includes('fry')) {
+            // All fry types are preferred prey - high priority
+            priority *= 1.8;
+        } else if (prey.fishType && prey.fishType.includes('truefry')) {
+            // TrueFry are larger, more nutritious - highest priority
+            priority *= 3.0;
+        } else if (preyType.includes('rill')) {
+            // Krill are small but numerous - medium priority
+            priority *= 1.2;
         }
         
+        // Size-based priority (eggs don't have meaningful size comparison)
+        if (prey.size && tuna.size) {
+            const sizeRatio = prey.size / tuna.size;
+            if (sizeRatio > 0.3 && sizeRatio < 0.8) {
+                priority *= 1.5;
+            } else if (sizeRatio < 0.2) {
+                priority *= 0.7;
+            }
+        }
+        
+        // Hunger increases hunting motivation
         const hungerFactor = 1.0 - (tuna.energy / 100);
         priority *= (1.0 + hungerFactor * 0.5);
         
-        const preySpeed = Math.sqrt(prey.velocity.x ** 2 + prey.velocity.y ** 2);
-        priority *= Math.max(0.5, 1.0 - preySpeed / 10);
+        // Slower prey are easier to catch
+        if (prey.velocity) {
+            const preySpeed = Math.sqrt(prey.velocity.x ** 2 + prey.velocity.y ** 2);
+            priority *= Math.max(0.5, 1.0 - preySpeed / 10);
+        }
         
         return priority;
     }

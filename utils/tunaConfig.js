@@ -25,7 +25,8 @@ const TUNA_CONFIG = {
     attackSpeed: 2.0,
     stateChangeDelay: 30, // frames
     targetSwitchCooldown: 60, // frames
-    fertilizedEggDetectionRadius: 150 // Specific detection radius for fertilized eggs
+    fertilizedEggDetectionRadius: 150, // Specific detection radius for fertilized eggs
+    fishEggDetectionRadius: 50 // ENHANCED: Detection radius for unfertilized fish eggs (as requested)
 };
 
 // Export for global access
