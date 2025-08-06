@@ -45,10 +45,8 @@ class TunaAI {
             }
         }
         
-        if (tuna.energy < this.config.restEnergyThreshold) {
-            this.transitionToState(tuna, this.states.RESTING);
-            return;
-        }
+        // REMOVED: Tuna resting state - was redundant and caused straight-down swimming
+        // Tuna now maintain continuous patrolling behavior for more dynamic gameplay
         
         this.steeringForces.handleWandering(tuna);
     }
@@ -130,34 +128,8 @@ class TunaAI {
         }
     }
     
-    handleResting(tuna, gameEntities) {
-        if (!tuna.restingSpot) {
-            tuna.restingSpot = this.steeringForces.findRestingSpot(tuna);
-        }
-        
-        if (tuna.restingSpot) {
-            const distToRest = window.Utils.distance(tuna, tuna.restingSpot);
-            if (distToRest > 20) {
-                const restForce = window.Utils.calculateSteering(tuna, tuna.restingSpot, tuna.maxSpeed * 0.5, tuna.maxForce);
-                tuna.applyForce({
-                    x: restForce.x * 0.3,
-                    y: restForce.y * 0.3
-                });
-            }
-        }
-        
-        tuna.energy = Math.min(100, tuna.energy + 0.1);
-        
-        if (tuna.energy > 70) {
-            tuna.restingSpot = null;
-            this.transitionToState(tuna, this.states.PATROLLING);
-        }
-        
-        const closePrey = this.findNearbyPrey(tuna, gameEntities, this.config.attackRadius);
-        if (closePrey.length > 0) {
-            this.transitionToState(tuna, this.states.HUNTING, closePrey[0].entity);
-        }
-    }
+    // REMOVED: handleResting method - redundant state that caused poor tuna behavior
+    // Tuna now use continuous patrolling for more natural predator behavior
     
     handleFleeing(tuna, gameEntities) {
         const threats = this.findThreats(tuna, gameEntities);
@@ -309,10 +281,6 @@ class TunaAI {
         switch (newState) {
             case this.states.HUNTING:
                 tuna.alertness = Math.min(1.0, tuna.alertness + 0.2);
-                break;
-            case this.states.RESTING:
-                tuna.alertness = Math.max(0.1, tuna.alertness - 0.3);
-                tuna.currentSpeedBoost = 1.0;
                 break;
             case this.states.FLEEING:
                 tuna.alertness = 1.0;

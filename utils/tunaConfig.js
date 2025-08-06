@@ -6,7 +6,6 @@ const TUNA_STATES = {
     HUNTING: 'hunting',
     ATTACKING: 'attacking',
     FEEDING: 'feeding',
-    RESTING: 'resting',
     FLEEING: 'fleeing'
 };
 
@@ -14,8 +13,7 @@ const TUNA_CONFIG = {
     huntRadius: 300, // Doubled from 150 to 300 for better prey detection
     attackRadius: 40, // Increased from 30 to 40 for better eating success
     fleeRadius: 850, // Increased from 500 to 650 for even earlier threat detection
-    restEnergyThreshold: 30,
-    huntEnergyThreshold: 50,
+    huntEnergyThreshold: 50, // Removed restEnergyThreshold - no more resting state
     maxPredictionTime: 3.0,
     wanderRadius: 100, // Keep for compatibility
     patrolSpeed: 0.9, // Increased from 0.8 for more active patrolling

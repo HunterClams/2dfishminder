@@ -384,16 +384,8 @@ class TunaSteeringForces {
         };
     }
 
-    // Find a good resting spot
-    findRestingSpot(tuna) {
-        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
-        const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
-        
-        return {
-            x: Math.max(100, Math.min(WORLD_WIDTH - 100, tuna.x + (Math.random() - 0.5) * 200)),
-            y: Math.max(WORLD_HEIGHT * 0.6, Math.min(WORLD_HEIGHT - 100, tuna.y + Math.random() * 100))
-        };
-    }
+    // REMOVED: findRestingSpot method - no longer needed without resting state
+    // Tuna now use continuous dynamic patrolling for better predator behavior
 
     // Apply flee forces
     applyFleeForces(tuna, threats) {

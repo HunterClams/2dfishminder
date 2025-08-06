@@ -21,7 +21,7 @@ class TunaBehaviorTree {
         tuna.alertness = 0.5;
         tuna.huntSuccess = 0;
         tuna.lastAttackTime = 0;
-        tuna.restingSpot = null;
+        // REMOVED: restingSpot - no longer needed without resting state
         
         // CRITICAL FIX: Initialize proper velocity for smooth movement
         // Tuna maxSpeed = 3, so set initial velocity to ~70% of max speed for natural patrolling
@@ -66,9 +66,6 @@ class TunaBehaviorTree {
                     break;
                 case window.TUNA_STATES.FEEDING:
                     this.controller.handleFeeding(tuna, gameEntities);
-                    break;
-                case window.TUNA_STATES.RESTING:
-                    this.controller.handleResting(tuna, gameEntities);
                     break;
                 case window.TUNA_STATES.FLEEING:
                     this.controller.handleFleeing(tuna, gameEntities);

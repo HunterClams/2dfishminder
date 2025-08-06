@@ -299,9 +299,6 @@ class TunaRenderingSystem {
                     stateText += ` (${feedingProgress}%)`;
                 }
                 break;
-            case 'resting':
-                stateColor = '#8888ff'; // Purple
-                break;
             case 'fleeing':
                 stateColor = '#ff00ff'; // Magenta
                 break;
