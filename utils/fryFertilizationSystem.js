@@ -243,9 +243,31 @@ class FryFertilizationSystem {
     
     /**
      * End spawning state and return to foraging
+     * ENHANCED: Coordinate with FrySpawningSystem to prevent conflicts
      * @param {Object} fry - The fry to end spawning state for
      */
     endSpawningState(fry) {
+        // CRITICAL FIX: Check if fry should enter spawning cooldown instead of foraging
+        // This prevents conflicts with the FrySpawningSystem cooldown management
+        
+        // If fry has spawning properties and recently spawned, respect the spawning system's cooldown
+        if (fry.spawningProperties && fry.spawningProperties.lastSpawningTime) {
+            const timeSinceSpawn = Date.now() - fry.spawningProperties.lastSpawningTime;
+            const spawningCooldown = 15000; // Match FrySpawningSystem.SPAWNING_COOLDOWN
+            
+            if (timeSinceSpawn < spawningCooldown) {
+                // Let FrySpawningSystem handle the cooldown state
+                if (window.FrySpawningSystem) {
+                    // Don't override - let spawning system manage cooldown
+                    if (window.gameState?.fryDebug) {
+                        console.log(`🐟 Fry fertilization ended, deferring to spawning system cooldown management`);
+                    }
+                    return;
+                }
+            }
+        }
+        
+        // Normal case: return to foraging
         fry.behaviorState = 'foraging';
         
         // CRITICAL FIX: Reset feeding timer to prevent timer/state conflicts

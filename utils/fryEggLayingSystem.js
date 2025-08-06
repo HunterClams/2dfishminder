@@ -265,11 +265,20 @@ class FryEggLayingSystem {
     
     /**
      * Get unique ID for fry (for cooldown tracking)
+     * CRITICAL FIX: Use persistent ID that doesn't change when fry moves
      * @param {Object} fry - The fry entity
      * @returns {string} Unique fry ID
      */
     getFryId(fry) {
-        return `${fry.fishType}_${Math.floor(fry.x)}_${Math.floor(fry.y)}`;
+        // FIXED: Create persistent ID that doesn't change when fry moves
+        // Use same method as FrySpawningSystem for consistency
+        if (!fry._persistentId) {
+            // Generate persistent ID on first access
+            const spawnTime = fry.spawnTime || Date.now();
+            const positionHash = Math.floor(fry.x * 1000 + fry.y * 1000); // More precise hash
+            fry._persistentId = `${fry.fishType}_${spawnTime}_${positionHash}`;
+        }
+        return fry._persistentId;
     }
     
     /**
