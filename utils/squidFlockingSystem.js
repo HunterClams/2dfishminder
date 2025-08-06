@@ -19,7 +19,7 @@ class SquidFlockingSystem {
     }
     
     /**
-     * Main flocking method for squids
+     * Main flocking method for squids with jet-awareness
      * @param {Object} squid - The squid to update
      * @param {Array} allSquids - Array of all squids in the game
      */
@@ -34,20 +34,23 @@ class SquidFlockingSystem {
         // Calculate repulsion forces from nearby squids
         const forces = this.calculateRepulsionForces(squid, allSquids);
         
-        // Apply forces to squid velocity
-        squid.velocity.x += forces.x;
-        squid.velocity.y += forces.y;
+        // CRITICAL FIX: Reduce flocking force intensity to prevent momentum interference
+        // Real squid research shows they maintain individual movement during jet propulsion
+        const flockingIntensity = 0.6; // Reduced from 1.0 to 0.6
         
-        // Limit velocity
-        if (window.Utils && window.Utils.limitVelocity) {
-            window.Utils.limitVelocity(squid.velocity, squid.maxSpeed);
-        }
+        // Apply forces to squid velocity with reduced intensity
+        squid.velocity.x += forces.x * flockingIntensity;
+        squid.velocity.y += forces.y * flockingIntensity;
+        
+        // CRITICAL FIX: Remove velocity limiting from flocking system
+        // Let the jet system handle velocity limiting to prevent double-limiting
+        // This prevents flocking from capping jet propulsion speeds
         
         // Debug logging
         if (window.gameState && window.gameState.squidDebug && squid.stateTimer % 120 === 0) {
             console.log(`🦑 Squid flocking:`, {
                 squidId: squid.x + squid.y,
-                repulsionForces: { x: Math.round(forces.x * 100) / 100, y: Math.round(forces.y * 100) / 100 },
+                repulsionForces: { x: Math.round(forces.x * flockingIntensity * 100) / 100, y: Math.round(forces.y * flockingIntensity * 100) / 100 },
                 currentPosition: { x: Math.round(squid.x), y: Math.round(squid.y) },
                 currentVelocity: { x: Math.round(squid.velocity.x * 100) / 100, y: Math.round(squid.velocity.y * 100) / 100 }
             });

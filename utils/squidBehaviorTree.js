@@ -139,12 +139,20 @@ class SquidBehaviorTree {
     }
 
     /**
-     * Maintain depth preference (stay in deep waters)
+     * Maintain depth preference (stay in deep waters) with jet-awareness
      * @param {Object} squid - The squid entity
      */
     maintainDepth(squid) {
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         const currentDepth = squid.y / WORLD_HEIGHT;
+        
+        // CRITICAL FIX: Check if squid is currently jetting
+        // Don't interfere with jet propulsion by applying competing forces
+        const isJetting = this.controller && this.controller.jetSystem && this.controller.jetSystem.isJetting(squid);
+        if (isJetting) {
+            // Skip depth maintenance during jet propulsion to preserve momentum
+            return;
+        }
         
         // If hunting, be more flexible with depth to reach prey
         const isHunting = squid.state === this.states.HUNTING || squid.state === this.states.ATTACKING;
@@ -190,10 +198,11 @@ class SquidBehaviorTree {
             squid.targetDepth = WORLD_HEIGHT * targetDepthPercent;
         }
         
-        // Apply depth adjustment with reduced intensity when hunting
+        // CRITICAL FIX: Apply depth adjustment with much higher threshold and lower intensity
+        // Reduces interference with horizontal movement
         const depthDiff = squid.targetDepth - squid.y;
-        const adjustmentThreshold = currentDepth < 0.3 ? 50 : this.config.DEPTH_ADJUSTMENT_THRESHOLD;
-        const adjustmentIntensity = isHunting ? 0.2 : (currentDepth < 0.3 ? 0.8 : 0.4); // Reduced when hunting
+        const adjustmentThreshold = currentDepth < 0.3 ? 100 : 300; // Increased from 150 to 300
+        const adjustmentIntensity = isHunting ? 0.1 : (currentDepth < 0.3 ? 0.4 : 0.2); // Reduced intensity
         
         if (Math.abs(depthDiff) > adjustmentThreshold) {
             const direction = { x: 0, y: Math.sign(depthDiff) };

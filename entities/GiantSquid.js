@@ -105,14 +105,15 @@ class GiantSquid extends (window.Entity || Entity) {
                 velocity: { x: Math.round(this.velocity.x * 100) / 100, y: Math.round(this.velocity.y * 100) / 100 },
                 state: this.state,
                 currentSpeed: Math.round(this.currentSpeed * 100) / 100,
-                depth: Math.round((this.y / (window.WORLD_HEIGHT || 8000)) * 100) + '%'
+                depth: Math.round((this.y / (window.WORLD_HEIGHT || 8000)) * 100) + '%',
+                isJetting: this.jetSystem.isJetting(this)
             });
         }
         
         // Update flip cooldown system
         this.updateFacingDirection();
         
-        // Update jet propulsion system
+        // CRITICAL FIX: Update jet system FIRST to preserve momentum
         this.jetSystem.updateJetSystem(this);
         
         // Update bioluminescence system
@@ -121,32 +122,32 @@ class GiantSquid extends (window.Entity || Entity) {
         // Update animation timers
         this.jetSystem.updateAnimationTimers(this);
         
-        // Maintain depth preference (especially important if spawned at surface)
-        this.maintainDepth();
+        // Update behavior tree BEFORE other movement systems
+        this.behaviorTree.updateBehaviorTree(this, fish, predators, krill);
         
-        // Apply squid flocking (repulsion from other squids) - reduced during hunting
+        // CRITICAL FIX: Only apply depth maintenance when NOT jetting
+        // Prevents depth system from interfering with jet propulsion
+        if (!this.jetSystem.isJetting(this)) {
+            this.maintainDepth();
+        }
+        
+        // CRITICAL FIX: Reduce flocking interference during jet propulsion
         if (window.gameEntities && window.gameEntities.squid) {
-            // Only apply full flocking when not hunting or attacking
-            if (this.state !== window.SQUID_STATES.HUNTING && this.state !== window.SQUID_STATES.ATTACKING) {
-                // Debug logging for flocking system
-                if (window.gameState && window.gameState.squidDebug && this.stateTimer % 120 === 0) {
-                    console.log(`🦑 Squid flocking system called:`, {
-                        totalSquids: window.gameEntities.squid.length,
-                        currentSquidPosition: { x: Math.round(this.x), y: Math.round(this.y) },
-                        currentSquidVelocity: { x: Math.round(this.velocity.x * 100) / 100, y: Math.round(this.velocity.y * 100) / 100 }
-                    });
-                }
+            const isJetting = this.jetSystem.isJetting(this);
+            const isActiveMovement = this.state === window.SQUID_STATES.HUNTING || 
+                                   this.state === window.SQUID_STATES.ATTACKING ||
+                                   isJetting;
+            
+            if (!isActiveMovement) {
+                // Full flocking only when not actively moving
                 this.flockingSystem.flock(this, window.gameEntities.squid);
             } else {
-                // Apply minimal flocking during hunting to prevent interference
+                // Minimal flocking during active movement to preserve momentum
                 this.flockingSystem.applyMinimalFlocking(this, window.gameEntities.squid);
             }
         }
         
-        // Update behavior tree
-        this.behaviorTree.updateBehaviorTree(this, fish, predators, krill);
-        
-        // Apply movement physics
+        // Apply movement physics with jet-aware drag
         this.jetSystem.applyMovementPhysics(this);
         
         // Handle world edges

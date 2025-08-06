@@ -114,20 +114,44 @@ class SquidJetSystem {
     }
 
     /**
-     * Apply movement physics
+     * Apply movement physics with jet-aware drag system
      * @param {Object} squid - The squid entity
      */
     applyMovementPhysics(squid) {
-        // Apply drag (squids are not as streamlined as fish)
-        squid.velocity.x *= this.config.DRAG_FACTOR;
-        squid.velocity.y *= this.config.DRAG_FACTOR;
+        const isJetting = this.isJetting(squid);
+        
+        // CRITICAL FIX: Adaptive drag based on jet propulsion state
+        // Real squid research shows reduced drag during jet propulsion due to streamlined body position
+        let dragFactor;
+        if (isJetting) {
+            // Reduced drag during jet propulsion (streamlined position)
+            dragFactor = 0.98; // Much less drag when jetting (2% loss vs 6%)
+        } else {
+            // Normal drag when swimming with fins/tentacles
+            dragFactor = this.config.DRAG_FACTOR; // 0.94
+        }
+        
+        // Apply adaptive drag
+        squid.velocity.x *= dragFactor;
+        squid.velocity.y *= dragFactor;
         
         // Calculate current speed for animation
         squid.currentSpeed = Math.hypot(squid.velocity.x, squid.velocity.y);
         
-        // Limit velocity
+        // CRITICAL FIX: Jet-aware velocity limiting
+        // During jet propulsion, allow higher speeds (burst capability)
+        let maxSpeed;
+        if (isJetting) {
+            // Allow burst speed during jet propulsion
+            maxSpeed = this.config.BURST_SPEED || squid.maxSpeed * 1.5;
+        } else {
+            // Normal max speed for fin/tentacle movement
+            maxSpeed = squid.maxSpeed;
+        }
+        
+        // Apply velocity limiting
         if (window.Utils && window.Utils.limitVelocity) {
-            window.Utils.limitVelocity(squid.velocity, squid.maxSpeed);
+            window.Utils.limitVelocity(squid.velocity, maxSpeed);
         }
     }
 
