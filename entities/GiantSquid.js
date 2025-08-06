@@ -251,36 +251,57 @@ class GiantSquid extends (window.Entity || Entity) {
     
     /**
      * Update facing direction with cooldown to prevent rapid flipping
+     * ENHANCED: Now accounts for diagonal sprite orientation
      */
     updateFacingDirection() {
         const currentTime = Date.now();
         
         // Only update facing direction if enough time has passed since last flip (1 second cooldown)
         if (currentTime - this.lastFlipTime >= this.FLIP_COOLDOWN) {
-            // Determine desired direction based on velocity
-            let desiredDirection = 1; // Default to right
-            if (this.velocity.x < -0.5) { // Increased threshold to avoid flipping on tiny movements
-                desiredDirection = -1; // Left
-            } else if (this.velocity.x > 0.5) {
-                desiredDirection = 1; // Right
-            }
-            // If velocity is very small, keep current direction
+            // CRITICAL FIX: Calculate movement angle to determine proper facing for diagonal sprite
+            // Your sprite has head in top-right, tentacles in bottom-left (diagonal orientation)
+            const movementAngle = Math.atan2(this.velocity.y, this.velocity.x);
+            const speed = Math.hypot(this.velocity.x, this.velocity.y);
             
-            // Only flip if direction actually needs to change and velocity is significant
-            if (desiredDirection !== this.facingDirection && Math.abs(this.velocity.x) > 0.5) {
-                this.facingDirection = desiredDirection;
-                this.lastFlipTime = currentTime;
+            // Only update if moving fast enough to have a clear direction
+            if (speed > 0.5) {
+                // ENHANCED LOGIC: Determine flip based on diagonal sprite orientation
+                // For diagonal sprite (head top-right), we need to flip when movement is toward top-left quadrant
+                // Movement angles: Right=0°, Down=90°, Left=180°, Up=270° (in radians: 0, π/2, π, 3π/2)
                 
-                // Debug logging for flip events (only when debug is enabled)
-                if (window.gameState && window.gameState.squidDebug) {
-                    console.log(`🦑 Squid flipped to face ${this.facingDirection === 1 ? 'right' : 'left'} at velocity ${Math.round(this.velocity.x * 100) / 100}, cooldown: ${this.FLIP_COOLDOWN}ms`);
+                let desiredDirection = 1; // Default to right (no flip)
+                
+                // Convert angle to degrees for easier understanding
+                const angleDegrees = (movementAngle * 180 / Math.PI + 360) % 360;
+                
+                // DIAGONAL SPRITE FLIP LOGIC:
+                // - Head is in top-right of sprite
+                // - When moving toward top-left quadrant (135° to 315°), flip sprite
+                // - This makes the head point toward movement direction
+                if (angleDegrees > 90 && angleDegrees < 270) {
+                    desiredDirection = -1; // Flip sprite
+                } else {
+                    desiredDirection = 1; // Don't flip sprite
+                }
+                
+                // Only flip if direction actually needs to change
+                if (desiredDirection !== this.facingDirection) {
+                    this.facingDirection = desiredDirection;
+                    this.lastFlipTime = currentTime;
+                    
+                    // Debug logging for flip events (only when debug is enabled)
+                    if (window.gameState && window.gameState.squidDebug) {
+                        console.log(`🦑 Squid flipped to face ${this.facingDirection === 1 ? 'right' : 'left'} at angle ${angleDegrees.toFixed(1)}°, velocity (${Math.round(this.velocity.x * 100) / 100}, ${Math.round(this.velocity.y * 100) / 100})`);
+                    }
                 }
             }
         } else {
             // Debug logging for cooldown prevention (only when debug is enabled)
-            if (window.gameState && window.gameState.squidDebug && Math.abs(this.velocity.x) > 0.5) {
+            const speed = Math.hypot(this.velocity.x, this.velocity.y);
+            if (window.gameState && window.gameState.squidDebug && speed > 0.5) {
                 const timeRemaining = this.FLIP_COOLDOWN - (currentTime - this.lastFlipTime);
-                console.log(`🦑 Squid flip blocked by cooldown: ${timeRemaining.toFixed(0)}ms remaining, velocity: ${Math.round(this.velocity.x * 100) / 100}`);
+                const angleDegrees = (Math.atan2(this.velocity.y, this.velocity.x) * 180 / Math.PI + 360) % 360;
+                console.log(`🦑 Squid flip blocked by cooldown: ${timeRemaining.toFixed(0)}ms remaining, angle: ${angleDegrees.toFixed(1)}°`);
             }
         }
         // If cooldown is still active, maintain current facing direction
