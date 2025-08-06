@@ -2,7 +2,7 @@
 const SquidUtils = {
     // Squid movement constants
     CONSTANTS: {
-        JET_FORCE_MULTIPLIER: 1.68,
+        JET_FORCE_MULTIPLIER: 3.36, // Increased from 1.68 to 3.36 (2x speed boost)
         FIN_FORCE_MULTIPLIER: 0.315,
         TENTACLE_FORCE_MULTIPLIER: 0.168,
         DRAG_COEFFICIENT: 0.94,
