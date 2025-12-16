@@ -222,7 +222,7 @@ class GameEntities {
     // Fallback spawning method (original implementation)
     initializeEcosystemFallback() {
         // Create initial fish population
-        for (let i = 0; i < 230; i++) {
+        for (let i = 0; i < 180; i++) {
             const fishType = Math.random() < 0.4 ? window.FISH_TYPES.SMALL_FRY_2 : 
                            Math.random() < 0.5 ? window.FISH_TYPES.SMALL_FRY_3 : 
                            window.FISH_TYPES.SMALL_FRY_4;

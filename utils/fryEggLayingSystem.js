@@ -134,18 +134,14 @@ class FryEggLayingSystem {
         for (let otherFry of allFry) {
             // Skip self and TrueFry
             if (otherFry === fry || otherFry.fishType === 'truefry1' || otherFry.fishType === 'truefry2') {
-                continue;
-            }
-            
-            // Only count fry in feeding state
-            if (otherFry.behaviorState !== 'feeding') {
-                continue;
-            }
-            
-            const distance = Math.sqrt((fry.x - otherFry.x) ** 2 + (fry.y - otherFry.y) ** 2);
-            
-            if (distance < this.config.DETECTION_RANGE) {
-                nearbyFry.push(otherFry);
+                // Skip this fry
+            } else if (otherFry.behaviorState === 'feeding') {
+                // Only count fry in feeding state
+                const distance = Math.sqrt((fry.x - otherFry.x) ** 2 + (fry.y - otherFry.y) ** 2);
+                
+                if (distance < this.config.DETECTION_RANGE) {
+                    nearbyFry.push(otherFry);
+                }
             }
         }
         

@@ -50,7 +50,8 @@ window.FISH_TYPES = FISH_TYPES;
 const gameState = {
     spawnMode: 'off',
     showUI: true,
-    hudState: 'full', // 'controls', 'full', or 'off'
+    hudState: 'off', // 'off' by default, controls only in pause menu
+    paused: false,
     lastFrameTime: 0,
     frameCount: 0,
     fryDebug: true, // Enable fry movement debugging
@@ -130,6 +131,8 @@ const spriteFiles = {
     tunaEaten: 'tuna eaten.png', // Tuna eaten overlay sprite
     fishFood: 'fishFood.png', fishEgg: 'fishEgg.png', fishSperm: 'fishsperm.png', fertilizedEgg: 'fertilizedegg.png', poop: 'poop.png', poop2: 'poop2.png', poop3: 'poop3.png',
     krill1: 'krill1.png', krill2: 'krill2.png', krill3: 'krill3.png', krillSpawnIcon: 'krillSpawnIcon.png',
+    // Lone krill variant - smaller, more solitary
+    lonekrill1: 'lonekrill1.png', lonekrill2: 'lonekrill2.png', lonekrill3: 'lonekrill3.png',
     // Pale krill variant - lighter, more translucent
     paleKrill1: 'pale krill1.png', paleKrill2: 'pale krill2.png', paleKrill3: 'pale krill3.png',
     // Tiger krill variant - striped, more aggressive
@@ -256,8 +259,17 @@ function drawBorders() {
 
 // Input handling now loaded from inputUtils.js
 const inputHandler = window.createInputHandler(keys, gameState);
-// Add wheel handler with proper parameters
-inputHandler.handleWheel = (event) => window.handleCameraZoom(event, camera, canvas, CONSTANTS);
+// Override wheel handler to check spawn mode and handle zoom or cycling
+inputHandler.handleWheel = (event) => {
+    // If spawn mode is active, use scroll wheel to cycle through spawn options
+    if (gameState.spawnMode !== 'off') {
+        event.preventDefault();
+        window.cycleSpawnMode(gameState, event.deltaY < 0 ? 'forward' : 'backward');
+    } else {
+        // Normal zoom behavior when spawn mode is off
+        window.handleCameraZoom(event, camera, canvas, CONSTANTS);
+    }
+};
 window.setupInputListeners(inputHandler, canvas);
 
 // Mouse tracking using input utils
@@ -307,6 +319,12 @@ canvas.addEventListener('click', (event) => {
 
 // Highly optimized animation loop with frame limiting and optimization systems
 function animate(currentTime = 0) {
+    // Check if game is paused
+    if (gameState.paused) {
+        requestAnimationFrame(animate);
+        return;
+    }
+    
     // Frame rate limiting
     if (currentTime - gameState.lastFrameTime < 1000 / CONSTANTS.UPDATE_FREQUENCY) {
         requestAnimationFrame(animate);
@@ -391,18 +409,9 @@ function animate(currentTime = 0) {
         cameraFollowSystem.drawDebug(ctx);
     }
     
-    // Draw controls and spawn UI when hudState is 'controls' or 'full'
-    if (!gameState.hudState) gameState.hudState = 'controls'; // Initialize if not set
-    if (gameState.hudState === 'controls' || gameState.hudState === 'full') {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.font = '16px Arial';
-        ctx.fillText(`Zoom: ${camera.zoom.toFixed(1)}x`, 10, 25);
-        ctx.fillText('WASD: Move | Wheel: Zoom | F: Spawn Mode | H: Hide UI | T: Cycle Behaviour State (Tuna→Squid→Fry→Krill→Off)', 10, 45);
-        
-        // Use modular UI rendering system
-        if (window.uiRenderingSystem) {
-            window.uiRenderingSystem.drawUIModeIndicators(ctx, gameState.spawnMode, sprites);
-        }
+    // Draw spawn mode indicators (visual indicators only, controls are in pause menu)
+    if (window.uiRenderingSystem && gameState.hudState === 'full') {
+        window.uiRenderingSystem.drawUIModeIndicators(ctx, gameState.spawnMode, sprites);
     }
     
     requestAnimationFrame(animate);

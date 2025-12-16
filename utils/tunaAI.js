@@ -147,29 +147,26 @@ class TunaAI {
         const nearbyPrey = [];
         const radiusSquared = radius * radius;
         
-        // CRITICAL FIX: Add fishEggs with 50px detection radius as requested
+        // Tuna should only hunt fry variants and eggs, NOT krill
         // Enhanced prey arrays with specific detection radii for different prey types
         const preyArrays = [
             { array: gameEntities.fish || [], name: 'fish', detectionRadius: radius },
-            { array: gameEntities.krill || [], name: 'krill', detectionRadius: radius },
-            { array: gameEntities.paleKrill || [], name: 'paleKrill', detectionRadius: radius },
-            { array: gameEntities.momKrill || [], name: 'momKrill', detectionRadius: radius },
             { array: gameEntities.fertilizedEggs || [], name: 'fertilizedEggs', detectionRadius: window.TUNA_CONFIG?.fertilizedEggDetectionRadius || 150 },
-            { array: gameEntities.fishEggs || [], name: 'fishEggs', detectionRadius: 50 } // NEW: Hunt unfertilized fish eggs with 50px radius
+            { array: gameEntities.fishEggs || [], name: 'fishEggs', detectionRadius: 50 } // Hunt unfertilized fish eggs with 50px radius
         ];
         
         for (let preyGroup of preyArrays) {
             const detectionRadiusSquared = preyGroup.detectionRadius * preyGroup.detectionRadius;
             
             for (let prey of preyGroup.array) {
-                // CRITICAL FIX: Bypass shouldIgnorePrey for comprehensive fry hunting
-                // Tuna should be aggressive predators that hunt ALL fry types and eggs
+                // Tuna should be aggressive predators that hunt ALL fry types and eggs, NOT krill
                 const isEgg = preyGroup.name === 'fertilizedEggs' || preyGroup.name === 'fishEggs';
-                const isFry = prey.fishType && (prey.fishType.includes('fry') || prey.fishType.includes('truefry'));
-                const isKrill = preyGroup.name.includes('rill');
+                // Check for fry types - more robust check
+                const fishType = prey.fishType ? String(prey.fishType).toLowerCase() : '';
+                const isFry = fishType.includes('fry') || fishType.includes('smallfry') || fishType.includes('truefry');
                 
-                // Allow hunting of ALL fry types, eggs, and krill - no behavioral restrictions
-                const shouldHunt = isEgg || isFry || isKrill;
+                // Allow hunting of ALL fry types and eggs only - no krill
+                const shouldHunt = isEgg || isFry;
                 
                 if (shouldHunt) {
                     const distSquared = window.Utils.distanceSquared(tuna, prey);

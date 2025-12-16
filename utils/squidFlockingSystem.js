@@ -5,7 +5,7 @@ class SquidFlockingSystem {
     constructor() {
         this.constants = {
             REPULSION_RADIUS: 200, // Increased from 80 to 200 for more noticeable repulsion
-            REPULSION_FORCE: 2.0, // Increased from 0.8 to 2.0 for stronger repulsion
+            REPULSION_FORCE: 6.0, // Increased by 3x (was 2.0, now 6.0) for much stronger repulsion
             MAX_FORCE: 0.3, // Increased from 0.1 to 0.3 for stronger movement
             RANDOM_FORCE: 0.05 // Increased from 0.02 to 0.05 for more movement
         };

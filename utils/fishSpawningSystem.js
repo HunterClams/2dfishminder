@@ -21,19 +21,19 @@ class FishSpawningSystem {
             [window.FISH_TYPES.SMALL_FRY_2]: {
                 preferredZone: 'SURFACE',
                 spawnZone: 'surface',
-                count: 80,
+                count: 60,
                 preferredDepth: 0.2
             },
             [window.FISH_TYPES.SMALL_FRY_3]: {
                 preferredZone: 'MID', 
                 spawnZone: 'mid',
-                count: 75,
+                count: 60,
                 preferredDepth: 0.4
             },
             [window.FISH_TYPES.SMALL_FRY_4]: {
                 preferredZone: 'SURFACE',
                 spawnZone: 'surface', 
-                count: 75,
+                count: 60,
                 preferredDepth: 0.2
             },
             

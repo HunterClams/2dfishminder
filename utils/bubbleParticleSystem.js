@@ -98,7 +98,7 @@ class BubbleParticleSystem {
             }
             
             // Skip if sprites not loaded yet
-            if (!baseSprite) continue;
+            if (!baseSprite) return;
             
             // Draw base sprite
             ctx.drawImage(baseSprite, 2, 2, config.size, config.size);

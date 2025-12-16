@@ -65,6 +65,7 @@ class KrillBehaviorTree {
         this.lastStateChangeTime = Date.now();
         this.stateHistory = [];
         this.maxStateHistory = 10;
+        this.previousState = null;
     }
     
     // Main decision tree for krill behavior
@@ -87,13 +88,23 @@ class KrillBehaviorTree {
             return this.changeState(KRILL_STATES.EATING);
         }
         
-        // Post-migration resting - high priority after migration
+        // Post-migration pause - use swarming instead of resting, then resume migration
         if (this.krill.wasMigrating && this.krill.energy < KRILL_CONFIG.ENERGY_RECOVERY) {
-            return this.changeState(KRILL_STATES.RESTING);
+            // Mark duration-based pause (old post-migration rest)
+            this.krill.migrationPauseType = 'duration';
+            this.krill.resumeMigrationAfterPause = true;
+            return this.changeState(KRILL_STATES.SWARMING);
         }
         
         // Energy-based state decisions
         if (this.krill.energy < KRILL_CONFIG.REST_THRESHOLD) {
+            // During migration, pause by swarming instead of resting
+            if (this.krill.behaviorState === KRILL_STATES.MIGRATING || this.krill.wasMigrating) {
+                // Mark energy-based pause; resume when energy recovers
+                this.krill.migrationPauseType = 'energy';
+                this.krill.resumeMigrationAfterPause = true;
+                return this.changeState(KRILL_STATES.SWARMING);
+            }
             return this.changeState(KRILL_STATES.RESTING);
         }
         
@@ -129,6 +140,8 @@ class KrillBehaviorTree {
                 this.stateHistory.shift();
             }
             
+            // Track previous state for transition-aware logic
+            this.previousState = this.krill.behaviorState;
             this.krill.behaviorState = newState;
             this.lastStateChangeTime = Date.now();
             this.onStateChange(newState);
@@ -149,6 +162,14 @@ class KrillBehaviorTree {
             case KRILL_STATES.SWARMING:
                 this.krill.swarmCenter = null;
                 this.krill.swarmSize = 0;
+                // If we paused migration due to low energy, use swarming as the pause state
+                if (this.previousState === KRILL_STATES.MIGRATING) {
+                    this.krill.postMigrationRest = true;
+                    this.krill.postMigrationRestStart = Date.now();
+                    // Prevent immediate re-trigger loops
+                    this.krill.wasMigrating = false;
+                    this.krill.resumeMigrationAfterPause = true;
+                }
                 break;
             case KRILL_STATES.MIGRATING:
                 this.krill.migrationTarget = null;
@@ -159,9 +180,13 @@ class KrillBehaviorTree {
                 this.krill.restStartTime = Date.now();
                 // Check if this is post-migration rest
                 if (this.krill.wasMigrating) {
+                    // We now prefer swarming as the pause state; mark flags but do not remain resting
                     this.krill.postMigrationRest = true;
                     this.krill.postMigrationRestStart = Date.now();
+                    this.krill.resumeMigrationAfterPause = true;
                     this.krill.wasMigrating = false; // Reset migration flag
+                    // Immediately switch to swarming to represent the pause behavior
+                    this.krill.behaviorState = KRILL_STATES.SWARMING;
                 }
                 break;
         }
@@ -411,6 +436,7 @@ class KrillAI {
                 break;
                 
             case KRILL_STATES.RESTING:
+                // Resting path retained for non-migration-related rests, but migration pauses use swarming
                 this.calculateRestingForces(krill, nearbyKrill, forces);
                 break;
         }
@@ -487,6 +513,35 @@ class KrillAI {
                 forces.swarmCohesion.y = (dy / distance) * KRILL_CONFIG.WEIGHTS.SWARM_COHESION;
             }
         }
+
+        // If swarming is used as a migration pause, either wait a duration or until energy recovers, then resume
+        if (krill.resumeMigrationAfterPause) {
+            if (krill.migrationPauseType === 'duration' && krill.postMigrationRest) {
+                const restDuration = Date.now() - (krill.postMigrationRestStart || 0);
+                if (restDuration < KRILL_CONFIG.POST_MIGRATION_REST_DURATION) {
+                    // Recover some energy during the pause
+                    krill.energy = Math.min(1.0, krill.energy + KRILL_CONFIG.POST_MIGRATION_REST_ENERGY_GAIN);
+                } else {
+                    // Duration-based pause complete - resume migration
+                    krill.postMigrationRest = false;
+                    krill.postMigrationRestStart = null;
+                    krill.resumeMigrationAfterPause = false;
+                    krill.migrationPauseType = null;
+                    krill.wasMigrating = true;
+                    krill.behaviorState = KRILL_STATES.MIGRATING;
+                }
+            } else if (krill.migrationPauseType === 'energy') {
+                // Recover energy during swarming pause
+                krill.energy = Math.min(1.0, krill.energy + KRILL_CONFIG.POST_MIGRATION_REST_ENERGY_GAIN);
+                if (krill.energy > KRILL_CONFIG.ENERGY_RECOVERY) {
+                    // Energy-based pause complete - resume migration
+                    krill.resumeMigrationAfterPause = false;
+                    krill.migrationPauseType = null;
+                    krill.wasMigrating = true;
+                    krill.behaviorState = KRILL_STATES.MIGRATING;
+                }
+            }
+        }
     }
     
     calculateMigrationForces(krill, nearbyKrill, forces) {
@@ -498,18 +553,67 @@ class KrillAI {
         krill.migrationPhase = this.calculateMigrationPhase(); // Update phase continuously
         const phase = krill.migrationPhase;
         
-        let targetDepth;
+        let baseTargetDepth;
         if (phase > 0.3 && phase < 0.7) {
             // Migration upward phase (40% of cycle)
-            targetDepth = WORLD_HEIGHT * KRILL_CONFIG.SURFACE_MIGRATION_DEPTH;
+            baseTargetDepth = WORLD_HEIGHT * KRILL_CONFIG.SURFACE_MIGRATION_DEPTH;
         } else {
             // Return to deep water phase (60% of cycle)
-            targetDepth = WORLD_HEIGHT * KRILL_CONFIG.DEEP_WATER_PREFERENCE;
+            baseTargetDepth = WORLD_HEIGHT * KRILL_CONFIG.DEEP_WATER_PREFERENCE;
         }
         
-        // Apply stronger migration force
+        // Add individual depth variation per krill to prevent all stacking at same Y
+        // Use krill's wanderOffset as a seed for consistent per-krill variation
+        // Use both sine and cosine for better distribution, increased to ±500 pixels
+        const timeOffset = (krill.wanderOffset || 0) + Date.now() * 0.0001;
+        const depthVariation = (Math.sin(timeOffset) + Math.cos(timeOffset * 1.7)) * 250; // ±500 pixels variation with better distribution
+        const targetDepth = baseTargetDepth + depthVariation;
+        
+        // Apply migration force (slightly reduced to allow separation to work better)
         const depthDiff = krill.y - targetDepth;
-        forces.migration.y = -depthDiff * KRILL_CONFIG.WEIGHTS.MIGRATION * 0.02; // Doubled from 0.01
+        forces.migration.y = -depthDiff * KRILL_CONFIG.WEIGHTS.MIGRATION * 0.015; // Reduced from 0.02 to allow separation
+        
+        // Add horizontal spread during migration to prevent vertical stacking
+        const horizontalWanderAngle = (krill.wanderOffset || 0) + Date.now() * 0.0003;
+        forces.wandering.x = Math.cos(horizontalWanderAngle) * 0.5; // Horizontal spread force
+        
+        // Add small random movement during migration to break up stacking
+        // Use a seed based on krill's offset for consistent randomness per krill
+        const randomSeed = ((krill.wanderOffset || 0) + Date.now() * 0.001) % (Math.PI * 2);
+        const randomAngle = randomSeed + Math.random() * 0.7; // Increased random variation
+        const randomStrength = 0.22; // Slightly increased random movement strength
+        forces.wandering.x += Math.cos(randomAngle) * randomStrength;
+        forces.wandering.y += Math.sin(randomAngle) * randomStrength * 0.7; // Less vertical randomness to maintain migration direction
+        
+        // Additional separation force for very close krill during migration to prevent stacking
+        // This works alongside the basic flocking separation but is stronger
+        let closeSeparationX = 0;
+        let closeSeparationY = 0;
+        let closeSeparationCount = 0;
+        const closeSeparationDistance = 50; // Check within 50 pixels
+        for (let other of nearbyKrill) {
+            if (other === krill) continue;
+            const dx = krill.x - other.x;
+            const dy = krill.y - other.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance > 0 && distance < closeSeparationDistance) {
+                // Strong repulsion - stronger when closer
+                const repulsionStrength = (1 - distance / closeSeparationDistance) * 5.0;
+                closeSeparationX += (dx / distance) * repulsionStrength;
+                closeSeparationY += (dy / distance) * repulsionStrength;
+                closeSeparationCount++;
+            }
+        }
+        
+        // Add additional separation to existing separation forces
+        if (closeSeparationCount > 0) {
+            closeSeparationX /= closeSeparationCount;
+            closeSeparationY /= closeSeparationCount;
+            // Add to existing separation (don't override, but strengthen it)
+            forces.separation.x += closeSeparationX * 0.3;
+            forces.separation.y += closeSeparationY * 0.3;
+        }
         
         // Override depth preference during migration
         forces.depthPreference.y = 0; // Disable depth preference force during migration

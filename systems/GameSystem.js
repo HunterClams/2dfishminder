@@ -145,7 +145,7 @@ class GameSystem {
 
         // Create initial boids (small fish)
         const fishTypes = [FISH_TYPES.SMALL_FRY_2, FISH_TYPES.SMALL_FRY_3, FISH_TYPES.SMALL_FRY_4];
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < 0; i++) {
             const fishType = fishTypes[Math.floor(Math.random() * fishTypes.length)];
             const x = Math.random() * WORLD_WIDTH;
             const y = Math.random() * WORLD_HEIGHT;

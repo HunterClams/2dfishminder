@@ -1,29 +1,69 @@
 // Input utilities for keyboard and mouse handling
 // Manages game controls and spawn mode cycling
 
+// Spawn mode order for cycling (excluding 'off' for wheel cycling)
+const SPAWN_MODE_ORDER = ['off', 'food', 'poop', 'truefry1', 'truefry2', 'fishEggs', 'sperm', 'fertilizedEggs', 'krill', 'fry', 'tuna', 'squid'];
+const SPAWN_MODE_CYCLE = ['food', 'poop', 'truefry1', 'truefry2', 'fishEggs', 'sperm', 'fertilizedEggs', 'krill', 'fry', 'tuna', 'squid'];
+
+// Cycle spawn mode forward or backward (wraps around, skipping 'off')
+function cycleSpawnMode(gameState, direction) {
+    // If currently 'off', start at 'food' when cycling forward
+    if (gameState.spawnMode === 'off') {
+        gameState.spawnMode = 'food';
+        if (window.cameraFollowSystem) {
+            window.cameraFollowSystem.stopFollowing();
+        }
+        return;
+    }
+    
+    const currentIndex = SPAWN_MODE_CYCLE.indexOf(gameState.spawnMode);
+    if (currentIndex === -1) {
+        // If current mode not found in cycle, default to 'food'
+        gameState.spawnMode = 'food';
+        if (window.cameraFollowSystem) {
+            window.cameraFollowSystem.stopFollowing();
+        }
+        return;
+    }
+    
+    let newIndex;
+    if (direction === 'forward') {
+        // Scroll up: move forward in the cycle (wraps to food from squid)
+        newIndex = (currentIndex + 1) % SPAWN_MODE_CYCLE.length;
+    } else {
+        // Scroll down: move backward in the cycle (wraps to squid from food)
+        newIndex = (currentIndex - 1 + SPAWN_MODE_CYCLE.length) % SPAWN_MODE_CYCLE.length;
+    }
+    
+    gameState.spawnMode = SPAWN_MODE_CYCLE[newIndex];
+    
+    // Stop camera following when spawn mode is activated
+    if (window.cameraFollowSystem) {
+        window.cameraFollowSystem.stopFollowing();
+    }
+}
+
 // Create input handler object
 function createInputHandler(keys, gameState) {
     return {
         handleKeyDown(event) {
             const key = event.key.toLowerCase();
-            if (key === 'h') {
-                // Cycle through HUD states: controls only -> controls + tracking -> off -> repeat
-                if (!gameState.hudState) gameState.hudState = 'controls'; // Initialize if not set
-                
-                if (gameState.hudState === 'controls') {
-                    gameState.hudState = 'full'; // Show controls + tracking
-                } else if (gameState.hudState === 'full') {
-                    gameState.hudState = 'off';
-                } else {
-                    gameState.hudState = 'controls';
+            if (event.key === 'Escape') {
+                // Toggle pause menu
+                gameState.paused = !gameState.paused;
+                const pauseMenu = document.getElementById('pauseMenu');
+                if (pauseMenu) {
+                    pauseMenu.style.display = gameState.paused ? 'flex' : 'none';
                 }
+                event.preventDefault();
+            } else if (key === 'h') {
+                // Toggle entity counter display (minimal UI only, controls are in pause menu)
+                if (!gameState.hudState) gameState.hudState = 'off'; // Initialize if not set
                 
-                // Update HTML UI elements visibility based on state
-                const instructions = document.querySelector('.instructions');
-                
-                if (instructions) {
-                    // Show instructions for both 'controls' and 'full' states
-                    instructions.style.display = (gameState.hudState !== 'off') ? 'block' : 'none';
+                if (gameState.hudState === 'off') {
+                    gameState.hudState = 'full'; // Show entity counter
+                } else {
+                    gameState.hudState = 'off'; // Hide entity counter
                 }
                 
                 // Update legacy showUI for compatibility
@@ -32,39 +72,27 @@ function createInputHandler(keys, gameState) {
                 console.log(`🎮 HUD State: ${gameState.hudState}`);
                 event.preventDefault();
             } else if (key === 'f') {
-                // Cycle through spawn modes: off -> food -> poop -> truefry1 -> truefry2 -> fish eggs -> sperm -> fertilized eggs -> krill -> fry -> tuna -> squid -> off
+                // Toggle spawn mode on/off
                 if (gameState.spawnMode === 'off') {
+                    // Activate spawn mode (start at 'food')
                     gameState.spawnMode = 'food';
-                } else if (gameState.spawnMode === 'food') {
-                    gameState.spawnMode = 'poop';
-                } else if (gameState.spawnMode === 'poop') {
-                    gameState.spawnMode = 'truefry1';
-                } else if (gameState.spawnMode === 'truefry1') {
-                    gameState.spawnMode = 'truefry2';
-                } else if (gameState.spawnMode === 'truefry2') {
-                    gameState.spawnMode = 'fishEggs';
-                } else if (gameState.spawnMode === 'fishEggs') {
-                    gameState.spawnMode = 'sperm';
-                } else if (gameState.spawnMode === 'sperm') {
-                    gameState.spawnMode = 'fertilizedEggs';
-                } else if (gameState.spawnMode === 'fertilizedEggs') {
-                    gameState.spawnMode = 'krill';
-                } else if (gameState.spawnMode === 'krill') {
-                    gameState.spawnMode = 'fry';
-                } else if (gameState.spawnMode === 'fry') {
-                    gameState.spawnMode = 'tuna';
-                } else if (gameState.spawnMode === 'tuna') {
-                    gameState.spawnMode = 'squid';
+                    // Stop camera following when spawn mode is activated
+                    if (window.cameraFollowSystem) {
+                        window.cameraFollowSystem.stopFollowing();
+                    }
                 } else {
+                    // Deactivate spawn mode
                     gameState.spawnMode = 'off';
                 }
-                
-                // Stop camera following when spawn mode is activated
-                if (window.cameraFollowSystem && gameState.spawnMode !== 'off') {
-                    window.cameraFollowSystem.stopFollowing();
-                }
-                
                 event.preventDefault();
+            } else if (event.key === 'ArrowRight' && gameState.spawnMode !== 'off') {
+                // Right arrow: cycle spawn mode forward (same as scroll up)
+                event.preventDefault();
+                cycleSpawnMode(gameState, 'forward');
+            } else if (event.key === 'ArrowLeft' && gameState.spawnMode !== 'off') {
+                // Left arrow: cycle spawn mode backward (same as scroll down)
+                event.preventDefault();
+                cycleSpawnMode(gameState, 'backward');
             } else if (key === 'r' && event.ctrlKey) {
                 // Reset player spawn statistics (Ctrl+R)
                 if (window.entityCounter) {
@@ -103,8 +131,13 @@ function createInputHandler(keys, gameState) {
             }
         },
         
-        handleWheel(event, camera, canvas, constants) {
-            window.handleCameraZoom(event, camera, canvas, constants);
+        handleWheel(event) {
+            // If spawn mode is active, use scroll wheel to cycle through spawn options
+            if (gameState.spawnMode !== 'off') {
+                event.preventDefault();
+                cycleSpawnMode(gameState, event.deltaY < 0 ? 'forward' : 'backward');
+            }
+            // Note: Normal zoom is handled by the override in game.js when spawn mode is off
         }
     };
 }
@@ -159,4 +192,5 @@ window.createInputHandler = createInputHandler;
 window.setupInputListeners = setupInputListeners;
 window.setupMouseTracking = setupMouseTracking;
 window.getSpawnModeInfo = getSpawnModeInfo;
-window.removeInputListeners = removeInputListeners; 
+window.removeInputListeners = removeInputListeners;
+window.cycleSpawnMode = cycleSpawnMode; 

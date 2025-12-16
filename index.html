@@ -30,6 +30,98 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(10px);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: none; /* Hidden by default, only shown in pause menu */
+        }
+        
+        #pauseMenu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            display: none;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(1px);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .pause-content {
+            background: linear-gradient(135deg, rgba(0, 20, 40, 0.95), rgba(0, 40, 80, 0.95));
+            padding: 40px;
+            border-radius: 16px;
+            border: 2px solid rgba(0, 150, 255, 0.5);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7);
+            max-width: 400px;
+            width: auto;
+            max-height: 90vh;
+            overflow-y: auto;
+            margin-right: 20px;
+        }
+        
+        #pauseMenu .instructions {
+            display: block !important;
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            margin: 0;
+            max-width: 320px;
+        }
+        
+        .pause-title {
+            text-align: center;
+            color: #00ccff;
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .pause-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .pause-button {
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: 600;
+            border: 2px solid rgba(0, 150, 255, 0.5);
+            border-radius: 8px;
+            background: linear-gradient(135deg, rgba(0, 50, 100, 0.8), rgba(0, 80, 150, 0.8));
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .pause-button:hover {
+            background: linear-gradient(135deg, rgba(0, 80, 150, 0.9), rgba(0, 120, 200, 0.9));
+            border-color: rgba(0, 200, 255, 0.8);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 150, 255, 0.4);
+        }
+        
+        .pause-button:active {
+            transform: translateY(0);
+        }
+        
+        .pause-button.resume {
+            background: linear-gradient(135deg, rgba(0, 150, 50, 0.8), rgba(0, 200, 80, 0.8));
+            border-color: rgba(0, 255, 100, 0.5);
+        }
+        
+        .pause-button.reset {
+            background: linear-gradient(135deg, rgba(150, 50, 0, 0.8), rgba(200, 80, 0, 0.8));
+            border-color: rgba(255, 100, 0, 0.5);
         }
         
         .instructions h3 {
@@ -200,20 +292,24 @@
             }
         }
     </style>
-<script src="https://unpkg.com/@vercel/analytics@1.5.0/dist/index.umd.js"></script>
+<!-- Vercel Analytics - Commented out for local development to avoid CORB warnings -->
+<!-- Uncomment when deploying to production -->
+<!--
+<script src="https://unpkg.com/@vercel/analytics@1.5.0/dist/index.umd.js" crossorigin="anonymous" defer></script>
 <script>
-    // Initialize Vercel Analytics when script loads
-    if (typeof window !== 'undefined' && window.va && window.va.track) {
-        console.log('🚀 Vercel Analytics loaded and ready');
-    } else {
-        // Fallback initialization
-        window.addEventListener('load', () => {
-            if (window.va && window.va.track) {
-                console.log('🚀 Vercel Analytics initialized on page load');
+    // Initialize Vercel Analytics when script loads (with error handling)
+    window.addEventListener('load', () => {
+        try {
+            if (typeof window !== 'undefined' && window.va && window.va.track) {
+                console.log('🚀 Vercel Analytics loaded and ready');
             }
-        });
-    }
-</script></head>
+        } catch (error) {
+            // Silently handle CORB/CORS errors - analytics is optional
+            console.debug('Analytics not available');
+        }
+    });
+</script>
+--></head>
 <body>
     <canvas id="gameCanvas"></canvas>
     <div class="instructions">
@@ -237,22 +333,30 @@
         
         <div class="control-section">
             <h4>🐟 Spawning & Interaction</h4>
-            <div class="control-item">
-                <span class="control-key">F</span>
-                <span class="control-description">Cycle spawn modes</span>
-            </div>
-            <div class="control-item">
-                <span class="control-key">Click</span>
-                <span class="control-description">Spawn items (when mode active)</span>
-            </div>
-            <div class="control-item">
-                <span class="control-key">Left</span>
-                <span class="control-description">Follow creature (spawn mode OFF)</span>
-            </div>
-            <div class="control-item">
-                <span class="control-key">Right</span>
-                <span class="control-description">Stop following creature</span>
-            </div>
+                <div class="control-item">
+                    <span class="control-key">F</span>
+                    <span class="control-description">Toggle spawn mode on/off</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Wheel</span>
+                    <span class="control-description">Cycle spawn modes (when active)</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">← →</span>
+                    <span class="control-description">Left/Right arrows: Cycle spawn modes (when active)</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Click</span>
+                    <span class="control-description">Spawn items (when mode active)</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Left Mouse</span>
+                    <span class="control-description">Follow creature (spawn mode OFF)</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Right Mouse</span>
+                    <span class="control-description">Stop following creature</span>
+                </div>
         </div>
         
         <div class="control-section">
@@ -283,6 +387,118 @@
             <div class="info-item">🐟 Fry spawning: 1000px egg detection</div>
         </div>
     </div>
+    
+    <!-- Pause Menu -->
+    <div id="pauseMenu">
+        <div class="pause-content">
+            <div class="pause-title">⏸️ Game Paused</div>
+            <div class="pause-buttons">
+                <button class="pause-button resume" onclick="resumeGame()">▶️ Resume</button>
+                <button class="pause-button reset" onclick="resetGame()">🔄 Reset Game</button>
+            </div>
+        </div>
+        <div class="instructions">
+            <h3>🎮 Game Controls</h3>
+            
+            <div class="control-section">
+                <h4>🎯 Camera & Movement</h4>
+                <div class="control-item">
+                    <span class="control-key">WASD</span>
+                    <span class="control-description">Move camera around the world</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Wheel</span>
+                    <span class="control-description">Zoom in and out</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Shift</span>
+                    <span class="control-description">Boost camera speed</span>
+                </div>
+            </div>
+            
+            <div class="control-section">
+                <h4>🐟 Spawning & Interaction</h4>
+                <div class="control-item">
+                    <span class="control-key">F</span>
+                    <span class="control-description">Toggle spawn mode on/off</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Wheel</span>
+                    <span class="control-description">Cycle spawn modes (when active)</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">← →</span>
+                    <span class="control-description">Left/Right arrows: Cycle spawn modes (when active)</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Click</span>
+                    <span class="control-description">Spawn items (when mode active)</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Left</span>
+                    <span class="control-description">Follow creature (spawn mode OFF)</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Right</span>
+                    <span class="control-description">Stop following creature</span>
+                </div>
+            </div>
+            
+            <div class="control-section">
+                <h4>🔧 Interface & Debug</h4>
+                <div class="control-item">
+                    <span class="control-key">H</span>
+                    <span class="control-description">Toggle entity counter display</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">Escape</span>
+                    <span class="control-description">Pause/Resume game</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">F3</span>
+                    <span class="control-description">Toggle debug overlays</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">T</span>
+                    <span class="control-description">Cycle debug modes</span>
+                </div>
+                <div class="control-item">
+                    <span class="control-key">P</span>
+                    <span class="control-description">Toggle performance mode</span>
+                </div>
+            </div>
+            
+            <div class="info-section">
+                <h4>💡 Game Features</h4>
+                <div class="info-item">🌊 Live ecosystem population counter</div>
+                <div class="info-item">📊 Player spawns tracked with analytics</div>
+                <div class="info-item">🔍 F3 shows AI states & detection ranges</div>
+                <div class="info-item">🐟 Fry spawning: 1000px egg detection</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Menu Functions -->
+    <script>
+        function resumeGame() {
+            if (window.gameState) {
+                window.gameState.paused = false;
+                const pauseMenu = document.getElementById('pauseMenu');
+                if (pauseMenu) {
+                    pauseMenu.style.display = 'none';
+                }
+            }
+        }
+        
+        function resetGame() {
+            // Reload the page to reset the game
+            window.location.reload();
+        }
+        
+        // Make functions globally accessible
+        window.resumeGame = resumeGame;
+        window.resetGame = resetGame;
+    </script>
 
     <!-- 1. Utility modules (no dependencies) -->
     <script src="utils/DebugManager.js"></script>

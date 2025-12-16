@@ -469,8 +469,11 @@ class KrillBase extends Boid {
         ctx.translate(this.x, this.y);
         ctx.rotate(angle);
         
+        // Krill1-3 sprites render at normal size
+        const renderSize = this.size;
+        
         // Draw the processed sprite
-        ctx.drawImage(window.sprites[currentSpriteKey], -this.size/2, -this.size/2, this.size, this.size);
+        ctx.drawImage(window.sprites[currentSpriteKey], -renderSize/2, -renderSize/2, renderSize, renderSize);
         
         ctx.restore();
         

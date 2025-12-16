@@ -60,7 +60,7 @@ class KrillRenderingSystem {
             console.log(`✅ Krill sprite found and rendering: ${currentSpriteKey}`);
         }
         
-        this.drawKrillSprite(krill, sprites[currentSpriteKey], depthOpacity, tintStrength);
+        this.drawKrillSprite(krill, sprites[currentSpriteKey], depthOpacity, tintStrength, currentSpriteKey);
         
         // Debug visualization
         if (window.debugManager && window.debugManager.isDebugOn('krill')) {
@@ -94,7 +94,7 @@ class KrillRenderingSystem {
             return;
         }
         
-        this.drawKrillSprite(paleKrill, sprites[currentSpriteKey], depthOpacity, tintStrength);
+        this.drawKrillSprite(paleKrill, sprites[currentSpriteKey], depthOpacity, tintStrength, currentSpriteKey);
         
         // Debug visualization
         if (window.debugManager && window.debugManager.isDebugOn('krill')) {
@@ -128,7 +128,7 @@ class KrillRenderingSystem {
             return;
         }
         
-        this.drawKrillSprite(momKrill, sprites[currentSpriteKey], depthOpacity, tintStrength);
+        this.drawKrillSprite(momKrill, sprites[currentSpriteKey], depthOpacity, tintStrength, currentSpriteKey);
         
         // Debug visualization
         if (window.debugManager && window.debugManager.isDebugOn('krill')) {
@@ -137,7 +137,7 @@ class KrillRenderingSystem {
     }
 
     // Common krill sprite drawing method
-    drawKrillSprite(krill, sprite, depthOpacity, tintStrength) {
+    drawKrillSprite(krill, sprite, depthOpacity, tintStrength, spriteKey = null) {
         const ctx = window.ctx;
         if (!ctx) {
             if (window.gameState?.krillDebug) {
@@ -172,8 +172,11 @@ class KrillRenderingSystem {
         ctx.translate(krill.x, krill.y);
         ctx.rotate(angle);
         
+        // Krill1-3 sprites render at normal size
+        const renderSize = krill.size;
+        
         // Draw the sprite
-        ctx.drawImage(sprite, -krill.size/2, -krill.size/2, krill.size, krill.size);
+        ctx.drawImage(sprite, -renderSize/2, -renderSize/2, renderSize, renderSize);
         
         ctx.restore();
         
