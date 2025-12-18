@@ -69,9 +69,10 @@ class TunaPhysicsSystem {
             tuna.acceleration.y = 0;
         }
         
-        // Limit velocity (safety check)
+        // Limit velocity (respect speed boost from state)
         if (window.Utils && window.Utils.limitVelocity) {
-            window.Utils.limitVelocity(tuna.velocity, tuna.maxSpeed);
+            const speedBoost = tuna.currentSpeedBoost || 1.0;
+            window.Utils.limitVelocity(tuna.velocity, tuna.maxSpeed * speedBoost);
         }
         
         // Apply depth preference
@@ -93,8 +94,8 @@ class TunaPhysicsSystem {
      * @param {Object} tuna - The tuna entity
      */
     applyDepthPreference(tuna) {
-        // Only apply depth preference when not hunting or attacking
-        if (tuna.aiState === window.TUNA_STATES.HUNTING || tuna.aiState === window.TUNA_STATES.ATTACKING) {
+        // Only apply depth preference when not hunting
+        if (tuna.aiState === window.TUNA_STATES.HUNTING) {
             return; // Skip depth preference during active hunting
         }
         
@@ -208,13 +209,10 @@ class TunaPhysicsSystem {
     }
 
     /**
-     * Update energy over time
+     * Update cooldown timers
      * @param {Object} tuna - The tuna entity
      */
     updateEnergy(tuna) {
-        // Decrease energy over time
-        tuna.energy = Math.max(0, tuna.energy - 0.02);
-        
         // Update hunt cooldown
         if (tuna.huntCooldown > 0) {
             tuna.huntCooldown--;

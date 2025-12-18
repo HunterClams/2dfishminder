@@ -9,9 +9,30 @@ class FishFood {
         this.eaten = false;
         this.opacity = 1;
         this.transformedToPoop = false; // Track if already transformed to avoid multiple transformations
+        
+        // Track creation in optimization system
+        if (window.FishFoodMovementSystem) {
+            window.FishFoodMovementSystem.trackCreation();
+        }
     }
 
     update() {
+        // Use optimization system if available (fallback to original if not)
+        if (window.FishFoodMovementSystem && !this.eaten && !this.transformedToPoop) {
+            // Optimization system will handle update via batch processing in GameEntities.js
+            // Do NOT call updateFallback() here to avoid double updates
+            // Only the optimization system should update position when it's available
+            return;
+        }
+        
+        // Fallback: Original update logic (only when optimization system is not available)
+        this.updateFallback();
+    }
+    
+    /**
+     * Fallback update method (original behavior)
+     */
+    updateFallback() {
         if (!this.eaten) {
             this.y += this.sinkSpeed;
             

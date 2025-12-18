@@ -95,7 +95,6 @@ class TunaLegacySystem {
                             }
                         }
                         
-                        tuna.energy = Math.min(100, tuna.energy + 25);
                         tuna.huntCooldown = 180; // 3 second cooldown
                         return; // Exit after eating one prey
                     }
@@ -189,7 +188,6 @@ class TunaLegacySystem {
                         }
                         
                         // Restore energy and set cooldown
-                        tuna.energy = Math.min(100, tuna.energy + 25);
                         tuna.huntCooldown = 180; // 3 second cooldown
                         
                         // Transition to feeding state

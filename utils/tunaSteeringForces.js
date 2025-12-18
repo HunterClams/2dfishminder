@@ -4,24 +4,24 @@
 class TunaSteeringForces {
     constructor() {}
 
-    // Apply hunting movement forces
+    // Apply hunting movement forces - pursue prey with prediction
     applyHuntingForces(tuna) {
         if (!tuna.aiTarget) return;
         
+        const config = window.TUNA_CONFIG || {};
         const distanceToTarget = window.Utils.distance(tuna, tuna.aiTarget);
         
-        // Calculate dynamic speed boost based on hunting intensity
-        const huntIntensity = Math.max(0, 1 - (distanceToTarget / window.TUNA_CONFIG.huntRadius));
-        const speedBoost = 1.0 + (0.35 * huntIntensity * tuna.alertness);
+        // Use config huntSpeed (1.4 = 40% boost)
+        const speedBoost = config.huntSpeed || 1.4;
         
-        // Predict target movement
+        // Predict target movement (intercept trajectory)
         const predictionTime = Math.min(
             distanceToTarget / (tuna.maxSpeed * speedBoost),
-            window.TUNA_CONFIG.maxPredictionTime
+            config.maxPredictionTime || 3.0
         );
         
-        const futureX = tuna.aiTarget.x + tuna.aiTarget.velocity.x * predictionTime;
-        const futureY = tuna.aiTarget.y + tuna.aiTarget.velocity.y * predictionTime;
+        const futureX = tuna.aiTarget.x + (tuna.aiTarget.velocity?.x || 0) * predictionTime;
+        const futureY = tuna.aiTarget.y + (tuna.aiTarget.velocity?.y || 0) * predictionTime;
         
         const target = { x: futureX, y: futureY };
         const pursue = window.Utils.calculateSteering(
@@ -39,24 +39,9 @@ class TunaSteeringForces {
         tuna.currentSpeedBoost = speedBoost;
     }
 
-    // Apply attack movement forces
-    applyAttackForces(tuna) {
-        if (!tuna.aiTarget) return;
-        
-        const attack = window.Utils.calculateSteering(
-            tuna, 
-            tuna.aiTarget, 
-            tuna.maxSpeed * window.TUNA_CONFIG.attackSpeed, 
-            tuna.maxForce
-        );
-        
-        tuna.applyForce({
-            x: attack.x * tuna.aggression * 1.5,
-            y: attack.y * tuna.aggression * 1.5
-        });
-    }
+    // REMOVED: applyAttackForces - no longer needed, hunting handles eating directly
 
-    // Handle wandering behavior - REALISTIC predator patrol patterns
+    // Handle wandering behavior - REALISTIC predator patrol patterns (used during feeding)
     handleWandering(tuna) {
         // Initialize realistic patrol system if needed
         if (!tuna.huntingPattern || !tuna.patrolState) {
@@ -83,6 +68,151 @@ class TunaSteeringForces {
         
         // Apply velocity smoothing to reduce jitter
         this.smoothTunaVelocity(tuna);
+    }
+    
+    // Horizontal-focused patrolling to large distant targets (covers large areas)
+    handleHorizontalPatrolling(tuna, gameEntities = null) {
+        const config = window.TUNA_CONFIG || {};
+        const horizontalBias = config.patrolHorizontalBias || 0.8;
+        const patrolDistance = config.patrolDistance || 800;
+        const patrolVariation = config.patrolVariation || 500;
+        
+        // Calculate flocking influence BEFORE setting patrol target
+        // This allows the patrol target to be biased toward nearby tuna (cohesion)
+        let flockingBias = { x: 0, y: 0 };
+        if (gameEntities && gameEntities.predators) {
+            const allTuna = gameEntities.predators || [];
+            const perceptionRadius = config.flockingPerceptionRadius || 400;
+            const perceptionRadiusSquared = perceptionRadius * perceptionRadius;
+            
+            let nearbyCount = 0;
+            let nearbyCenterX = 0;
+            let nearbyCenterY = 0;
+            
+            for (let other of allTuna) {
+                if (other === tuna || !other.x || !other.y) continue;
+                
+                const distSquared = window.Utils.distanceSquared(tuna, other);
+                if (distSquared < perceptionRadiusSquared) {
+                    nearbyCenterX += other.x;
+                    nearbyCenterY += other.y;
+                    nearbyCount++;
+                }
+            }
+            
+            // If there are nearby tuna, bias patrol target toward them (cohesion influence)
+            if (nearbyCount > 0) {
+                nearbyCenterX /= nearbyCount;
+                nearbyCenterY /= nearbyCount;
+                
+                // Calculate direction toward nearby tuna center (stronger influence)
+                const cohesionInfluence = 0.4; // How much to bias toward group
+                flockingBias.x = (nearbyCenterX - tuna.x) * cohesionInfluence;
+                flockingBias.y = (nearbyCenterY - tuna.y) * cohesionInfluence;
+            }
+        }
+        
+        // Initialize patrol target if needed
+        if (!tuna.patrolTarget) {
+            tuna.patrolTarget = this.generateLargePatrolTarget(tuna, patrolDistance, patrolVariation, horizontalBias);
+        }
+        
+        // Adjust patrol target based on flocking bias (makes tuna move toward each other)
+        if (flockingBias.x !== 0 || flockingBias.y !== 0) {
+            // Move patrol target slightly toward nearby tuna center
+            tuna.patrolTarget.x += flockingBias.x * 0.3;
+            tuna.patrolTarget.y += flockingBias.y * 0.3;
+        }
+        
+        // Check if we've reached the target or are close enough
+        const distToTarget = window.Utils.distance(tuna, tuna.patrolTarget);
+        const arrivalThreshold = 100; // Consider "reached" when within 100px
+        
+        if (distToTarget < arrivalThreshold) {
+            // Generate new distant target for large-area patrolling
+            tuna.patrolTarget = this.generateLargePatrolTarget(tuna, patrolDistance, patrolVariation, horizontalBias);
+            
+            // Apply flocking bias to new target as well
+            if (flockingBias.x !== 0 || flockingBias.y !== 0) {
+                tuna.patrolTarget.x += flockingBias.x * 0.3;
+                tuna.patrolTarget.y += flockingBias.y * 0.3;
+            }
+        }
+        
+        // Use steering to move toward the distant target (creates large area coverage)
+        const steering = window.Utils.calculateSteering(
+            tuna,
+            tuna.patrolTarget,
+            tuna.maxSpeed * (config.patrolSpeed || 1.0),
+            tuna.maxForce
+        );
+        
+        // Reduce patrol steering strength significantly to allow flocking forces to have more influence
+        // Scale down by 30% to make room for flocking behavior
+        const patrolForceScale = 0.7;
+        const scaledSteering = {
+            x: steering.x * patrolForceScale,
+            y: steering.y * patrolForceScale
+        };
+        
+        // Apply steering force (this will make tuna travel long distances)
+        this.applySmoothForce(tuna, scaledSteering);
+        
+        // Apply velocity smoothing
+        this.smoothTunaVelocity(tuna);
+    }
+    
+    // Generate a large patrol target far away (for covering large areas)
+    generateLargePatrolTarget(tuna, baseDistance, variation, horizontalBias) {
+        const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        
+        // Calculate random distance (large distance for large area coverage)
+        // Increase horizontal distance by 25% to cover more ground
+        const baseDistanceScaled = baseDistance * 1.25; // Increase base distance for more horizontal coverage
+        const variationScaled = variation * 1.25; // Scale variation proportionally
+        const distance = baseDistanceScaled + Math.random() * variationScaled; // ~1000-1625px away (increased from 800-1300)
+        
+        // Choose direction with horizontal bias (mostly horizontal movement)
+        // Random angle, but bias toward horizontal directions
+        // Add 25% vertical boost for slight vertical variation
+        const angle = Math.random() * Math.PI * 2;
+        const horizontalComponent = Math.cos(angle);
+        const verticalComponent = Math.sin(angle) * (1 - horizontalBias) * 1.25; // 25% vertical boost
+        
+        // Normalize the biased direction
+        const dirMag = Math.sqrt(horizontalComponent * horizontalComponent + verticalComponent * verticalComponent);
+        const dirX = dirMag > 0 ? horizontalComponent / dirMag : (horizontalComponent >= 0 ? 1 : -1);
+        const dirY = dirMag > 0 ? verticalComponent / dirMag : 0;
+        
+        // Calculate target position
+        let targetX = tuna.x + dirX * distance;
+        let targetY = tuna.y + dirY * distance;
+        
+        // Keep target within world bounds (with buffer)
+        const buffer = 300;
+        targetX = Math.max(buffer, Math.min(WORLD_WIDTH - buffer, targetX));
+        targetY = Math.max(buffer, Math.min(WORLD_HEIGHT - buffer, targetY));
+        
+        // If target would be outside bounds, generate a new direction toward center
+        if (targetX <= buffer || targetX >= WORLD_WIDTH - buffer || 
+            targetY <= buffer || targetY >= WORLD_HEIGHT - buffer) {
+            // Turn toward center of world
+            const centerX = WORLD_WIDTH / 2;
+            const centerY = WORLD_HEIGHT / 2;
+            const toCenterX = centerX - tuna.x;
+            const toCenterY = centerY - tuna.y;
+            const toCenterMag = Math.sqrt(toCenterX * toCenterX + toCenterY * toCenterY);
+            
+            if (toCenterMag > 0) {
+                // Apply horizontal distance boost here too
+                const distanceScaled = distance; // distance is already scaled above
+                targetX = tuna.x + (toCenterX / toCenterMag) * distanceScaled;
+                targetY = tuna.y + (toCenterY / toCenterMag) * distanceScaled * (1 - horizontalBias);
+            }
+        }
+        
+        return { x: targetX, y: targetY };
     }
 
     // Initialize REALISTIC predator patrol system
@@ -130,7 +260,6 @@ class TunaSteeringForces {
         
         // Transition logic based on realistic predator behavior
         if (tuna.patrolTransitionCooldown <= 0) {
-            const energyFactor = tuna.energy / 100;
             const random = Math.random();
             
             switch (tuna.patrolState) {
@@ -144,8 +273,6 @@ class TunaSteeringForces {
                     
                 case 'cruising':
                     if (tuna.patrolStateTimer > 240 && random < 0.4) { // 4 seconds of cruising
-                        this.transitionPatrolState(tuna, 'searching');
-                    } else if (energyFactor < 0.6 && random < 0.3) { // Low energy, search more
                         this.transitionPatrolState(tuna, 'searching');
                     }
                     break;
@@ -318,6 +445,12 @@ class TunaSteeringForces {
     
     // Smooth tuna velocity to reduce jitter
     smoothTunaVelocity(tuna) {
+        // Initialize velocity history if needed
+        if (!tuna.velocityHistory) {
+            tuna.velocityHistory = [];
+            tuna.maxVelocityHistory = 8;
+        }
+        
         // Add current velocity to history
         tuna.velocityHistory.push({ x: tuna.velocity.x, y: tuna.velocity.y });
         
@@ -387,13 +520,15 @@ class TunaSteeringForces {
     // REMOVED: findRestingSpot method - no longer needed without resting state
     // Tuna now use continuous dynamic patrolling for better predator behavior
 
-    // Apply flee forces
+    // Apply flee forces - escape from threats
     applyFleeForces(tuna, threats) {
+        const config = window.TUNA_CONFIG || {};
+        const fleeSpeed = config.fleeSpeed || 1.2;
         let fleeX = 0, fleeY = 0;
         
         for (let threat of threats) {
             const distance = window.Utils.distance(tuna, threat);
-            const strength = window.TUNA_CONFIG.fleeRadius / distance;
+            const strength = config.fleeRadius / distance;
             
             fleeX += (tuna.x - threat.x) * strength;
             fleeY += (tuna.y - threat.y) * strength;
@@ -403,20 +538,131 @@ class TunaSteeringForces {
             fleeX /= threats.length;
             fleeY /= threats.length;
             
+            // Normalize flee direction
+            const fleeMagnitude = Math.sqrt(fleeX * fleeX + fleeY * fleeY);
+            if (fleeMagnitude > 0) {
+                fleeX /= fleeMagnitude;
+                fleeY /= fleeMagnitude;
+            }
+            
+            // Apply flee force with speed boost
             tuna.applyForce({
-                x: fleeX * tuna.maxForce * 0.1,
-                y: fleeY * tuna.maxForce * 0.1
+                x: fleeX * tuna.maxForce * fleeSpeed * 0.15,
+                y: fleeY * tuna.maxForce * fleeSpeed * 0.15
             });
+            
+            tuna.currentSpeedBoost = fleeSpeed;
         }
     }
 
+    // Calculate minor flocking forces (for 3-5 tuna schools)
+    calculateTunaFlocking(tuna, allTuna) {
+        const config = window.TUNA_CONFIG || {};
+        const perceptionRadius = config.flockingPerceptionRadius || 400;
+        const separationRadius = config.flockingSeparationRadius || 150;
+        const perceptionRadiusSquared = perceptionRadius * perceptionRadius;
+        const separationRadiusSquared = separationRadius * separationRadius;
+        
+        let alignment = { x: 0, y: 0 };
+        let cohesion = { x: 0, y: 0 };
+        let separation = { x: 0, y: 0 };
+        let alignCount = 0, cohesionCount = 0, separationCount = 0;
+        
+        // Find nearby tuna
+        for (let other of allTuna) {
+            if (other === tuna || !other.velocity) continue;
+            
+            const distSquared = window.Utils.distanceSquared(tuna, other);
+            
+            // Alignment and cohesion - within perception radius
+            if (distSquared < perceptionRadiusSquared) {
+                alignment.x += other.velocity.x;
+                alignment.y += other.velocity.y;
+                alignCount++;
+                
+                cohesion.x += other.x;
+                cohesion.y += other.y;
+                cohesionCount++;
+            }
+            
+            // Separation - within separation radius
+            if (distSquared < separationRadiusSquared) {
+                const dist = Math.sqrt(distSquared);
+                if (dist > 0) {
+                    const diff = { x: (tuna.x - other.x) / dist, y: (tuna.y - other.y) / dist };
+                    separation.x += diff.x;
+                    separation.y += diff.y;
+                    separationCount++;
+                }
+            }
+        }
+        
+        // Calculate forces with minor weights (for subtle flocking)
+        const forces = { x: 0, y: 0 };
+        
+        // Alignment: Match velocity direction of nearby tuna (weak)
+        if (alignCount > 0) {
+            alignment.x /= alignCount;
+            alignment.y /= alignCount;
+            // Alignment is the desired velocity (average of nearby tuna velocities)
+            // Calculate steering from current velocity toward desired alignment
+            const desired = { x: alignment.x * tuna.maxSpeed, y: alignment.y * tuna.maxSpeed };
+            const steer = {
+                x: desired.x - tuna.velocity.x,
+                y: desired.y - tuna.velocity.y
+            };
+            // Limit steering force
+            const steerMag = Math.sqrt(steer.x * steer.x + steer.y * steer.y);
+            if (steerMag > tuna.maxForce) {
+                steer.x = (steer.x / steerMag) * tuna.maxForce;
+                steer.y = (steer.y / steerMag) * tuna.maxForce;
+            }
+            forces.x += steer.x * (config.flockingAlignmentWeight || 0.4);
+            forces.y += steer.y * (config.flockingAlignmentWeight || 0.4);
+        }
+        
+        // Cohesion: Move toward center of nearby tuna (very weak - just enough to group)
+        if (cohesionCount > 0) {
+            cohesion.x = (cohesion.x / cohesionCount) - tuna.x;
+            cohesion.y = (cohesion.y / cohesionCount) - tuna.y;
+            // Cohesion target is the center of nearby tuna
+            const cohesionTarget = { x: tuna.x + cohesion.x, y: tuna.y + cohesion.y };
+            const cohesionSteering = window.Utils.calculateSteering(
+                tuna,
+                cohesionTarget,
+                tuna.maxSpeed,
+                tuna.maxForce
+            );
+            forces.x += cohesionSteering.x * (config.flockingCohesionWeight || 0.5);
+            forces.y += cohesionSteering.y * (config.flockingCohesionWeight || 0.5);
+        }
+        
+        // Separation: Avoid crowding (moderate - prevents overlap)
+        if (separationCount > 0) {
+            separation.x /= separationCount;
+            separation.y /= separationCount;
+            forces.x += separation.x * (config.flockingSeparationWeight || 0.3) * tuna.maxForce;
+            forces.y += separation.y * (config.flockingSeparationWeight || 0.3) * tuna.maxForce;
+        }
+        
+        return forces;
+    }
+    
     // Apply general movement forces (depth preference, etc.)
-    applyMovementForces(tuna) {
-        // Apply repulsion from other tuna to prevent overlapping
+    applyMovementForces(tuna, gameEntities = null) {
+        // Apply minor flocking during patrolling and feeding (not during hunting or fleeing)
+        if (gameEntities && 
+            (tuna.aiState === window.TUNA_STATES.PATROLLING || tuna.aiState === window.TUNA_STATES.FEEDING)) {
+            const allTuna = gameEntities.predators || [];
+            const flockingForces = this.calculateTunaFlocking(tuna, allTuna);
+            tuna.applyForce(flockingForces);
+        }
+        
+        // Apply repulsion from other tuna to prevent overlapping (legacy system - still used)
         this.applyTunaRepulsion(tuna);
         
-        // Depth preference - only when not hunting or attacking, and much gentler
-        if (tuna.aiState !== window.TUNA_STATES.HUNTING && tuna.aiState !== window.TUNA_STATES.ATTACKING) {
+        // Depth preference - only when not hunting, and much gentler
+        if (tuna.aiState !== window.TUNA_STATES.HUNTING) {
             const depthDifference = tuna.y - tuna.preferredDepth;
             if (Math.abs(depthDifference) > tuna.depthTolerance) {
                 // Much gentler depth force - reduced from 0.0001 to 0.00001 (10x weaker)
@@ -539,7 +785,6 @@ class TunaSteeringForces {
                     }
                 }
                 
-                tuna.energy = Math.min(100, tuna.energy + 25);
                 tuna.huntCooldown = 180;
                 tuna.lastAttackTime = tuna.aiTimer;
                 

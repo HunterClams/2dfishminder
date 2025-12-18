@@ -564,26 +564,53 @@ class KrillAI {
         
         // Add individual depth variation per krill to prevent all stacking at same Y
         // Use krill's wanderOffset as a seed for consistent per-krill variation
-        // Use both sine and cosine for better distribution, increased to ±500 pixels
+        // Use both sine and cosine for better distribution, increased to ±650 pixels (30% increase from 500)
         const timeOffset = (krill.wanderOffset || 0) + Date.now() * 0.0001;
-        const depthVariation = (Math.sin(timeOffset) + Math.cos(timeOffset * 1.7)) * 250; // ±500 pixels variation with better distribution
+        const depthVariation = (Math.sin(timeOffset) + Math.cos(timeOffset * 1.7)) * 325; // ±650 pixels variation (30% increase from ±500)
         const targetDepth = baseTargetDepth + depthVariation;
         
-        // Apply migration force (slightly reduced to allow separation to work better)
+        // Add individual horizontal target variation per krill (similar to vertical variation)
+        // Use a different offset seed (wanderOffset * 2.3) for independent horizontal variation
+        const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
+        const horizontalTimeOffset = (krill.wanderOffset || 0) * 2.3 + Date.now() * 0.0001;
+        const horizontalVariation = (Math.sin(horizontalTimeOffset) + Math.cos(horizontalTimeOffset * 1.9)) * 162.5; // ±325 pixels variation (30% increase from ±250)
+        
+        // Calculate base horizontal target (use swarm center if available, otherwise world center)
+        let baseTargetX = WORLD_WIDTH / 2; // Default to world center
+        if (nearbyKrill.length > 0) {
+            // Use swarm center as base for horizontal targeting
+            let swarmCenterX = 0;
+            for (let other of nearbyKrill) {
+                swarmCenterX += other.x;
+            }
+            swarmCenterX /= nearbyKrill.length;
+            baseTargetX = swarmCenterX;
+        }
+        
+        const targetX = baseTargetX + horizontalVariation;
+        
+        // Apply migration forces (slightly reduced to allow separation to work better)
         const depthDiff = krill.y - targetDepth;
-        forces.migration.y = -depthDiff * KRILL_CONFIG.WEIGHTS.MIGRATION * 0.015; // Reduced from 0.02 to allow separation
+        let baseMigrationY = -depthDiff * KRILL_CONFIG.WEIGHTS.MIGRATION * 0.015; // Reduced from 0.02 to allow separation
         
-        // Add horizontal spread during migration to prevent vertical stacking
-        const horizontalWanderAngle = (krill.wanderOffset || 0) + Date.now() * 0.0003;
-        forces.wandering.x = Math.cos(horizontalWanderAngle) * 0.5; // Horizontal spread force
+        // Add randomization to vertical migration movement for more natural up/down behavior
+        // Use a different seed pattern for vertical randomization (independent from other variations)
+        const verticalRandomSeed = ((krill.wanderOffset || 0) * 1.5 + Date.now() * 0.0002) % (Math.PI * 2);
+        const verticalRandomVariation = (Math.sin(verticalRandomSeed) + Math.cos(verticalRandomSeed * 2.1)) * 0.45; // ±0.9 variation (increased from ±0.6 for more randomness)
+        // Add the random component to migration force (increased multiplier for more noticeable randomness)
+        forces.migration.y = baseMigrationY + (verticalRandomVariation * 0.006);
         
-        // Add small random movement during migration to break up stacking
+        // Apply horizontal migration force towards target X
+        const horizontalDiff = krill.x - targetX;
+        forces.migration.x = -horizontalDiff * KRILL_CONFIG.WEIGHTS.MIGRATION * 0.015; // Same strength as vertical
+        
+        // Add random movement during migration to break up stacking (increased randomness)
         // Use a seed based on krill's offset for consistent randomness per krill
         const randomSeed = ((krill.wanderOffset || 0) + Date.now() * 0.001) % (Math.PI * 2);
-        const randomAngle = randomSeed + Math.random() * 0.7; // Increased random variation
-        const randomStrength = 0.22; // Slightly increased random movement strength
+        const randomAngle = randomSeed + Math.random() * 1.2; // Increased random variation (from 0.9 to 1.2 for more randomness)
+        const randomStrength = 0.18; // Increased random movement (from 0.13 to 0.18) for more natural migration randomness
         forces.wandering.x += Math.cos(randomAngle) * randomStrength;
-        forces.wandering.y += Math.sin(randomAngle) * randomStrength * 0.7; // Less vertical randomness to maintain migration direction
+        forces.wandering.y += Math.sin(randomAngle) * randomStrength * 0.75; // Increased vertical randomness (from 0.6 to 0.75) for more variation
         
         // Additional separation force for very close krill during migration to prevent stacking
         // This works alongside the basic flocking separation but is stronger

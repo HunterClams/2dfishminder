@@ -99,6 +99,23 @@ function limitVelocity(velocity, maxSpeed) {
     return velocity; // Return the velocity object
 }
 
+// Enforce minimum speed - ensures velocity magnitude is at least minSpeed
+function enforceMinimumSpeed(velocity, minSpeed) {
+    if (minSpeed <= 0) return velocity; // Skip if no minimum required
+    
+    const speedSquared = velocity.x * velocity.x + velocity.y * velocity.y;
+    const minSpeedSquared = minSpeed * minSpeed;
+    
+    // If velocity is too slow (or zero), set it to a random direction with minimum speed
+    if (speedSquared < minSpeedSquared) {
+        const angle = Math.random() * Math.PI * 2;
+        velocity.x = Math.cos(angle) * minSpeed;
+        velocity.y = Math.sin(angle) * minSpeed;
+    }
+    
+    return velocity;
+}
+
 // Optimized edge handling for entities
 function handleEdges(entity, margin, damping, worldWidth, worldHeight) {
     let bounced = false;
@@ -155,6 +172,7 @@ window.distance = distance;
 window.normalize = normalize;
 window.calculateSteering = calculateSteering;
 window.limitVelocity = limitVelocity;
+window.enforceMinimumSpeed = enforceMinimumSpeed;
 window.handleEdges = handleEdges;
 window.addVectors = addVectors;
 window.multiplyVector = multiplyVector; 

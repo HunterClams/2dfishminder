@@ -24,19 +24,21 @@ class TunaAI {
         // Update state machine
         this.behaviorTree.updateState(tuna, gameEntities);
         
-        // Apply movement forces
-        this.steeringForces.applyMovementForces(tuna);
+        // Apply movement forces (including flocking if patrolling/feeding)
+        this.steeringForces.applyMovementForces(tuna, gameEntities);
     }
     
-    // Delegate state handlers to behavior tree and steering forces
+    // PATROLLING: Horizontal-focused movement with quick scanning for prey
     handlePatrolling(tuna, gameEntities) {
+        // Check if still in feeding cooldown (locked out of hunting)
         const timeSinceStateChange = tuna.aiTimer - tuna.lastStateChange;
-        const postFeedingCooldown = 60;
+        const canHunt = timeSinceStateChange > this.config.postFeedingCooldown;
         
-        if (timeSinceStateChange > postFeedingCooldown) {
-            const nearbyPrey = this.findNearbyPrey(tuna, gameEntities, this.config.huntRadius * tuna.alertness);
+        // Only search for prey if not in feeding cooldown
+        if (canHunt) {
+            const nearbyPrey = this.findNearbyPrey(tuna, gameEntities);
             
-            if (nearbyPrey.length > 0 && tuna.energy > this.config.huntEnergyThreshold) {
+            if (nearbyPrey.length > 0) {
                 const bestTarget = this.selectBestTarget(tuna, nearbyPrey);
                 if (bestTarget) {
                     this.transitionToState(tuna, this.states.HUNTING, bestTarget);
@@ -45,54 +47,24 @@ class TunaAI {
             }
         }
         
-        // REMOVED: Tuna resting state - was redundant and caused straight-down swimming
-        // Tuna now maintain continuous patrolling behavior for more dynamic gameplay
-        
-        this.steeringForces.handleWandering(tuna);
+        // Horizontal-focused patrolling with quick scanning (pass gameEntities for flocking integration)
+        this.steeringForces.handleHorizontalPatrolling(tuna, gameEntities);
     }
     
+    // HUNTING: Pursue prey and eat when close (no separate attacking state)
     handleHunting(tuna, gameEntities) {
-        if (!tuna.aiTarget || !this.isValidTarget(tuna.aiTarget)) {
+        // Validate target
+        if (!tuna.aiTarget || !this.isValidTarget(tuna.aiTarget) || !this.isTargetStillInGame(tuna.aiTarget, gameEntities)) {
             this.transitionToState(tuna, this.states.PATROLLING);
             return;
         }
         
         const distToTarget = window.Utils.distance(tuna, tuna.aiTarget);
         
-        if (distToTarget < this.config.attackRadius) {
-            this.transitionToState(tuna, this.states.ATTACKING);
-            return;
-        }
-        
-        if (distToTarget > this.config.huntRadius * 1.5 || tuna.energy < 20) {
-            tuna.huntSuccess = Math.max(0, tuna.huntSuccess - 1);
-            this.transitionToState(tuna, this.states.PATROLLING);
-            return;
-        }
-        
-        if (tuna.targetSwitchTimer <= 0) {
-            const nearbyPrey = this.findNearbyPrey(tuna, gameEntities, this.config.huntRadius);
-            const betterTarget = this.selectBetterTarget(tuna, tuna.aiTarget, nearbyPrey);
-            if (betterTarget) {
-                tuna.aiTarget = betterTarget;
-                tuna.targetSwitchTimer = this.config.targetSwitchCooldown;
-            }
-        }
-        
-        this.steeringForces.applyHuntingForces(tuna);
-    }
-    
-    handleAttacking(tuna, gameEntities) {
-        if (!tuna.aiTarget || !this.isValidTarget(tuna.aiTarget)) {
-            this.transitionToState(tuna, this.states.PATROLLING);
-            return;
-        }
-        
-        const distToTarget = window.Utils.distance(tuna, tuna.aiTarget);
-        
+        // If close enough, attempt to eat directly (no separate attacking state)
         if (distToTarget < this.config.attackRadius) {
             if (window.gameState && window.gameState.tunaDebug) {
-                console.log(`🎯 Tuna attacking target at distance ${distToTarget.toFixed(1)} (radius: ${this.config.attackRadius})`);
+                console.log(`🎯 Tuna attempting to eat target at distance ${distToTarget.toFixed(1)} (radius: ${this.config.attackRadius})`);
             }
             
             if (this.steeringForces.attemptToEat(tuna, tuna.aiTarget, gameEntities)) {
@@ -102,30 +74,45 @@ class TunaAI {
             }
         }
         
-        if (distToTarget > this.config.attackRadius * 1.5) {
-            this.transitionToState(tuna, this.states.HUNTING);
-            return;
-        }
+        // Don't abandon target if we're close (within 2x attack radius)
+        const closeToTarget = distToTarget < this.config.attackRadius * 2;
         
-        this.steeringForces.applyAttackForces(tuna);
-    }
-    
-    handleFeeding(tuna, gameEntities) {
-        const feedingDuration = 180;
-        const timeSinceFeeding = tuna.aiTimer - tuna.lastStateChange;
-        
-        if (timeSinceFeeding > feedingDuration) {
+        // Abandon if target is too far (but not if we're close)
+        if (!closeToTarget && distToTarget > this.config.huntRadius * 1.5) {
+            tuna.huntSuccess = Math.max(0, tuna.huntSuccess - 1);
             this.transitionToState(tuna, this.states.PATROLLING);
             return;
         }
         
-        this.steeringForces.handleWandering(tuna);
+        // Check for better targets if not close to current target
+        if (tuna.targetSwitchTimer <= 0 && distToTarget > this.config.attackRadius * 2) {
+            const nearbyPrey = this.findNearbyPrey(tuna, gameEntities);
+            const betterTarget = this.selectBetterTarget(tuna, tuna.aiTarget, nearbyPrey);
+            if (betterTarget && betterTarget !== tuna.aiTarget) {
+                tuna.aiTarget = betterTarget;
+                tuna.targetSwitchTimer = this.config.targetSwitchCooldown;
+            }
+        }
         
-        const threats = this.findThreats(tuna, gameEntities);
-        if (threats.length > 0) {
-            this.transitionToState(tuna, this.states.FLEEING);
+        // Apply hunting forces (pursue target)
+        this.steeringForces.applyHuntingForces(tuna);
+    }
+    
+    // FEEDING: Locked out of hunting state, uses same movement as patrolling
+    handleFeeding(tuna, gameEntities) {
+        const timeSinceFeeding = tuna.aiTimer - tuna.lastStateChange;
+        
+        // Feeding duration complete - return to patrolling
+        if (timeSinceFeeding > this.config.feedingDuration) {
+            this.transitionToState(tuna, this.states.PATROLLING);
             return;
         }
+        
+        // Use same movement as patrolling (horizontal-focused movement, pass gameEntities for flocking)
+        this.steeringForces.handleHorizontalPatrolling(tuna, gameEntities);
+        
+        // Note: Threats are checked in behavior tree updateState before this handler
+        // So fleeing will override feeding automatically
     }
     
     // REMOVED: handleResting method - redundant state that caused poor tuna behavior
@@ -142,42 +129,63 @@ class TunaAI {
         this.steeringForces.applyFleeForces(tuna, threats);
     }
     
-    // Target selection and utility methods - ENHANCED for aggressive predation
-    findNearbyPrey(tuna, gameEntities, radius) {
+    // Target selection and utility methods - Prey detection with type-specific radii
+    findNearbyPrey(tuna, gameEntities) {
         const nearbyPrey = [];
-        const radiusSquared = radius * radius;
+        const config = this.config;
         
-        // Tuna should only hunt fry variants and eggs, NOT krill
-        // Enhanced prey arrays with specific detection radii for different prey types
-        const preyArrays = [
-            { array: gameEntities.fish || [], name: 'fish', detectionRadius: radius },
-            { array: gameEntities.fertilizedEggs || [], name: 'fertilizedEggs', detectionRadius: window.TUNA_CONFIG?.fertilizedEggDetectionRadius || 150 },
-            { array: gameEntities.fishEggs || [], name: 'fishEggs', detectionRadius: 50 } // Hunt unfertilized fish eggs with 50px radius
-        ];
+        // Get detection radii from config (smaller = harder to see)
+        const regularFryRadius = config.regularFryDetectionRadius || 300;
+        const trueFryRadius = config.trueFryDetectionRadius || 200;
+        const fertilizedEggRadius = config.fertilizedEggDetectionRadius || 120;
+        const fishEggRadius = config.fishEggDetectionRadius || 80;
         
-        for (let preyGroup of preyArrays) {
-            const detectionRadiusSquared = preyGroup.detectionRadius * preyGroup.detectionRadius;
+        // Check fish array for regular fry and truefry (different detection radii)
+        for (let prey of (gameEntities.fish || [])) {
+            const fishType = prey.fishType ? String(prey.fishType).toLowerCase() : '';
+            const isTrueFry = fishType.includes('truefry') || prey.constructor.name === 'TrueFry1' || prey.constructor.name === 'TrueFry2';
+            const isRegularFry = (fishType.includes('fry') || fishType.includes('smallfry')) && !isTrueFry;
             
-            for (let prey of preyGroup.array) {
-                // Tuna should be aggressive predators that hunt ALL fry types and eggs, NOT krill
-                const isEgg = preyGroup.name === 'fertilizedEggs' || preyGroup.name === 'fishEggs';
-                // Check for fry types - more robust check
-                const fishType = prey.fishType ? String(prey.fishType).toLowerCase() : '';
-                const isFry = fishType.includes('fry') || fishType.includes('smallfry') || fishType.includes('truefry');
+            if (isRegularFry || isTrueFry) {
+                const detectionRadius = isTrueFry ? trueFryRadius : regularFryRadius;
+                const detectionRadiusSquared = detectionRadius * detectionRadius;
+                const distSquared = window.Utils.distanceSquared(tuna, prey);
                 
-                // Allow hunting of ALL fry types and eggs only - no krill
-                const shouldHunt = isEgg || isFry;
-                
-                if (shouldHunt) {
-                    const distSquared = window.Utils.distanceSquared(tuna, prey);
-                    if (distSquared < detectionRadiusSquared) {
-                        nearbyPrey.push({
-                            entity: prey,
-                            distance: Math.sqrt(distSquared),
-                            priority: this.calculatePreyPriority(tuna, prey, preyGroup.name)
-                        });
-                    }
+                if (distSquared < detectionRadiusSquared) {
+                    nearbyPrey.push({
+                        entity: prey,
+                        distance: Math.sqrt(distSquared),
+                        priority: this.calculatePreyPriority(tuna, prey, isTrueFry ? 'truefry' : 'regularFry')
+                    });
                 }
+            }
+        }
+        
+        // Check fertilized eggs (smaller detection radius)
+        for (let prey of (gameEntities.fertilizedEggs || [])) {
+            const detectionRadiusSquared = fertilizedEggRadius * fertilizedEggRadius;
+            const distSquared = window.Utils.distanceSquared(tuna, prey);
+            
+            if (distSquared < detectionRadiusSquared) {
+                nearbyPrey.push({
+                    entity: prey,
+                    distance: Math.sqrt(distSquared),
+                    priority: this.calculatePreyPriority(tuna, prey, 'fertilizedEggs')
+                });
+            }
+        }
+        
+        // Check unfertilized fish eggs (smallest detection radius)
+        for (let prey of (gameEntities.fishEggs || [])) {
+            const detectionRadiusSquared = fishEggRadius * fishEggRadius;
+            const distSquared = window.Utils.distanceSquared(tuna, prey);
+            
+            if (distSquared < detectionRadiusSquared) {
+                nearbyPrey.push({
+                    entity: prey,
+                    distance: Math.sqrt(distSquared),
+                    priority: this.calculatePreyPriority(tuna, prey, 'fishEggs')
+                });
             }
         }
         
@@ -188,40 +196,34 @@ class TunaAI {
         const distance = window.Utils.distance(tuna, prey);
         const maxDistance = this.config.huntRadius;
         
+        // Base priority from distance (closer = higher priority)
         let priority = 1.0;
         priority *= (maxDistance - distance) / maxDistance;
         
-        // ENHANCED: Prey-type specific priority bonuses for realistic predation
-        if (preyType === 'fishEggs') {
-            // Fish eggs are easy targets - high priority
+        // Prey type priority: regular fry > truefry > eggs
+        if (preyType === 'regularFry') {
+            // Regular fry - HIGHEST priority (preferred prey)
+            priority *= 3.0;
+        } else if (preyType === 'truefry') {
+            // TrueFry - Second priority (still good but not preferred)
             priority *= 2.0;
         } else if (preyType === 'fertilizedEggs') {
-            // Fertilized eggs are nutritious - very high priority
-            priority *= 2.5;
-        } else if (prey.fishType && prey.fishType.includes('fry')) {
-            // All fry types are preferred prey - high priority
-            priority *= 1.8;
-        } else if (prey.fishType && prey.fishType.includes('truefry')) {
-            // TrueFry are larger, more nutritious - highest priority
-            priority *= 3.0;
-        } else if (preyType.includes('rill')) {
-            // Krill are small but numerous - medium priority
+            // Fertilized eggs - Third priority
+            priority *= 1.5;
+        } else if (preyType === 'fishEggs') {
+            // Unfertilized eggs - Lowest priority
             priority *= 1.2;
         }
         
         // Size-based priority (eggs don't have meaningful size comparison)
-        if (prey.size && tuna.size) {
+        if (prey.size && tuna.size && preyType !== 'fertilizedEggs' && preyType !== 'fishEggs') {
             const sizeRatio = prey.size / tuna.size;
             if (sizeRatio > 0.3 && sizeRatio < 0.8) {
-                priority *= 1.5;
+                priority *= 1.3; // Optimal size range
             } else if (sizeRatio < 0.2) {
-                priority *= 0.7;
+                priority *= 0.9; // Too small
             }
         }
-        
-        // Hunger increases hunting motivation
-        const hungerFactor = 1.0 - (tuna.energy / 100);
-        priority *= (1.0 + hungerFactor * 0.5);
         
         // Slower prey are easier to catch
         if (prey.velocity) {
@@ -251,7 +253,37 @@ class TunaAI {
     }
     
     isValidTarget(target) {
-        return target && typeof target.x === 'number' && typeof target.y === 'number';
+        // Basic validation: target exists and has valid coordinates
+        if (!target || typeof target.x !== 'number' || typeof target.y !== 'number') {
+            return false;
+        }
+        
+        // Additional check: verify target hasn't been deleted/removed (NaN or Infinity checks)
+        if (isNaN(target.x) || isNaN(target.y) || !isFinite(target.x) || !isFinite(target.y)) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    // Check if target still exists in game entities (more thorough validation)
+    isTargetStillInGame(target, gameEntities) {
+        if (!this.isValidTarget(target)) return false;
+        
+        // Check if target exists in any relevant array
+        const arraysToCheck = [
+            gameEntities.fish || [],
+            gameEntities.fertilizedEggs || [],
+            gameEntities.fishEggs || []
+        ];
+        
+        for (let arr of arraysToCheck) {
+            if (arr.indexOf(target) !== -1) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     findThreats(tuna, gameEntities) {
@@ -271,23 +303,42 @@ class TunaAI {
     transitionToState(tuna, newState, target = null) {
         if (tuna.aiState === newState) return;
         
+        const oldState = tuna.aiState;
         tuna.aiState = newState;
-        tuna.aiTarget = target;
+        
+        // Only update target if explicitly provided (not null)
+        if (target !== null) {
+            tuna.aiTarget = target;
+        }
+        // If transitioning to PATROLLING without a target, clear it
+        if (newState === this.states.PATROLLING && target === null) {
+            tuna.aiTarget = null;
+        }
+        
         tuna.lastStateChange = tuna.aiTimer;
         
+        // State transition effects
         switch (newState) {
             case this.states.HUNTING:
                 tuna.alertness = Math.min(1.0, tuna.alertness + 0.2);
                 break;
             case this.states.FLEEING:
-                tuna.alertness = 1.0;
+                tuna.alertness = 1.0; // Maximum alertness when fleeing
                 break;
             case this.states.PATROLLING:
                 tuna.currentSpeedBoost = 1.0;
                 break;
             case this.states.FEEDING:
                 tuna.currentSpeedBoost = 1.0;
+                // Clear target when entering feeding (prey was eaten)
+                tuna.aiTarget = null;
                 break;
+        }
+        
+        // Future expansion: State transition hooks for additional behaviors
+        // This allows for future systems like reproduction to hook into state changes
+        if (window.tunaBehaviorHooks && window.tunaBehaviorHooks.onStateTransition) {
+            window.tunaBehaviorHooks.onStateTransition(tuna, oldState, newState, target);
         }
     }
 }

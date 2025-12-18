@@ -155,13 +155,37 @@ class GiantSquid extends (window.Entity || Entity) {
         
         // Move the entity
         this.move();
+        
+        // Hard limit: Prevent squids from going above 50% depth (4000px if WORLD_HEIGHT is 8000)
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        const maxShallowDepth = WORLD_HEIGHT * 0.5; // 50% depth limit
+        if (this.y < maxShallowDepth) {
+            this.y = maxShallowDepth;
+            // Stop upward velocity if we hit the limit
+            if (this.velocity && this.velocity.y < 0) {
+                this.velocity.y = 0;
+            }
+        }
     }
 
     // State handler methods - delegate to steering forces
     handlePatrolling(fish, predators) {
+        // Check for other squids first - flee if detected
+        if (window.gameEntities && window.gameEntities.squid) {
+            const nearbySquid = this.behaviorTree.scanForOtherSquids(this, window.gameEntities.squid);
+            if (nearbySquid) {
+                // Store the threatening squid and transition to retreating
+                this.fleeingFromSquid = nearbySquid;
+                this.behaviorTree.transitionToState(this, window.SQUID_STATES.RETREATING);
+                return;
+            }
+        }
+        
         // Scan for prey
         const prey = this.scanForPrey(predators, fish);
         if (prey) {
+            // Claim the target when starting to hunt
+            prey.huntedBySquid = this;
             this.behaviorTree.transitionToState(this, window.SQUID_STATES.HUNTING, prey);
             return;
         }
@@ -178,12 +202,47 @@ class GiantSquid extends (window.Entity || Entity) {
     }
     
     handleHunting(fish, predators) {
+        // Check for other squids first - flee if detected (even while hunting)
+        if (window.gameEntities && window.gameEntities.squid) {
+            const nearbySquid = this.behaviorTree.scanForOtherSquids(this, window.gameEntities.squid);
+            if (nearbySquid) {
+                // Clear claim on hunt target when fleeing
+                if (this.huntTarget && this.huntTarget.huntedBySquid === this) {
+                    this.huntTarget.huntedBySquid = null;
+                }
+                // Store the threatening squid and transition to retreating
+                this.fleeingFromSquid = nearbySquid;
+                this.behaviorTree.transitionToState(this, window.SQUID_STATES.RETREATING);
+                return;
+            }
+        }
+        
         if (!this.huntTarget) {
             this.huntTarget = this.scanForPrey(predators, fish);
+            // Claim the target if we found one
+            if (this.huntTarget && this.huntTarget.huntedBySquid !== this) {
+                this.huntTarget.huntedBySquid = this;
+            }
         }
         
         if (this.huntTarget) {
+            const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+            const squidConfig = window.SQUID_CONFIG || {};
+            const huntRadius = squidConfig.VISION_RANGE || 2000;
             const dist = this.steeringForces.distance(this, this.huntTarget);
+            const targetTooShallow = this.huntTarget.y < (WORLD_HEIGHT * 0.5 - 50); // Tuna above reachable depth
+            const outOfHuntRadius = dist > huntRadius;
+            
+            // If target is too shallow (above 50% depth limit) or too far away, abandon hunt and retreat
+            if (targetTooShallow || outOfHuntRadius) {
+                // Clear claim on unreachable target
+                if (this.huntTarget.huntedBySquid === this) {
+                    this.huntTarget.huntedBySquid = null;
+                }
+                this.huntTarget = null;
+                this.behaviorTree.transitionToState(this, window.SQUID_STATES.RETREATING);
+                return;
+            }
             
             if (dist < this.attackRange) {
                 this.behaviorTree.transitionToState(this, window.SQUID_STATES.ATTACKING);
@@ -194,11 +253,19 @@ class GiantSquid extends (window.Entity || Entity) {
             this.steeringForces.applyHuntingForces(this, this.jetSystem);
         } else {
             // No target found, return to patrolling
+            // Clear any existing claim before transitioning
+            if (this.huntTarget && this.huntTarget.huntedBySquid === this) {
+                this.huntTarget.huntedBySquid = null;
+            }
             this.behaviorTree.transitionToState(this, window.SQUID_STATES.PATROLLING);
         }
         
         // Timeout hunting
         if (this.behaviorTree.shouldHuntTimeout(this)) {
+            // Clear claim on timeout
+            if (this.huntTarget && this.huntTarget.huntedBySquid === this) {
+                this.huntTarget.huntedBySquid = null;
+            }
             this.behaviorTree.transitionToState(this, window.SQUID_STATES.PATROLLING);
             this.huntTarget = null;
         }
@@ -208,6 +275,10 @@ class GiantSquid extends (window.Entity || Entity) {
         if (this.huntTarget) {
             // Attempt to grab prey
             if (this.steeringForces.attemptToGrabPrey(this, predators, fish)) {
+                // Clear claim on the eaten tuna
+                if (this.huntTarget.huntedBySquid === this) {
+                    this.huntTarget.huntedBySquid = null;
+                }
                 // Apply escape jet after successful grab
                 this.steeringForces.applyEscapeJet(this, this.jetSystem);
                 this.behaviorTree.transitionToState(this, window.SQUID_STATES.RETREATING);
@@ -220,15 +291,36 @@ class GiantSquid extends (window.Entity || Entity) {
                 
                 // Timeout attack
             if (this.behaviorTree.shouldAttackTimeout(this)) {
+                // Transition back to hunting (keep claim on target)
                 this.behaviorTree.transitionToState(this, window.SQUID_STATES.HUNTING);
             }
         } else {
+            // No target, clear any claim and return to patrolling
+            if (this.huntTarget && this.huntTarget.huntedBySquid === this) {
+                this.huntTarget.huntedBySquid = null;
+            }
             this.behaviorTree.transitionToState(this, window.SQUID_STATES.PATROLLING);
         }
     }
     
     handleRetreating(fish, predators) {
-        // Consume prey and rest
+        // If fleeing from another squid, check if still in range
+        if (this.fleeingFromSquid) {
+            const squidDetectionRange = window.SQUID_CONFIG?.SQUID_DETECTION_RANGE || 1000;
+            const dist = this.steeringForces.distance(this, this.fleeingFromSquid);
+            // If far enough away or squid is no longer valid, clear flee target and return to patrolling
+            if (dist > squidDetectionRange * 1.5 || 
+                !this.fleeingFromSquid.x || !this.fleeingFromSquid.y) {
+                this.fleeingFromSquid = null;
+                this.behaviorTree.transitionToState(this, window.SQUID_STATES.PATROLLING);
+                return;
+            }
+            // Continue fleeing - apply retreat forces every frame for immediate response
+            this.steeringForces.applyRetreatForces(this, this.jetSystem);
+            return; // Don't process prey consumption while fleeing
+        }
+        
+        // Consume prey and rest (normal retreat behavior)
         if (this.grabbedPrey) {
             this.steeringForces.consumePrey(this);
             
@@ -243,7 +335,7 @@ class GiantSquid extends (window.Entity || Entity) {
             }
         }
         
-        // Apply retreat forces
+        // Apply retreat forces (only when settling, not when fleeing from squid)
         if (this.behaviorTree.shouldRetreatSettle(this)) {
             this.steeringForces.applyRetreatForces(this, this.jetSystem);
         }

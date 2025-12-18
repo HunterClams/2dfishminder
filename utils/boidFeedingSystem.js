@@ -8,14 +8,27 @@ class BoidFeedingSystem {
         const gameEntities = window.gameEntities;
         if (!gameEntities) return false;
         
-        // Initialize behavior state if not present
+        // Initialize behavior state and properties if not present
         if (!boid.behaviorState) {
             boid.behaviorState = 'foraging';
+        }
+        if (boid.lastEatTime === undefined) {
             boid.lastEatTime = 0;
+        }
+        if (boid.huntTarget === undefined) {
             boid.huntTarget = null;
+        }
+        if (boid.feedingTimer === undefined) {
             boid.feedingTimer = 0;
+        }
+        if (boid.feedingDuration === undefined) {
             boid.feedingDuration = this.config.BEHAVIOR_CONFIG?.feedingDuration || 8000;
+        }
+        // CRITICAL: Always ensure foodConsumed and poopThreshold are initialized
+        if (boid.foodConsumed === undefined) {
             boid.foodConsumed = 0;
+        }
+        if (boid.poopThreshold === undefined) {
             boid.poopThreshold = this.getPoopThreshold();
         }
         
@@ -68,12 +81,14 @@ class BoidFeedingSystem {
                     
                     // Check if within eating range
                     if (distance < foodSource.range) {
-                        // Eat the food immediately
+                        // Eat the food immediately (this may set state to 'feeding' if threshold reached)
                         this.eatFood(boid, food, foodSource, i);
+                        // Return early - don't continue checking other food or changing state
+                        // This preserves the 'feeding' state if eatFood set it
                         return true; // Return true to indicate food was eaten
                     }
                     
-                    // Track closest food for hunting behavior
+                    // Track closest food for hunting behavior (only if not in eating range)
                     const detectionRange = this.config.BEHAVIOR_CONFIG?.detectionRange || 120;
                     if (distance < closestDistance && distance < detectionRange) {
                         closestFood = { food, source: foodSource, distance, index: i };
@@ -83,8 +98,11 @@ class BoidFeedingSystem {
             }
         }
         
-        // Update behavior state based on food availability (only if not feeding or spawning)
-        if (boid.behaviorState !== 'feeding' && boid.behaviorState !== 'spawning') {
+        // Update behavior state based on food availability
+        // CRITICAL: Exclude feeding, spawning, and fleeing states (fleeing has priority, feeding/spawning are locked states)
+        if (boid.behaviorState !== 'feeding' && 
+            boid.behaviorState !== 'spawning' && 
+            boid.behaviorState !== 'fleeing') {
             if (closestFood) {
                 boid.behaviorState = 'hunting';
                 boid.huntTarget = closestFood.food;
@@ -100,7 +118,8 @@ class BoidFeedingSystem {
                 // Don't apply any additional forces - let flocking handle movement
             }
         } else {
-            // During feeding or spawning state, clear hunt target but keep state
+            // During feeding, spawning, or fleeing state, clear hunt target but keep state
+            // Don't override these states - they have specific logic elsewhere
             boid.huntTarget = null;
         }
         
@@ -110,7 +129,7 @@ class BoidFeedingSystem {
     getFoodSources(gameEntities) {
         const foodConfig = this.config.FOOD_SOURCES || {};
         
-        // Base food sources that all fry can eat
+        // Base food sources that all fry can eat (eggs removed - fry cannot eat eggs)
         const baseFoodSources = [
             // Krill types with corrected food values
             { array: gameEntities.krill, name: 'krill', energyGain: foodConfig.krill?.energyGain || 15, range: foodConfig.krill?.range || 25, foodValue: foodConfig.krill?.foodValue || 3 },
@@ -122,22 +141,33 @@ class BoidFeedingSystem {
             { array: gameEntities.poop?.filter(p => p.state >= 2) || [], name: 'poop', energyGain: foodConfig.poop?.energyGain || 8, range: foodConfig.poop?.range || 22, foodValue: 'variable' }
         ];
         
-        // Add fertilized eggs only for regular fry (not TrueFry)
-        // Note: This will be filtered by shouldIgnorePrey function, but we include it here for regular fry
-        const fertilizedEggsSource = { array: gameEntities.fertilizedEggs, name: 'fertilizedEggs', energyGain: foodConfig.fertilizedEggs?.energyGain || 25, range: foodConfig.fertilizedEggs?.range || 25, foodValue: foodConfig.fertilizedEggs?.foodValue || 5 };
-        
-        return [...baseFoodSources, fertilizedEggsSource];
+        // Eggs removed - all fry types cannot eat eggs
+        return baseFoodSources;
     }
 
     eatFood(boid, food, foodSource, index) {
-        // Remove the food from appropriate array
-        if (foodSource.name === 'poop') {
+        // Special handling for swarm krill (krill1-3 sprites)
+        // When swarm krill is eaten, convert it to lone krill instead of removing it
+        if (foodSource.name === 'krill' && food && food.isSwarmKrill === true) {
+            // Convert swarm krill to lone krill
+            if (food.convertToLoneKrill && food.convertToLoneKrill()) {
+                // Krill converted to lone krill - don't remove from array
+                // Fry still gets nutrition below, just like normal eating
+                if (window.gameState?.fryDebug) {
+                    console.log(`🦐 Swarm krill converted to lone krill after being eaten by ${boid.constructor.name}`);
+                }
+            } else {
+                // Conversion failed or already lone krill - remove normally
+                foodSource.array.splice(index, 1);
+            }
+        } else if (foodSource.name === 'poop') {
             // For poop, find and remove from main poop array
             const poopIndex = window.gameEntities.poop.indexOf(food);
             if (poopIndex !== -1) {
                 window.gameEntities.poop.splice(poopIndex, 1);
             }
         } else {
+            // Normal removal for other food types
             foodSource.array.splice(index, 1);
         }
         
@@ -161,10 +191,23 @@ class BoidFeedingSystem {
                 actualFoodValue = 1; // 6 fry poop needed to make fry poop
             }
         }
+        
+        // CRITICAL: Always ensure counters are initialized (not just on first checkForFood call)
+        if (boid.foodConsumed === undefined || boid.foodConsumed === null) {
+            boid.foodConsumed = 0;
+        }
+        if (boid.poopThreshold === undefined || boid.poopThreshold === null || boid.poopThreshold <= 0) {
+            boid.poopThreshold = this.getPoopThreshold();
+        }
+        
+        // Increment food consumed
         boid.foodConsumed += actualFoodValue;
         
-        // Check if fry should poop based on food accumulation (6-8 food system)
-        if (boid.foodConsumed >= boid.poopThreshold && window.gameEntities && window.gameEntities.poop && window.Poop) {
+        // Check if fry should poop based on food accumulation (1-2 food system)
+        // CRITICAL: This check MUST work - it's how fry enter feeding state
+        const shouldPoop = boid.foodConsumed >= boid.poopThreshold;
+        
+        if (shouldPoop && window.gameEntities && window.gameEntities.poop && window.Poop) {
             // Create poop
             window.gameEntities.poop.push(new window.Poop(boid.x, boid.y, 'regular'));
             
@@ -172,9 +215,16 @@ class BoidFeedingSystem {
             boid.foodConsumed = 0;
             boid.poopThreshold = this.getPoopThreshold();
             
-            // Enter feeding state AFTER pooping, not after eating
+            // CRITICAL: Enter feeding state AFTER pooping
+            // This state MUST be set and preserved - spawning systems depend on it
+            // This is the PRIMARY way fry enter feeding state
             boid.behaviorState = 'feeding';
-            boid.feedingTimer = 0; // Reset feeding timer for 3-second feeding state
+            boid.feedingTimer = 0; // Reset feeding timer to start the feeding duration
+            
+            // Debug logging to verify state is being set
+            if (window.gameState?.fryDebug) {
+                console.log(`🐟 Fry ${boid.fishType || 'unknown'} entered FEEDING state after pooping at (${Math.round(boid.x)}, ${Math.round(boid.y)}), threshold was ${boid.poopThreshold}`);
+            }
         }
         
         // Restore energy based on food type

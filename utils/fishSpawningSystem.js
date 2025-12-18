@@ -37,23 +37,23 @@ class FishSpawningSystem {
                 preferredDepth: 0.2
             },
             
-            // Krill - deep waters with migration
+            // Krill - deep waters with migration (reduced to 220 total)
             [window.FISH_TYPES.KRILL]: {
                 preferredZone: 'DEEP',
                 spawnZone: 'deep',
-                count: 250,
+                count: 190,
                 preferredDepth: 0.75
             },
             [window.FISH_TYPES.PALE_KRILL]: {
                 preferredZone: 'DEEP',
                 spawnZone: 'deep',
-                count: 20,
+                count: 15,
                 preferredDepth: 0.75
             },
             [window.FISH_TYPES.MOM_KRILL]: {
                 preferredZone: 'DEEP',
                 spawnZone: 'deep',
-                count: 20,
+                count: 15,
                 preferredDepth: 0.75
             },
             

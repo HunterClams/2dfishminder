@@ -24,7 +24,7 @@ class BoidRenderingSystem {
         
         boid.drawSprite(sprite, boid.size, 0.9, angle);
         
-        // Debug visualization
+        // Debug visualization - only show when debug is enabled via T key cycling or F3 toggle
         if (window.debugManager && window.debugManager.isDebugOn('fry')) {
             this.drawDebugInfo(boid);
         }
@@ -39,14 +39,16 @@ class BoidRenderingSystem {
         
         ctx.save();
         
-        // State color coding
-        const stateColors = this.config.DEBUG_COLORS || {
-            'foraging': '#90EE90',    // Light Green
-            'hunting': '#FFA500',     // Orange  
-            'feeding': '#87CEEB',     // Sky Blue
-            'feeding_cooldown': '#FFB6C1', // Light Pink for feeding cooldown
-            'spawning': '#FF69B4',    // Hot Pink
-            'spawning_cooldown': '#DDA0DD' // Plum for spawning cooldown
+        // State color coding (use BoidConfig.DEBUG_COLORS)
+        const configColors = window.BoidConfig?.DEBUG_COLORS || {};
+        const stateColors = {
+            'foraging': configColors.foraging || '#90EE90',    // Light Green
+            'hunting': configColors.hunting || '#FFA500',     // Orange  
+            'feeding': configColors.feeding || '#87CEEB',     // Sky Blue
+            'feeding_cooldown': configColors.feeding_cooldown || '#FFB6C1', // Light Pink for feeding cooldown
+            'spawning': configColors.spawning || '#FF69B4',    // Hot Pink
+            'spawning_cooldown': configColors.spawning_cooldown || '#DDA0DD', // Plum for spawning cooldown
+            'fleeing': configColors.fleeing || '#FF0000'      // Red for fleeing
         };
         
         const stateColor = stateColors[boid.behaviorState] || '#FFFFFF';
@@ -57,11 +59,19 @@ class BoidRenderingSystem {
         ctx.textAlign = 'center';
         ctx.fillText(boid.behaviorState.toUpperCase(), boid.x, boid.y - 20);
         
-        // Draw food consumption counter
+        // Draw food consumption counter (enhanced for debugging)
         if (boid.foodConsumed !== undefined && boid.poopThreshold !== undefined) {
             ctx.font = '8px Arial';
-            ctx.fillStyle = 'rgba(139, 69, 19, 0.8)'; // Brown color for poop indicator
-            ctx.fillText(`${boid.foodConsumed}/${boid.poopThreshold}`, boid.x, boid.y + 25);
+            ctx.fillStyle = 'rgba(139, 69, 19, 0.9)'; // Brown color for poop indicator
+            const consumptionText = `${boid.foodConsumed}/${boid.poopThreshold}`;
+            ctx.fillText(consumptionText, boid.x, boid.y + 25);
+            
+            // Show warning if threshold should have been reached but state isn't feeding
+            if (boid.foodConsumed >= boid.poopThreshold && boid.behaviorState !== 'feeding') {
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.9)'; // Red warning
+                ctx.font = '7px Arial';
+                ctx.fillText('THRESH!', boid.x, boid.y + 35);
+            }
         }
         
         // Draw energy bar

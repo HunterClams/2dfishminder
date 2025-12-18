@@ -232,8 +232,8 @@ class GameEntities {
             this.fish.push(fish);
         }
         
-        // Create initial krill population
-        for (let i = 0; i < 250; i++) {
+        // Create initial krill population (reduced to 220 total)
+        for (let i = 0; i < 190; i++) {
             const krill = new window.Krill();
             krill.x = Math.random() * window.WORLD_WIDTH;
             krill.y = Math.random() * window.WORLD_HEIGHT;
@@ -241,7 +241,7 @@ class GameEntities {
         }
         
         // Create initial pale krill population
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 15; i++) {
             const paleKrill = new window.PaleKrill(
                 Math.random() * window.WORLD_WIDTH,
                 Math.random() * window.WORLD_HEIGHT
@@ -250,7 +250,7 @@ class GameEntities {
         }
         
         // Create initial mom krill population
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 15; i++) {
             const momKrill = new window.MomKrill(
                 Math.random() * window.WORLD_WIDTH,
                 Math.random() * window.WORLD_HEIGHT
@@ -543,13 +543,27 @@ class GameEntities {
             }
         }
         
-        // Update food and poop
+        // Update fish food using optimization system if available
+        if (window.FishFoodMovementSystem) {
+            // Batch update all fish food
+            window.FishFoodMovementSystem.updateAllFishFood(this.fishFood);
+            
+            // Still need to check if eaten by fish/krill (individual check)
+            for (let i = this.fishFood.length - 1; i >= 0; i--) {
+                const food = this.fishFood[i];
+                if (food.checkEaten(this.fish) || food.eaten) {
+                    this.fishFood.splice(i, 1);
+                }
+            }
+        } else {
+            // Fallback: Original individual update
         for (let i = this.fishFood.length - 1; i >= 0; i--) {
             const food = this.fishFood[i];
             food.update();
             
             if (food.checkEaten(this.fish) || food.eaten) {
                 this.fishFood.splice(i, 1);
+                }
             }
         }
         
@@ -589,13 +603,48 @@ class GameEntities {
             window.SpermFertilizationSystem.processSpermFertilization(this.sperm, this.fishEggs, this);
         }
         
-        // Update poop
+        // Update poop using optimization system if available
+        if (window.PoopMovementSystem) {
+            // First, handle state 1 -> 2 transitions for all poop (must be done before batch processing)
+            // Also update state timers for all poop
+            for (let i = 0; i < this.poop.length; i++) {
+                const poop = this.poop[i];
+                if (poop.isActive) {
+                    poop.stateTimer += 16;
+                    // State 1 -> State 2 after 5 seconds
+                    if (poop.state === 1 && poop.stateTimer >= poop.maxAge) {
+                        poop.state = 2;
+                        poop.stateTimer = 0;
+                    }
+                }
+            }
+            
+            // Batch update poop2 and poop3 (returns unprocessed poop1)
+            const unprocessedPoop1 = window.PoopMovementSystem.batchUpdate(this.poop);
+            
+            // Update remaining poop1 individually (not optimized, uses fallback)
+            if (unprocessedPoop1 && Array.isArray(unprocessedPoop1)) {
+                for (let i = 0; i < unprocessedPoop1.length; i++) {
+                    unprocessedPoop1[i].updateFallback();
+                }
+            }
+            
+            // Remove eaten/inactive poop
+            for (let i = this.poop.length - 1; i >= 0; i--) {
+                const poop = this.poop[i];
+                if (poop.checkEaten(this.fish) || !poop.isActive) {
+                    this.poop.splice(i, 1);
+                }
+            }
+        } else {
+            // Fallback: Original individual update
         for (let i = this.poop.length - 1; i >= 0; i--) {
             const poop = this.poop[i];
             poop.update();
             
-            if (poop.checkEaten(this.fish) || poop.eaten) {
+                if (poop.checkEaten(this.fish) || !poop.isActive) {
                 this.poop.splice(i, 1);
+                }
             }
         }
         

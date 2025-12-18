@@ -26,18 +26,45 @@ class Poop {
         
         // Add slight random drift
         this.velocity.x = (Math.random() - 0.5) * 0.1;
+        
+        // Pattern index for optimization system (if used)
+        this.patternIndex = Math.floor(Math.random() * 1000);
     }
     
     update() {
         if (!this.isActive) return;
         
-        this.stateTimer += 16; // Approximate frame time
+        // Always handle state timer and state 1 -> 2 transition (individual per poop)
+        this.stateTimer += 16;
         
         // State 1 -> State 2 after 5 seconds
         if (this.state === 1 && this.stateTimer >= this.maxAge) {
             this.state = 2;
             this.stateTimer = 0;
         }
+        
+        // Use optimization system for poop2 and poop3 (fallback to original if not available)
+        // Optimization system handles movement and state 2 -> 3 transition
+        if ((this.state === 2 || this.state === 3) && window.PoopMovementSystem) {
+            // Optimization system handles movement via batch processing
+            // Individual update is still called but optimization will handle movement
+            return;
+        }
+        
+        // Fallback: Original update logic for poop1 or if optimization not available
+        this.updateFallback();
+    }
+    
+    /**
+     * Fallback update method (original behavior)
+     * Note: State timer is handled in update() method, not here, to avoid double increments
+     */
+    updateFallback() {
+        if (!this.isActive) return;
+        
+        // State timer is already incremented in update() method (line 38)
+        // State 1 -> 2 transition is also handled in update() method (lines 41-44)
+        // Only handle movement and state 2 -> 3 transition here
         
         // Check if we're in deep water (bottom 40% of world)
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;

@@ -318,18 +318,7 @@ class TunaRenderingSystem {
         ctx.textAlign = 'center';
         ctx.fillText(stateText, tuna.x, stateY - 2);
         
-        // Draw energy bar
-        const barWidth = tuna.size * 0.8;
-        const barHeight = 6;
-        const energyPercent = (tuna.energy || 50) / 100; // Default to 50% if no energy
-        
-        // Energy bar background
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
-        ctx.fillRect(tuna.x - barWidth/2, stateY - 45, barWidth, barHeight);
-        
-        // Energy bar fill
-        ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
-        ctx.fillRect(tuna.x - barWidth/2, stateY - 45, barWidth * energyPercent, barHeight);
+        // Energy bar removed - energy system no longer used
         
         // Alertness indicator (if available)
         if (tuna.alertness !== undefined) {
@@ -420,7 +409,6 @@ class TunaRenderingSystem {
         return {
             state: tuna.aiState || 'none',
             target: tuna.aiTarget ? 'yes' : 'no',
-            energy: Math.round(tuna.energy),
             alertness: tuna.alertness ? Math.round(tuna.alertness * 100) : 0,
             huntSuccess: tuna.huntSuccess || 0,
             speedBoost: tuna.currentSpeedBoost ? Math.round((tuna.currentSpeedBoost - 1.0) * 100) : 0

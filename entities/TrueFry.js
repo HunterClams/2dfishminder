@@ -117,12 +117,11 @@ class TrueFry1 extends Boid {
     checkForFood(krillArray, fishFoodArray, poopArray, fertilizedEggsArray = []) {
         if (!this.canEat) return false; // Cannot eat during cooldown
         
-        // Use parent method but with TrueFry specific food sources
+        // Use parent method but with TrueFry specific food sources (eggs removed - fry cannot eat eggs)
         const foodSources = [
             { array: krillArray, name: 'krill', range: 25 },
             { array: fishFoodArray, name: 'fishFood', range: 20 },
-            { array: poopArray.filter(p => p.state >= 2), name: 'poop', range: 22 },
-            { array: fertilizedEggsArray, name: 'fertilizedEggs', range: 25 }
+            { array: poopArray.filter(p => p.state >= 2), name: 'poop', range: 22 }
         ];
         
         let closestFood = null;
@@ -141,15 +140,17 @@ class TrueFry1 extends Boid {
                     // Eat the food immediately
                     if (foodSource.name === 'krill') {
                         this.consumeFood(food);
+                        // Special handling for swarm krill - convert to lone krill instead of removing
+                        if (food && food.isSwarmKrill === true && food.convertToLoneKrill) {
+                            food.convertToLoneKrill();
+                        } else {
                         foodSource.array.splice(i, 1);
+                        }
                     } else if (foodSource.name === 'fishFood') {
                         this.consumeFood(food);
                         foodSource.array.splice(i, 1);
                     } else if (foodSource.name === 'poop') {
                         this.consumePoop(food, poopArray, poopArray.indexOf(food));
-                    } else if (foodSource.name === 'fertilizedEggs') {
-                        this.consumeFood(food);
-                        foodSource.array.splice(i, 1);
                     }
                     return true;
                 }
@@ -459,12 +460,11 @@ class TrueFry2 extends Boid {
     checkForFood(krillArray, fishFoodArray, poopArray, fertilizedEggsArray = []) {
         if (!this.canEat) return false; // Cannot eat during cooldown
         
-        // Use parent method but with TrueFry specific food sources
+        // Use parent method but with TrueFry specific food sources (eggs removed - fry cannot eat eggs)
         const foodSources = [
             { array: krillArray, name: 'krill', range: 25 },
             { array: fishFoodArray, name: 'fishFood', range: 20 },
-            { array: poopArray.filter(p => p.state >= 2), name: 'poop', range: 22 },
-            { array: fertilizedEggsArray, name: 'fertilizedEggs', range: 25 }
+            { array: poopArray.filter(p => p.state >= 2), name: 'poop', range: 22 }
         ];
         
         let closestFood = null;
@@ -483,15 +483,17 @@ class TrueFry2 extends Boid {
                     // Eat the food immediately
                     if (foodSource.name === 'krill') {
                         this.consumeFood(food);
+                        // Special handling for swarm krill - convert to lone krill instead of removing
+                        if (food && food.isSwarmKrill === true && food.convertToLoneKrill) {
+                            food.convertToLoneKrill();
+                        } else {
                         foodSource.array.splice(i, 1);
+                        }
                     } else if (foodSource.name === 'fishFood') {
                         this.consumeFood(food);
                         foodSource.array.splice(i, 1);
                     } else if (foodSource.name === 'poop') {
                         this.consumePoop(food, poopArray, poopArray.indexOf(food));
-                    } else if (foodSource.name === 'fertilizedEggs') {
-                        this.consumeFood(food);
-                        foodSource.array.splice(i, 1);
                     }
                     return true;
                 }

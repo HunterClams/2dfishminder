@@ -52,6 +52,12 @@ class TunaBehaviorTree {
         tuna.targetSwitchTimer = Math.max(0, tuna.targetSwitchTimer - 1);
         this.updateAlertness(tuna);
         
+        // Check for threats FIRST - FLEEING overrides all other states
+        const threats = this.controller ? this.controller.findThreats(tuna, gameEntities) : [];
+        if (threats.length > 0 && tuna.aiState !== window.TUNA_STATES.FLEEING) {
+            this.controller.transitionToState(tuna, window.TUNA_STATES.FLEEING);
+        }
+        
         // Delegate to main controller for state handling
         if (this.controller) {
             switch (tuna.aiState) {
@@ -60,9 +66,6 @@ class TunaBehaviorTree {
                     break;
                 case window.TUNA_STATES.HUNTING:
                     this.controller.handleHunting(tuna, gameEntities);
-                    break;
-                case window.TUNA_STATES.ATTACKING:
-                    this.controller.handleAttacking(tuna, gameEntities);
                     break;
                 case window.TUNA_STATES.FEEDING:
                     this.controller.handleFeeding(tuna, gameEntities);
@@ -75,9 +78,8 @@ class TunaBehaviorTree {
     }
 
     updateAlertness(tuna) {
-        const energyFactor = tuna.energy / 100;
         const timeFactor = Math.sin(tuna.aiTimer * 0.001) * 0.1;
-        tuna.alertness = Math.max(0.1, Math.min(1.0, energyFactor * 0.7 + (tuna.huntSuccess / 10) * 0.2 + timeFactor));
+        tuna.alertness = Math.max(0.5, Math.min(1.0, 0.7 + (tuna.huntSuccess / 10) * 0.2 + timeFactor));
     }
 
     // Target selection helpers (to be filled in or delegated)

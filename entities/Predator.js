@@ -12,7 +12,6 @@ class Predator extends (window.Entity || Entity) {
         this.maxSpeed = 3;
         this.maxForce = 0.12; // Doubled from 0.06 for 2x sharper turning
         this.size = 50; // Both tuna types have same size for identical behavior
-        this.energy = 100;
         this.huntCooldown = 0;
         this.aggression = 0.7 + Math.random() * 0.3;
         
@@ -164,7 +163,6 @@ class Predator extends (window.Entity || Entity) {
             this.applyFallbackRepulsion();
             this.move();
             this.edges();
-            this.energy = Math.max(0, this.energy - 0.02);
             if (this.huntCooldown > 0) {
                 this.huntCooldown--;
             }
@@ -435,7 +433,6 @@ class Predator extends (window.Entity || Entity) {
             return {
                 state: this.aiState || 'none',
                 target: this.aiTarget ? 'yes' : 'no',
-                energy: Math.round(this.energy),
                 alertness: this.alertness ? Math.round(this.alertness * 100) : 0,
                 huntSuccess: this.huntSuccess || 0,
                 speedBoost: this.currentSpeedBoost ? Math.round((this.currentSpeedBoost - 1.0) * 100) : 0

@@ -35,23 +35,41 @@ class SquidSteeringForces {
             return; // Will transition to attacking
         }
         
-        // Approach using jet propulsion
-        const direction = this.normalize({
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        const maxShallowDepth = WORLD_HEIGHT * 0.5; // 50% depth limit (4000px if WORLD_HEIGHT is 8000)
+        const currentDepth = squid.y;
+        
+        // Calculate direction to target
+        let direction = this.normalize({
             x: squid.huntTarget.x - squid.x,
             y: squid.huntTarget.y - squid.y
         });
         
+        // Enforce 50% depth limit: prevent upward movement if at or above 50% depth
+        if (direction.y < 0 && currentDepth <= maxShallowDepth) {
+            // Squid is at or above 50% depth and trying to move up - prevent upward movement
+            // Only allow horizontal movement or downward movement
+            direction.y = 0; // Force horizontal movement only
+            // Re-normalize horizontal direction
+            if (direction.x !== 0) {
+                const mag = Math.abs(direction.x);
+                direction.x = direction.x / mag;
+            } else {
+                // No horizontal component, use random horizontal direction
+                direction.x = Math.random() > 0.5 ? 1 : -1;
+            }
+        }
+        
         // Use jet propulsion to close distance - allow jet until much closer to target
         const jetRange = 150; // Use jet propulsion until within 150px of target
-        const needsUpwardMovement = direction.y < -0.3; // Moving significantly upward
         
         if (jetSystem.canJet(squid) && dist > jetRange) {
-            // Use powerful jet to close distance to target
+            // Use powerful jet to close distance to target (but respect depth limit)
             jetSystem.jet(squid, direction, 0.9);
             
             // Debug logging for jet propulsion
             if (window.gameState && window.gameState.squidDebug && squid.stateTimer % 30 === 0) {
-                console.log(`🦑 Squid jetting toward target: distance ${Math.round(dist)}px, jet power 0.9`);
+                console.log(`🦑 Squid jetting toward target: distance ${Math.round(dist)}px, jet power 0.9, depth: ${Math.round((currentDepth / WORLD_HEIGHT) * 100)}%`);
             }
         } else if (dist <= jetRange && dist > squid.attackRange) {
             // Use fins for fine positioning when very close but not in attack range
@@ -59,7 +77,7 @@ class SquidSteeringForces {
             
             // Debug logging for fin propulsion
             if (window.gameState && window.gameState.squidDebug && squid.stateTimer % 30 === 0) {
-                console.log(`🦑 Squid using fins for fine positioning: distance ${Math.round(dist)}px, attack range ${squid.attackRange}px`);
+                console.log(`🦑 Squid using fins for fine positioning: distance ${Math.round(dist)}px, attack range ${squid.attackRange}px, depth: ${Math.round((currentDepth / WORLD_HEIGHT) * 100)}%`);
             }
         }
     }
@@ -78,11 +96,29 @@ class SquidSteeringForces {
             return; // Will grab prey
         }
         
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        const maxShallowDepth = WORLD_HEIGHT * 0.5; // 50% depth limit
+        const currentDepth = squid.y;
+        
         // Final attack approach
-        const direction = this.normalize({
+        let direction = this.normalize({
             x: squid.huntTarget.x - squid.x,
             y: squid.huntTarget.y - squid.y
         });
+        
+        // Enforce 50% depth limit: prevent upward movement if at or above 50% depth
+        if (direction.y < 0 && currentDepth <= maxShallowDepth) {
+            // Squid is at or above 50% depth and trying to move up - prevent upward movement
+            direction.y = 0; // Force horizontal movement only
+            // Re-normalize horizontal direction
+            if (direction.x !== 0) {
+                const mag = Math.abs(direction.x);
+                direction.x = direction.x / mag;
+            } else {
+                // No horizontal component, use random horizontal direction
+                direction.x = Math.random() > 0.5 ? 1 : -1;
+            }
+        }
         
         // Use jet propulsion for upward movement during attack, tentacles for fine positioning
         const needsUpwardMovement = direction.y < -0.3; // Moving significantly upward
@@ -103,12 +139,33 @@ class SquidSteeringForces {
      * @param {Object} jetSystem - The jet propulsion system
      */
     applyRetreatForces(squid, jetSystem) {
-        // Gentle settling movement
+        // If fleeing from another squid, move away from it
+        if (squid.fleeingFromSquid && squid.fleeingFromSquid.x !== undefined && squid.fleeingFromSquid.y !== undefined) {
+            const squidDetectionRange = window.SQUID_CONFIG?.SQUID_DETECTION_RANGE || 1000;
+            const dist = this.distance(squid, squid.fleeingFromSquid);
+            const fleeDirection = this.normalize({
+                x: squid.x - squid.fleeingFromSquid.x,
+                y: squid.y - squid.fleeingFromSquid.y
+            });
+            
+            // Use jet propulsion for rapid escape if cooldown allows
+            if (jetSystem.canJet(squid) && dist < squidDetectionRange * 0.7) {
+                // Close enough to use powerful jet escape
+                jetSystem.jet(squid, fleeDirection, 0.8);
+            } else {
+                // Use fin propulsion for sustained fleeing
+                jetSystem.finPropulsion(squid, fleeDirection, 0.7);
+            }
+            
+            // Clear fleeing target if far enough away (handled in handleRetreating)
+        } else {
+            // Normal retreat: gentle settling movement (when not fleeing from squid)
         const settleDirection = {
             x: (Math.random() - 0.5) * 0.2,
             y: 0.1
         };
         jetSystem.finPropulsion(squid, settleDirection, 0.2);
+        }
     }
 
     /**

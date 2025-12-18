@@ -48,7 +48,10 @@ class BoidConfig {
         separationRadius: 35,
         alignmentRadius: 60,
         cohesionRadius: 80,
-        fearRadius: 120,
+        fearRadius: 120,        // Threat detection radius (same as tuna's flee radius concept)
+        fleeRadius: 480,        // Flee radius for predators (tuna and squids) - doubled from 240 to 480
+        fleeSpeed: 1.3,         // Speed boost when fleeing (30% faster)
+        minSpeed: 0.8,          // Minimum speed to prevent stationary fry (increased from 0.5 for more active movement)
         foodRadius: 80,
         huntRadius: 40,
         frameSpeed: 0.1,
@@ -70,7 +73,8 @@ class BoidConfig {
         foraging: '#90EE90',    // Light Green
         hunting: '#FFA500',     // Orange  
         feeding: '#87CEEB',     // Sky Blue
-        spawning: '#FF69B4'     // Hot Pink for spawning state
+        spawning: '#FF69B4',    // Hot Pink for spawning state
+        fleeing: '#FF0000'      // Red for fleeing state
     };
 
     static getPreferredDepth(fishType) {

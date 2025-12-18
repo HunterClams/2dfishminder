@@ -4,27 +4,45 @@
 const TUNA_STATES = {
     PATROLLING: 'patrolling',
     HUNTING: 'hunting',
-    ATTACKING: 'attacking',
     FEEDING: 'feeding',
     FLEEING: 'fleeing'
 };
 
 const TUNA_CONFIG = {
-    huntRadius: 300, // Doubled from 150 to 300 for better prey detection
-    attackRadius: 40, // Increased from 30 to 40 for better eating success
-    fleeRadius: 850, // Increased from 500 to 650 for even earlier threat detection
-    huntEnergyThreshold: 50, // Removed restEnergyThreshold - no more resting state
-    maxPredictionTime: 3.0,
-    wanderRadius: 100, // Keep for compatibility
-    patrolSpeed: 0.9, // Increased from 0.8 for more active patrolling
-    patrolDistance: 800, // EXPANDED: Base patrol distance (was 500)
-    patrolVariation: 500, // EXPANDED: Variation in patrol distance (±500px, was ±300px)
-    huntSpeed: 1.35, // 35% speed boost when hunting (1.0 + 0.35)
-    attackSpeed: 2.0,
-    stateChangeDelay: 30, // frames
-    targetSwitchCooldown: 60, // frames
-    fertilizedEggDetectionRadius: 150, // Specific detection radius for fertilized eggs
-    fishEggDetectionRadius: 50 // ENHANCED: Detection radius for unfertilized fish eggs (as requested)
+    // Detection and attack ranges
+    huntRadius: 300, // Primary detection radius for regular fry
+    attackRadius: 40, // Eating range (within this distance, can eat)
+    fleeRadius: 850, // Giant squid detection range
+    
+    // Prey-specific detection radii (smaller = harder to see)
+    regularFryDetectionRadius: 300, // Regular fry - easiest to see (full hunt radius)
+    trueFryDetectionRadius: 200, // TrueFry - harder to see (reduced radius)
+    fertilizedEggDetectionRadius: 120, // Fertilized eggs - even smaller
+    fishEggDetectionRadius: 80, // Unfertilized eggs - smallest (hardest to see)
+    
+    // Movement and speed
+    maxPredictionTime: 3.0, // Max seconds to predict prey movement
+    patrolSpeed: 1.0, // Base patrol speed (horizontal-focused)
+    patrolHorizontalBias: 0.85, // Horizontal movement bias (0-1, higher = more horizontal) - 85% horizontal, 15% vertical
+    huntSpeed: 1.5, // Speed boost when hunting (50% boost, increased from 40%)
+    fleeSpeed: 1.2, // Speed boost when fleeing
+    
+    // Flocking behavior (minor - for 3-5 tuna schools)
+    flockingPerceptionRadius: 400, // Range to detect other tuna for flocking
+    flockingSeparationRadius: 150, // Range to maintain separation from other tuna
+    flockingAlignmentWeight: 0.8, // Alignment force weight (strong for visible grouping)
+    flockingCohesionWeight: 0.5, // Cohesion force weight (strong for visible grouping)
+    flockingSeparationWeight: 0.3, // Separation force weight (moderate - prevents overlap)
+    
+    // Patrol behavior
+    patrolDistance: 800, // Base patrol distance
+    patrolVariation: 500, // Variation in patrol distance
+    patrolScanFrequency: 0.05, // Chance per frame to do quick scan turn
+    
+    // State management
+    feedingDuration: 180, // Frames locked out of hunting after eating (3 seconds)
+    targetSwitchCooldown: 60, // Frames between target switches
+    postFeedingCooldown: 60 // Cooldown after feeding before can hunt again (1 second)
 };
 
 // Export for global access

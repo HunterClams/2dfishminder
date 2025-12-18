@@ -25,6 +25,7 @@ class SquidBehaviorTree {
         squid.stateTimer = 0;
         squid.huntTarget = null;
         squid.grabbedPrey = null;
+        squid.fleeingFromSquid = null; // Track which squid we're fleeing from
         squid.lastEatTime = 0;
         squid.lastPoopTime = 0;
         squid.targetDepth = squid.y;
@@ -64,6 +65,31 @@ class SquidBehaviorTree {
     }
 
     /**
+     * Scan for nearby other squids (for avoidance/fleeing)
+     * @param {Object} squid - The squid entity
+     * @param {Array} allSquids - Array of all squid entities
+     * @returns {Object|null} Nearest other squid or null
+     */
+    scanForOtherSquids(squid, allSquids) {
+        if (!allSquids || allSquids.length <= 1) return null; // Need at least 2 squids
+        
+        let nearestSquid = null;
+        let nearestDistance = this.config.SQUID_DETECTION_RANGE * this.config.SQUID_DETECTION_RANGE;
+        
+        for (let other of allSquids) {
+            if (other === squid) continue; // Skip self
+            
+            const distSquared = window.Utils.distanceSquared(squid, other);
+            if (distSquared < nearestDistance) {
+                nearestSquid = other;
+                nearestDistance = distSquared;
+            }
+        }
+        
+        return nearestSquid;
+    }
+
+    /**
      * Scan for prey (only target tuna)
      * @param {Object} squid - The squid entity
      * @param {Array} predators - Array of predator entities
@@ -95,6 +121,11 @@ class SquidBehaviorTree {
         // Only hunt tuna (predators) - ignore all other fish
         if (!shouldIgnoreTuna) {
             for (let tuna of predators) {
+                // Skip tunas that are already being hunted by another squid
+                if (tuna.huntedBySquid && tuna.huntedBySquid !== squid) {
+                    continue; // This tuna is claimed by another squid
+                }
+                
                 const distSquared = window.Utils.distanceSquared(squid, tuna);
                 const distance = Math.sqrt(distSquared);
                 
@@ -105,6 +136,7 @@ class SquidBehaviorTree {
                         distance: distance,
                         visionRange: squid.visionRange,
                         inRange: distSquared < closestDistance,
+                        isClaimed: !!tuna.huntedBySquid,
                         position: { x: tuna.x, y: tuna.y },
                         squidPosition: { x: squid.x, y: squid.y }
                     });
@@ -160,23 +192,15 @@ class SquidBehaviorTree {
         
         if (isHunting && hasTarget) {
             // When hunting, allow movement outside preferred depth range to reach prey
+            // But always limit to maximum 50% depth (cannot go shallower/higher than 50%)
             const targetDepth = squid.huntTarget.y / WORLD_HEIGHT;
-            const depthDiff = squid.huntTarget.y - squid.y;
+            const maxShallowDepth = 0.5; // Cannot go above 50% depth (50% = 4000px if WORLD_HEIGHT is 8000)
             
-            // Only apply depth restrictions if prey is significantly above and we're already shallow
-            const isPreyAbove = depthDiff < -200; // Prey is 200+ pixels above
-            const isAlreadyShallow = currentDepth < 0.4; // Already above 40% depth
-            
-            if (isPreyAbove && isAlreadyShallow) {
-                // Limit upward movement when already shallow and prey is far above
-                const maxUpwardDepth = 0.25; // Don't go above 25% depth
-                if (targetDepth < maxUpwardDepth) {
-                    squid.targetDepth = WORLD_HEIGHT * maxUpwardDepth;
-                } else {
-                    squid.targetDepth = squid.huntTarget.y;
-                }
+            // If prey is shallower than 50% depth, limit to 50% depth
+            if (targetDepth < maxShallowDepth) {
+                squid.targetDepth = WORLD_HEIGHT * maxShallowDepth;
             } else {
-                // Allow normal hunting movement
+                // Prey is at or below 50% depth, can pursue normally
                 squid.targetDepth = squid.huntTarget.y;
             }
         } else {
@@ -221,11 +245,23 @@ class SquidBehaviorTree {
     transitionToState(squid, newState, target = null) {
         if (squid.state === newState) return;
         
+        // Clear claim on previous hunt target if transitioning away from hunting
+        if (squid.huntTarget && squid.huntTarget.huntedBySquid === squid) {
+            if (newState !== this.states.HUNTING && newState !== this.states.ATTACKING) {
+                // Only clear if not transitioning to another hunting-related state
+                squid.huntTarget.huntedBySquid = null;
+            }
+        }
+        
         squid.state = newState;
         squid.stateTimer = 0;
         
         if (target) {
             squid.huntTarget = target;
+            // Claim the target if transitioning to hunting state
+            if (newState === this.states.HUNTING && target.huntedBySquid !== squid) {
+                target.huntedBySquid = squid;
+            }
         }
     }
 

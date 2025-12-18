@@ -411,6 +411,10 @@
                     <span class="control-description">Zoom in and out</span>
                 </div>
                 <div class="control-item">
+                    <span class="control-key">↑ ↓</span>
+                    <span class="control-description">Up/Down arrows: Zoom in/out</span>
+                </div>
+                <div class="control-item">
                     <span class="control-key">Shift</span>
                     <span class="control-description">Boost camera speed</span>
                 </div>
@@ -517,6 +521,9 @@
     <script src="utils/lodSystem.js"></script>
     <script src="utils/enhancedRenderingSystem.js"></script>
     <script src="utils/performanceMonitoringSystem.js"></script>
+    <!-- Movement optimization systems (load before entities) -->
+    <script src="utils/poopMovementSystem.js"></script>
+    <script src="utils/fishFoodMovementSystem.js"></script>
     <!-- Modular Squid AI system -->
     <script src="utils/squidConfig.js"></script>
     <script src="utils/squidJetSystem.js"></script>

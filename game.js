@@ -207,6 +207,7 @@ const Utils = {
     distance: window.distance,
     calculateSteering: window.calculateSteering,
     limitVelocity: window.limitVelocity,
+    enforceMinimumSpeed: window.enforceMinimumSpeed,
     handleEdges: (entity, margin, damping) => window.handleEdges(entity, margin, damping, WORLD_WIDTH, WORLD_HEIGHT),
     
     // Behavioral functions now loaded from behaviorUtils.js
@@ -269,6 +270,28 @@ inputHandler.handleWheel = (event) => {
         // Normal zoom behavior when spawn mode is off
         window.handleCameraZoom(event, camera, canvas, CONSTANTS);
     }
+};
+// Override keydown handler to add arrow key zoom support
+const originalHandleKeyDown = inputHandler.handleKeyDown;
+inputHandler.handleKeyDown = (event) => {
+    // Handle arrow key zoom first (only when spawn mode is off)
+    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && gameState.spawnMode === 'off') {
+        event.preventDefault();
+        // Create proper synthetic wheel event with correct client coordinates (screen center)
+        const rect = canvas.getBoundingClientRect();
+        const centerX = rect.left + canvas.width / 2;
+        const centerY = rect.top + canvas.height / 2;
+        const syntheticEvent = {
+            preventDefault: () => {},
+            deltaY: event.key === 'ArrowUp' ? -100 : 100, // Up = zoom in, Down = zoom out
+            clientX: centerX,
+            clientY: centerY
+        };
+        window.handleCameraZoom(syntheticEvent, camera, canvas, CONSTANTS);
+        return;
+    }
+    // Call original handler for all other keys
+    originalHandleKeyDown(event);
 };
 window.setupInputListeners(inputHandler, canvas);
 

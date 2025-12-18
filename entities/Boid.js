@@ -20,9 +20,23 @@ class Boid extends (window.Entity || Entity) {
         // NOW we can set this properties
         this.fishType = actualFishType;
         
-        // Ensure velocity is properly initialized (safety check)
+        // Get behavior config for minimum speed check
+        const behaviorConfig = config.BEHAVIOR_CONFIG || {};
+        const minSpeed = behaviorConfig.minSpeed || 0.5;
+        
+        // Ensure velocity is properly initialized with minimum speed to prevent stationary fry
         if (!this.velocity) {
-            this.velocity = { x: Math.random() * 4 - 2, y: Math.random() * 4 - 2 };
+            // Set initial velocity with minimum speed in random direction
+            const angle = Math.random() * Math.PI * 2;
+            this.velocity = {
+                x: Math.cos(angle) * minSpeed,
+                y: Math.sin(angle) * minSpeed
+            };
+        } else {
+            // Ensure existing velocity meets minimum speed requirement
+            if (window.Utils && window.Utils.enforceMinimumSpeed) {
+                window.Utils.enforceMinimumSpeed(this.velocity, minSpeed);
+            }
         }
         
         // Initialize modular systems
@@ -31,8 +45,7 @@ class Boid extends (window.Entity || Entity) {
         // Setup fish properties using config
         this.setupFishProperties();
         
-        // Generate some variance in movement
-        const behaviorConfig = config.BEHAVIOR_CONFIG || {};
+        // Generate some variance in movement (behaviorConfig already declared above)
         this.personalSpace = (behaviorConfig.separationRadius || 35) + (Math.random() - 0.5) * 10;
         this.groupAffinity = 0.8 + Math.random() * 0.4;
         this.fearSensitivity = 0.8 + Math.random() * 0.4;
@@ -41,6 +54,14 @@ class Boid extends (window.Entity || Entity) {
         this.preferredDepth = config.getPreferredDepth ? config.getPreferredDepth(actualFishType) : this.getPreferredDepth();
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         this.depthTolerance = WORLD_HEIGHT * (behaviorConfig.depthTolerance || 0.15);
+        
+        // Initialize behavior state (default to foraging)
+        this.behaviorState = 'foraging';
+        
+        // Initialize threat system properties
+        if (window.boidThreatSystem) {
+            window.boidThreatSystem.initializeThreatSystem(this);
+        }
     }
 
     initializeModularSystems() {
@@ -119,6 +140,11 @@ class Boid extends (window.Entity || Entity) {
         const perceptionRadiusSquared = CONSTANTS.PERCEPTION_RADIUS * CONSTANTS.PERCEPTION_RADIUS;
         const separationRadiusSquared = CONSTANTS.SEPARATION_RADIUS * CONSTANTS.SEPARATION_RADIUS;
         
+        // When fleeing, reduce flocking influence (similar to krill fleeing behavior)
+        // Still apply some flocking for coordination but prioritize escape
+        const isFleeing = this.behaviorState === 'fleeing';
+        const flockingIntensity = isFleeing ? 0.3 : 1.0; // 30% flocking when fleeing
+        
         let alignment = { x: 0, y: 0 };
         let cohesion = { x: 0, y: 0 };
         let separation = { x: 0, y: 0 };
@@ -156,33 +182,43 @@ class Boid extends (window.Entity || Entity) {
             alignment.x /= alignCount;
             alignment.y /= alignCount;
             const alignSteering = this.calculateSteering(alignment, this.maxSpeed, this.maxForce);
-            forces.x += alignSteering.x;
-            forces.y += alignSteering.y;
+            forces.x += alignSteering.x * flockingIntensity;
+            forces.y += alignSteering.y * flockingIntensity;
         }
         
         if (cohesionCount > 0) {
             cohesion.x = (cohesion.x / cohesionCount) - this.x;
             cohesion.y = (cohesion.y / cohesionCount) - this.y;
             const cohesionSteering = this.calculateSteering(cohesion, this.maxSpeed, this.maxForce);
-            forces.x += cohesionSteering.x;
-            forces.y += cohesionSteering.y;
+            forces.x += cohesionSteering.x * flockingIntensity;
+            forces.y += cohesionSteering.y * flockingIntensity;
         }
         
         if (separationCount > 0) {
             separation.x /= separationCount;
             separation.y /= separationCount;
             const separationSteering = this.calculateSteering(separation, this.maxSpeed, this.maxForce);
-            forces.x += separationSteering.x * 1.5;
-            forces.y += separationSteering.y * 1.5;
+            // Separation still important when fleeing (avoid crowding during escape)
+            const separationMultiplier = isFleeing ? 2.0 : 1.5; // Stronger separation when fleeing
+            forces.x += separationSteering.x * separationMultiplier * flockingIntensity;
+            forces.y += separationSteering.y * separationMultiplier * flockingIntensity;
         }
         
-        // Apply forces
+        // Apply forces (only if not fleeing - fleeing forces already applied in update())
+        // If fleeing, we still apply reduced flocking for coordination
         this.velocity.x += forces.x;
         this.velocity.y += forces.y;
         
-        // Limit velocity
+        // Limit velocity (with flee speed boost if fleeing)
+        const maxSpeed = isFleeing ? this.maxSpeed * (window.BoidConfig?.BEHAVIOR_CONFIG?.fleeSpeed || 1.3) : this.maxSpeed;
         if (window.Utils && window.Utils.limitVelocity) {
-            window.Utils.limitVelocity(this.velocity, this.maxSpeed);
+            window.Utils.limitVelocity(this.velocity, maxSpeed);
+        }
+        
+        // Enforce minimum speed to prevent stationary fry
+        const minSpeed = window.BoidConfig?.BEHAVIOR_CONFIG?.minSpeed || 0.5;
+        if (window.Utils && window.Utils.enforceMinimumSpeed) {
+            window.Utils.enforceMinimumSpeed(this.velocity, minSpeed);
         }
     }
     
@@ -221,6 +257,55 @@ class Boid extends (window.Entity || Entity) {
         // Update frame counter
         this.frameCount++;
         
+        // Check for threats (for fleeing state) - similar to how tuna handles it
+        // PRIORITY ORDER: Fleeing > All other states (spawning, feeding, foraging, hunting)
+        // IMPORTANT: Fleeing has absolute priority - override all other states
+        const squids = (window.gameEntities && window.gameEntities.squid) || [];
+        const threats = window.boidThreatSystem ? window.boidThreatSystem.findThreats(this, predators, squids) : [];
+        
+        // Handle fleeing state transitions - fleeing takes priority over ALL states
+        if (threats.length > 0) {
+            // Threats detected - enter fleeing state (override any current state)
+            if (this.behaviorState !== 'fleeing') {
+                // Store the previous state so we can restore it when threats are gone
+                this.previousStateBeforeFlee = this.behaviorState;
+                this.behaviorState = 'fleeing';
+                if (window.gameState && window.gameState.fryDebug) {
+                    console.log(`🐟 Fry ${this.fishType} entering fleeing state due to ${threats.length} threat(s) (was ${this.previousStateBeforeFlee})`);
+                }
+            }
+            // If already fleeing, stay fleeing (don't overwrite previousStateBeforeFlee)
+        } else if (this.behaviorState === 'fleeing') {
+            // No threats and we're fleeing - restore previous state
+            // Only restore if we have a stored previous state (don't default to foraging if we don't know)
+            if (this.previousStateBeforeFlee) {
+                const stateToRestore = this.previousStateBeforeFlee;
+                this.behaviorState = stateToRestore;
+                
+                // CRITICAL FIX: Reset timers when restoring feeding/spawning states from fleeing
+                // This prevents expired timers from immediately breaking the restored state
+                if (stateToRestore === 'feeding' && this.feedingTimer !== undefined) {
+                    // Reset feeding timer so feeding state has time to work after fleeing
+                    this.feedingTimer = 0;
+                }
+                if (stateToRestore === 'spawning' && this.spawningProperties?.spawningTimer !== undefined) {
+                    // Reset spawning timer so spawning state has time to work after fleeing
+                    this.spawningProperties.spawningTimer = 0;
+                }
+                
+                this.previousStateBeforeFlee = null;
+                if (window.gameState && window.gameState.fryDebug) {
+                    console.log(`🐟 Fry ${this.fishType} returning to ${stateToRestore} (no threats, timers reset)`);
+                }
+            } else {
+                // No stored previous state, default to foraging
+                this.behaviorState = 'foraging';
+                if (window.gameState && window.gameState.fryDebug) {
+                    console.log(`🐟 Fry ${this.fishType} returning to foraging (no threats, no previous state)`);
+                }
+            }
+        }
+        
         // Debug logging for fry movement
         if (window.gameState && window.gameState.fryDebug && this.frameCount % 60 === 0) {
             console.log(`🐟 Fry update:`, {
@@ -228,14 +313,25 @@ class Boid extends (window.Entity || Entity) {
                 position: { x: Math.round(this.x), y: Math.round(this.y) },
                 velocity: { x: Math.round(this.velocity.x * 100) / 100, y: Math.round(this.velocity.y * 100) / 100 },
                 behaviorState: this.behaviorState,
+                threats: threats.length,
                 maxSpeed: this.maxSpeed,
                 energy: this.energy
             });
         }
         
+        // Apply fleeing forces if in fleeing state (before flocking)
+        if (this.behaviorState === 'fleeing' && window.boidThreatSystem && threats.length > 0) {
+            window.boidThreatSystem.applyFleeForces(this, threats);
+        }
+        
         // Apply flocking and feeding systems (direct velocity modification like original)
+        // Note: When fleeing, flocking will be reduced/modified by the flock method
         this.flock(boids, predators, food, krill);
+        
+        // Check for food (feeding system handles state transitions properly)
+        // The feeding system respects fleeing, feeding, spawning, and cooldown states
         this.checkForFood(krill, food, poop, fertilizedEggs);
+        
         this.move();
         this.edges();
     }
