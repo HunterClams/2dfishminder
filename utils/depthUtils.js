@@ -17,38 +17,53 @@ function getDepthFactor(y, worldHeight) {
 // Calculate opacity based on depth
 function getDepthOpacity(y, baseOpacity = 1, worldHeight, constants) {
     const depthFactor = getDepthFactor(y, worldHeight);
-    const fadeStart = constants.DEPTH_FADE_START;  // 0.2 (20%)
-    const fadeEnd = constants.DEPTH_FADE_END;      // 0.8 (80%)
+    const fadeStart = constants.DEPTH_FADE_START;  // 0.0 (0% - surface)
+    const fadeEnd = constants.DEPTH_FADE_END;      // 0.7 (70%)
     
-    // Surface layer (0-20%): Full brightness
-    if (depthFactor < fadeStart) return baseOpacity;
+    // Surface layer (0%): Full brightness (fade starts immediately)
+    if (depthFactor <= fadeStart) return baseOpacity;
     
-    // Abyssal zone (80-100%): Extremely dark
+    // Bottom 10% (90-100%): Extra dark zone
+    if (depthFactor > 0.9) {
+        const bottomProgress = (depthFactor - 0.9) / 0.1; // 0 to 1 within bottom 10%
+        const bottomOpacity = constants.ABYSSAL_OPACITY * (1 - bottomProgress * 0.5); // Even darker
+        return baseOpacity * Math.max(bottomOpacity, constants.ABYSSAL_OPACITY * 0.5);
+    }
+    
+    // Abyssal zone (70-90%): Extremely dark
     if (depthFactor > fadeEnd) {
-        const abyssalProgress = (depthFactor - fadeEnd) / (1 - fadeEnd);
+        const abyssalProgress = (depthFactor - fadeEnd) / (0.9 - fadeEnd);
         const abyssalOpacity = constants.MIN_DEPTH_OPACITY * (1 - abyssalProgress * 0.9);
         return baseOpacity * Math.max(abyssalOpacity, constants.ABYSSAL_OPACITY);
     }
     
-    // Mid-water and deep zones (20-80%): Gradual fade
+    // Mid-water and deep zones (0-70%): Aggressive fade
     const fadeProgress = (depthFactor - fadeStart) / (fadeEnd - fadeStart);
-    return baseOpacity * (1 - fadeProgress * (1 - constants.MIN_DEPTH_OPACITY));
+    // More aggressive fade curve (squared for steeper transition)
+    const aggressiveProgress = fadeProgress * fadeProgress;
+    return baseOpacity * (1 - aggressiveProgress * (1 - constants.MIN_DEPTH_OPACITY));
 }
 
 // Calculate blue tint based on depth
 function getDepthTint(y, worldHeight, constants) {
     const depthFactor = getDepthFactor(y, worldHeight);
     
-    // Surface layer (0-20%): No tint
+    // Surface layer (0%): No tint (fade starts immediately)
     if (depthFactor <= constants.DEPTH_FADE_START) return 0;
     
-    // Abyssal zone (80-100%): Maximum blue tint with extra darkness
+    // Bottom 10% (90-100%): Maximum blue tint with extra darkness
+    if (depthFactor > 0.9) {
+        const bottomProgress = (depthFactor - 0.9) / 0.1;
+        return constants.DEPTH_BLUE_INTENSITY + 0.3 + (bottomProgress * 0.2); // Extra blue in deepest zone
+    }
+    
+    // Abyssal zone (70-90%): Maximum blue tint with extra darkness
     if (depthFactor > constants.DEPTH_FADE_END) {
-        const abyssalProgress = (depthFactor - constants.DEPTH_FADE_END) / (1 - constants.DEPTH_FADE_END);
+        const abyssalProgress = (depthFactor - constants.DEPTH_FADE_END) / (0.9 - constants.DEPTH_FADE_END);
         return constants.DEPTH_BLUE_INTENSITY + (abyssalProgress * 0.3); // Extra blue in abyss
     }
     
-    // Mid-water and deep zones (20-80%): Progressive blue tint
+    // Mid-water and deep zones (0-70%): Progressive blue tint
     const tintProgress = (depthFactor - constants.DEPTH_FADE_START) / (constants.DEPTH_FADE_END - constants.DEPTH_FADE_START);
     return tintProgress * constants.DEPTH_BLUE_INTENSITY;
 }
@@ -57,17 +72,19 @@ function getDepthTint(y, worldHeight, constants) {
 function createDepthGradient(ctx, worldHeight) {
     if (!_gradient) {
         _gradient = ctx.createLinearGradient(0, 0, 0, worldHeight);
-        // Surface layer (0-20%): Bright blue
+        // Surface layer (0%): Bright blue (fade starts immediately)
         _gradient.addColorStop(0, '#87CEEB');      // Sky blue
-        _gradient.addColorStop(0.2, '#1e90ff');    // Dodger blue
-        // Mid-water (20-60%): Transition to deeper blue
-        _gradient.addColorStop(0.4, '#1873cc');    // Medium blue
-        _gradient.addColorStop(0.6, '#145299');    // Deep blue
-        // Deep zone (60-80%): Dark blue
-        _gradient.addColorStop(0.8, '#0f3d73');    // Very deep blue
-        // Abyssal zone (80-100%): Near black
+        _gradient.addColorStop(0.1, '#1e90ff');    // Dodger blue
+        // Mid-water (10-50%): Transition to deeper blue
+        _gradient.addColorStop(0.3, '#1873cc');    // Medium blue
+        _gradient.addColorStop(0.5, '#145299');    // Deep blue
+        // Deep zone (50-70%): Dark blue
+        _gradient.addColorStop(0.7, '#0f3d73');    // Very deep blue
+        // Abyssal zone (70-90%): Near black
         _gradient.addColorStop(0.9, '#0a2a4d');    // Abyssal blue
-        _gradient.addColorStop(1, '#051220');      // Almost black
+        // Bottom 10% (90-100%): Extra dark
+        _gradient.addColorStop(0.95, '#030d1a');    // Very dark
+        _gradient.addColorStop(1, '#000000');      // Pure black
     }
     return _gradient;
 }

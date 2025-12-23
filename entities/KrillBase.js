@@ -345,17 +345,25 @@ class KrillBase extends Boid {
     }
     
     basicMigration() {
+        // FALLBACK METHOD: Only used if krillAI system is not available
+        // Updated to match current KRILL_CONFIG values for consistency
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         const currentTime = Date.now();
-        const migrationCycle = 240000; // 4 minutes
+        // Use config value if available, otherwise fallback to current cycle length
+        const migrationCycle = (window.KRILL_CONFIG && window.KRILL_CONFIG.MIGRATION_CYCLE_LENGTH) || 150000; // 2.5 minutes (matches current config)
         const cyclePosition = (currentTime % migrationCycle) / migrationCycle;
         
         let targetDepth;
+        // Match the phase logic from advanced AI system: 40% upward (0.3-0.7), 60% deep (0.0-0.3 and 0.7-1.0)
         if (cyclePosition > 0.3 && cyclePosition < 0.7) {
-            targetDepth = WORLD_HEIGHT * 0.4; // Move up
+            // Migration upward phase (40% of cycle) - use surface migration depth from config
+            const surfaceDepth = (window.KRILL_CONFIG && window.KRILL_CONFIG.SURFACE_MIGRATION_DEPTH) || 0.25;
+            targetDepth = WORLD_HEIGHT * surfaceDepth; // Move up to surface
             this.behaviorState = 'migrating';
         } else {
-            targetDepth = WORLD_HEIGHT * 0.75; // Return to deep
+            // Return to deep water phase (60% of cycle) - use deep water preference from config
+            const deepDepth = (window.KRILL_CONFIG && window.KRILL_CONFIG.DEEP_WATER_PREFERENCE) || 0.75;
+            targetDepth = WORLD_HEIGHT * deepDepth; // Return to deep
             if (this.behaviorState === 'migrating') {
                 this.behaviorState = 'foraging';
             }

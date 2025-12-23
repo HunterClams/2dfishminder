@@ -238,8 +238,27 @@ class TrueFry1 extends Boid {
         ctx.save();
         ctx.translate(this.x, this.y);
         
-        // Flip sprite based on horizontal movement direction
-        if (this.velocity.x < 0) {
+        // Update facing direction with threshold to prevent rapid flipping
+        // Only flip when horizontal velocity is significant (prevents flipping when moving straight down)
+        if (this.facingDirection === undefined) {
+            this.facingDirection = 1; // Initialize if not set
+        }
+        if (this.flipVelocityThreshold === undefined) {
+            this.flipVelocityThreshold = 0.3; // Minimum horizontal velocity to trigger flip
+        }
+        
+        const absVelX = Math.abs(this.velocity.x);
+        if (absVelX > this.flipVelocityThreshold) {
+            // Horizontal movement is significant - update facing direction
+            const desiredDirection = this.velocity.x < 0 ? -1 : 1;
+            if (desiredDirection !== this.facingDirection) {
+                this.facingDirection = desiredDirection;
+            }
+        }
+        // If horizontal velocity is too small, keep current facing direction (prevents rapid flipping)
+        
+        // Apply flip based on facing direction
+        if (this.facingDirection < 0) {
             ctx.scale(-1, 1);
         }
         
@@ -580,8 +599,27 @@ class TrueFry2 extends Boid {
         ctx.save();
         ctx.translate(this.x, this.y);
         
-        // Flip sprite based on horizontal movement direction
-        if (this.velocity.x < 0) {
+        // Update facing direction with threshold to prevent rapid flipping
+        // Only flip when horizontal velocity is significant (prevents flipping when moving straight down)
+        if (this.facingDirection === undefined) {
+            this.facingDirection = 1; // Initialize if not set
+        }
+        if (this.flipVelocityThreshold === undefined) {
+            this.flipVelocityThreshold = 0.3; // Minimum horizontal velocity to trigger flip
+        }
+        
+        const absVelX = Math.abs(this.velocity.x);
+        if (absVelX > this.flipVelocityThreshold) {
+            // Horizontal movement is significant - update facing direction
+            const desiredDirection = this.velocity.x < 0 ? -1 : 1;
+            if (desiredDirection !== this.facingDirection) {
+                this.facingDirection = desiredDirection;
+            }
+        }
+        // If horizontal velocity is too small, keep current facing direction (prevents rapid flipping)
+        
+        // Apply flip based on facing direction
+        if (this.facingDirection < 0) {
             ctx.scale(-1, 1);
         }
         

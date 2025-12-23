@@ -61,7 +61,7 @@ class FishSpawningSystem {
             'tuna': {
                 preferredZone: 'MID',
                 spawnZone: 'mid',
-                count: 15,
+                count: 35,
                 preferredDepth: 0.4
             },
 

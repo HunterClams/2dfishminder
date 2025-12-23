@@ -80,8 +80,18 @@ class SquidJetSystem {
         if (squid.jetDuration > 0) {
             squid.jetDuration--;
             // Apply continuous jet force
-            squid.velocity.x += squid.jetDirection.x * squid.jetPower * this.config.JET_CONTINUOUS_FORCE;
-            squid.velocity.y += squid.jetDirection.y * squid.jetPower * this.config.JET_CONTINUOUS_FORCE;
+            // CRITICAL FIX: Apply distance-based retreat speed multiplier if squid is retreating
+            let continuousForceMultiplier = 1.0;
+            if (squid.state === window.SQUID_STATES?.RETREATING && squid.fleeingFromSquid) {
+                // Squid is retreating - use distance-based speed multiplier (stored in squid.retreatSpeedMultiplier)
+                // If multiplier not set, fall back to config value
+                continuousForceMultiplier = squid.retreatSpeedMultiplier !== undefined ? 
+                    squid.retreatSpeedMultiplier : 
+                    (this.config.RETREAT_SPEED_MULTIPLIER || 0.85);
+            }
+            
+            squid.velocity.x += squid.jetDirection.x * squid.jetPower * this.config.JET_CONTINUOUS_FORCE * continuousForceMultiplier;
+            squid.velocity.y += squid.jetDirection.y * squid.jetPower * this.config.JET_CONTINUOUS_FORCE * continuousForceMultiplier;
         }
         
         // Update jet cooldown
@@ -140,13 +150,35 @@ class SquidJetSystem {
         
         // CRITICAL FIX: Jet-aware velocity limiting
         // During jet propulsion, allow higher speeds (burst capability)
+        // DISTANCE-BASED RETREAT SPEED: Use distance-based multiplier if available
         let maxSpeed;
+        const isRetreating = squid.state === window.SQUID_STATES?.RETREATING && squid.fleeingFromSquid;
+        
         if (isJetting) {
-            // Allow burst speed during jet propulsion
-            maxSpeed = this.config.BURST_SPEED || squid.maxSpeed * 1.5;
+            if (isRetreating) {
+                // Retreating - use distance-based speed multiplier (stored in squid.retreatSpeedMultiplier)
+                // If multiplier not set, fall back to config value
+                const speedMultiplier = squid.retreatSpeedMultiplier !== undefined ? 
+                    squid.retreatSpeedMultiplier : 
+                    (this.config.RETREAT_SPEED_MULTIPLIER || 0.85);
+                // Start with hunting burst speed and scale by distance
+                maxSpeed = (this.config.BURST_SPEED || squid.maxSpeed * 1.5) * speedMultiplier;
+            } else {
+                // Allow burst speed during jet propulsion (normal behavior)
+                maxSpeed = this.config.BURST_SPEED || squid.maxSpeed * 1.5;
+            }
         } else {
-            // Normal max speed for fin/tentacle movement
-            maxSpeed = squid.maxSpeed;
+            if (isRetreating) {
+                // Retreating with fin propulsion - use distance-based speed multiplier
+                const speedMultiplier = squid.retreatSpeedMultiplier !== undefined ? 
+                    squid.retreatSpeedMultiplier : 
+                    (this.config.RETREAT_SPEED_MULTIPLIER || 0.85);
+                // Start with hunting max speed and scale by distance
+                maxSpeed = squid.maxSpeed * speedMultiplier;
+            } else {
+                // Normal max speed for fin/tentacle movement
+                maxSpeed = squid.maxSpeed;
+            }
         }
         
         // Apply velocity limiting

@@ -44,6 +44,10 @@ class Entity {
         this.animationTimer = 0;
         this.spawnDepthZone = spawnDepthZone;
         this.isAlive = true;
+        
+        // Sprite flipping state to prevent rapid flipping when moving straight down
+        this.facingDirection = 1; // 1 for right (no flip), -1 for left (flipped)
+        this.flipVelocityThreshold = 0.3; // Minimum horizontal velocity to trigger flip
     }
 
     move() {
@@ -85,8 +89,20 @@ class Entity {
         ctx.save();
         ctx.translate(this.x, this.y);
         
-        // Flip sprite based on horizontal movement direction
-        if (this.velocity.x < 0) {
+        // Update facing direction with threshold to prevent rapid flipping
+        // Only flip when horizontal velocity is significant (prevents flipping when moving straight down)
+        const absVelX = Math.abs(this.velocity.x);
+        if (absVelX > this.flipVelocityThreshold) {
+            // Horizontal movement is significant - update facing direction
+            const desiredDirection = this.velocity.x < 0 ? -1 : 1;
+            if (desiredDirection !== this.facingDirection) {
+                this.facingDirection = desiredDirection;
+            }
+        }
+        // If horizontal velocity is too small, keep current facing direction (prevents rapid flipping)
+        
+        // Apply flip based on facing direction
+        if (this.facingDirection < 0) {
             ctx.scale(-1, 1);
         }
         

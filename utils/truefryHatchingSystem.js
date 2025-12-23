@@ -5,7 +5,7 @@ class TrueFryHatchingSystem {
             HATCH_DURATION_MIN: 7000, // 7 seconds minimum
             HATCH_DURATION_MAX: 13000, // 13 seconds maximum
             HATCH_RANGE: 30, // Range for hatching effect
-            SPAWN_COUNT: { min: 1, max: 3 }, // Random number of TrueFry1 per hatch
+            SPAWN_COUNT: { min: 1, max: 2 }, // Random number of TrueFry1 per hatch (1-2)
             SPAWN_SPREAD: 40, // Spread radius for spawning multiple TrueFry1
             DEBUG: false // Disable debug logging for performance
         };
@@ -71,10 +71,10 @@ class TrueFryHatchingSystem {
         egg.hatched = true;
         egg.eaten = true;
         
-        // Determine number of TrueFry1 to spawn
-        const spawnCount = Math.random() < 0.5 ? 
-            this.config.SPAWN_COUNT.min : 
-            this.config.SPAWN_COUNT.max;
+        // Determine number of TrueFry1 to spawn (random between min and max inclusive)
+        // For min=1, max=2: generates 1 or 2 with equal probability (50/50)
+        const spawnCount = this.config.SPAWN_COUNT.min + 
+            Math.floor(Math.random() * (this.config.SPAWN_COUNT.max - this.config.SPAWN_COUNT.min + 1));
         
         // Spawn TrueFry1
         for (let i = 0; i < spawnCount; i++) {

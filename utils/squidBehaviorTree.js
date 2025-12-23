@@ -28,7 +28,14 @@ class SquidBehaviorTree {
         squid.fleeingFromSquid = null; // Track which squid we're fleeing from
         squid.lastEatTime = 0;
         squid.lastPoopTime = 0;
+        
+        // REMOVED: Spawn grace period initialization - no longer needed
+        // Squids will immediately start moving toward preferred depth when spawned shallow
+        squid.spawnGracePeriod = 0; // Always 0 - no grace period
+        
+        // Set targetDepth to current position initially (will be adjusted by maintainDepth)
         squid.targetDepth = squid.y;
+        
         squid.tentaclePulse = 0;
         squid.finUndulation = 0;
         squid.currentSpeed = 0;
@@ -90,6 +97,32 @@ class SquidBehaviorTree {
     }
 
     /**
+     * Determine if this squid should retreat from another squid
+     * Uses deterministic comparison to ensure only one squid retreats when two detect each other
+     * @param {Object} squid - The squid entity
+     * @param {Object} otherSquid - The other squid entity
+     * @returns {boolean} True if this squid should retreat
+     */
+    shouldRetreatFromSquid(squid, otherSquid) {
+        if (!otherSquid) return false;
+        
+        // Use deterministic comparison based on position
+        // Squid with smaller combined coordinate (x + y) continues hunting
+        // Squid with larger combined coordinate retreats
+        // This ensures consistent behavior when both squids detect each other
+        const thisSquidValue = squid.x + squid.y;
+        const otherSquidValue = otherSquid.x + otherSquid.y;
+        
+        // If values are equal (very rare), use x coordinate as tiebreaker
+        if (thisSquidValue === otherSquidValue) {
+            return squid.x > otherSquid.x;
+        }
+        
+        // This squid retreats if it has the larger combined coordinate
+        return thisSquidValue > otherSquidValue;
+    }
+
+    /**
      * Scan for prey (only target tuna)
      * @param {Object} squid - The squid entity
      * @param {Array} predators - Array of predator entities
@@ -98,7 +131,8 @@ class SquidBehaviorTree {
      */
     scanForPrey(squid, predators, fish) {
         let closestPrey = null;
-        let closestDistance = squid.visionRangeSquared;
+        // CRITICAL: Use hunting radius instead of vision range - only hunt tuna within hunting radius
+        let closestDistance = squid.huntingRadiusSquared;
         
         // Check if squid should ignore tuna after pooping
         const currentTime = Date.now();
@@ -113,6 +147,7 @@ class SquidBehaviorTree {
                 fishCount: fish.length,
                 shouldIgnoreTuna: shouldIgnoreTuna,
                 visionRange: squid.visionRange,
+                huntingRadius: squid.huntingRadius,
                 timeSincePoop: Math.round(timeSincePoop / 1000) + 's',
                 cooldownLeft: Math.round(cooldownLeft / 1000) + 's'
             });
@@ -129,11 +164,29 @@ class SquidBehaviorTree {
                 const distSquared = window.Utils.distanceSquared(squid, tuna);
                 const distance = Math.sqrt(distSquared);
                 
+                // CRITICAL: Only consider tuna within hunting radius (not vision range)
+                if (distSquared > squid.huntingRadiusSquared) {
+                    // Tuna is outside hunting radius - skip it
+                    if (window.gameState && window.gameState.squidDebug) {
+                        console.log(`🦑 Squid skipping tuna (outside hunting radius):`, {
+                            tunaType: tuna.tunaType,
+                            distance: Math.round(distance),
+                            huntingRadius: squid.huntingRadius,
+                            visionRange: squid.visionRange
+                        });
+                    }
+                    continue;
+                }
+                
+                // REMOVED: Depth restriction - squids can now detect and hunt tuna at any depth
+                // The hunting commitment system will handle depth preference during the hunt
+                
                 // Debug logging for each tuna
                 if (window.gameState && window.gameState.squidDebug) {
                     console.log(`🦑 Squid checking tuna:`, {
                         tunaType: tuna.tunaType,
                         distance: distance,
+                        huntingRadius: squid.huntingRadius,
                         visionRange: squid.visionRange,
                         inRange: distSquared < closestDistance,
                         isClaimed: !!tuna.huntedBySquid,
@@ -180,30 +233,88 @@ class SquidBehaviorTree {
         
         // CRITICAL FIX: Check if squid is currently jetting
         // Don't interfere with jet propulsion by applying competing forces
+        // BUT: If we have a dive target, we need to apply forces even during jetting to prevent freezing
         const isJetting = this.controller && this.controller.jetSystem && this.controller.jetSystem.isJetting(squid);
-        if (isJetting) {
+        const hasDiveTarget = squid.diveTargetPoint !== null && squid.diveTargetPoint !== undefined;
+        
+        if (isJetting && !hasDiveTarget) {
             // Skip depth maintenance during jet propulsion to preserve momentum
+            // UNLESS we have a dive target - then we need to keep applying forces
             return;
         }
+        
+        // REMOVED: Grace period check - squids now move immediately when spawned shallow
+        // No need to skip depth maintenance - squids should start moving right away
         
         // If hunting, be more flexible with depth to reach prey
         const isHunting = squid.state === this.states.HUNTING || squid.state === this.states.ATTACKING;
         const hasTarget = squid.huntTarget !== null;
         
+        // HUNTING COMMITMENT SYSTEM: Distance-based depth preference override
+        // When close to prey, ignore depth preference completely to commit to the hunt
+        let huntingCommitmentLevel = 0; // 0 = no commitment (apply full depth forces), 1 = full commitment (ignore depth)
+        let shouldSkipDepthMaintenance = false;
+        
         if (isHunting && hasTarget) {
-            // When hunting, allow movement outside preferred depth range to reach prey
-            // But always limit to maximum 50% depth (cannot go shallower/higher than 50%)
-            const targetDepth = squid.huntTarget.y / WORLD_HEIGHT;
-            const maxShallowDepth = 0.5; // Cannot go above 50% depth (50% = 4000px if WORLD_HEIGHT is 8000)
+            // Calculate distance to prey
+            const distToPrey = window.Utils ? window.Utils.distance(squid, squid.huntTarget) : 
+                Math.sqrt((squid.x - squid.huntTarget.x) ** 2 + (squid.y - squid.huntTarget.y) ** 2);
             
-            // If prey is shallower than 50% depth, limit to 50% depth
-            if (targetDepth < maxShallowDepth) {
-                squid.targetDepth = WORLD_HEIGHT * maxShallowDepth;
-            } else {
-                // Prey is at or below 50% depth, can pursue normally
+            const commitmentDistance = this.config.HUNTING_COMMITMENT_DISTANCE || 500;
+            const fadeDistance = this.config.HUNTING_COMMITMENT_FADE_DISTANCE || 800;
+            
+            if (distToPrey <= commitmentDistance) {
+                // Within commitment distance - FULL COMMITMENT: ignore depth preference completely
+                huntingCommitmentLevel = 1.0;
+                shouldSkipDepthMaintenance = true;
+                
+                // Set target depth to prey position (no depth restrictions)
                 squid.targetDepth = squid.huntTarget.y;
+                
+                if (window.gameState && window.gameState.squidDebug && squid.stateTimer % 30 === 0) {
+                    console.log(`🦑 Squid FULL COMMITMENT to hunt (distance: ${Math.round(distToPrey)}px <= ${commitmentDistance}px) - ignoring depth preference`);
+                }
+            } else if (distToPrey <= fadeDistance) {
+                // Between commitment and fade distance - GRADUAL COMMITMENT: reduce depth forces
+                // Calculate commitment level (1.0 at commitment distance, 0.0 at fade distance)
+                huntingCommitmentLevel = 1.0 - ((distToPrey - commitmentDistance) / (fadeDistance - commitmentDistance));
+                
+                // Set target depth to prey position but allow some depth preference influence
+                const targetDepth = squid.huntTarget.y / WORLD_HEIGHT;
+                const maxShallowDepth = 0.5; // Cannot go above 50% depth
+                
+                if (targetDepth < maxShallowDepth) {
+                    squid.targetDepth = WORLD_HEIGHT * maxShallowDepth;
+                } else {
+                    squid.targetDepth = squid.huntTarget.y;
+                }
+                
+                if (window.gameState && window.gameState.squidDebug && squid.stateTimer % 30 === 0) {
+                    console.log(`🦑 Squid PARTIAL COMMITMENT (distance: ${Math.round(distToPrey)}px, commitment: ${Math.round(huntingCommitmentLevel * 100)}%)`);
+                }
+            } else {
+                // Beyond fade distance - LOW COMMITMENT: apply normal depth restrictions
+                huntingCommitmentLevel = 0.0;
+                
+                // When hunting but far from prey, allow movement outside preferred depth range to reach prey
+                // But always limit to maximum 50% depth (cannot go shallower/higher than 50%)
+                const targetDepth = squid.huntTarget.y / WORLD_HEIGHT;
+                const maxShallowDepth = 0.5; // Cannot go above 50% depth (50% = 4000px if WORLD_HEIGHT is 8000)
+                
+                // If prey is shallower than 50% depth, limit to 50% depth
+                if (targetDepth < maxShallowDepth) {
+                    squid.targetDepth = WORLD_HEIGHT * maxShallowDepth;
+                } else {
+                    // Prey is at or below 50% depth, can pursue normally
+                    squid.targetDepth = squid.huntTarget.y;
+                }
             }
+            
+            // Store commitment level for use in depth force calculation
+            squid.huntingCommitmentLevel = huntingCommitmentLevel;
         } else {
+            // Not hunting - clear commitment level
+            squid.huntingCommitmentLevel = 0;
             // Normal depth maintenance when not hunting
             let targetDepthPercent = this.config.PREFERRED_DEPTH_TARGET;
             
@@ -222,16 +333,138 @@ class SquidBehaviorTree {
             squid.targetDepth = WORLD_HEIGHT * targetDepthPercent;
         }
         
-        // CRITICAL FIX: Apply depth adjustment with much higher threshold and lower intensity
-        // Reduces interference with horizontal movement
-        const depthDiff = squid.targetDepth - squid.y;
-        const adjustmentThreshold = currentDepth < 0.3 ? 100 : 300; // Increased from 150 to 300
-        const adjustmentIntensity = isHunting ? 0.1 : (currentDepth < 0.3 ? 0.4 : 0.2); // Reduced intensity
+        // CRITICAL FIX: When squid is shallow, generate a target point and actively swim toward it
+        // This handles retreating back to preferred depth after failed hunts or spawning shallow
+        // BUT: Skip this if hunting with high commitment - let hunting commitment system handle depth
+        const isRetreatingToDepth = currentDepth < this.config.PREFERRED_DEPTH_MIN;
+        const commitmentLevel = squid.huntingCommitmentLevel || 0;
+        const shouldSkipDiveTarget = isHunting && commitmentLevel > 0.5; // Skip dive target if hunting with >50% commitment
         
-        if (Math.abs(depthDiff) > adjustmentThreshold) {
+        if (isRetreatingToDepth && !shouldSkipDiveTarget) {
+            // Grace period expired - generate a target point in preferred depth region
+            if (!squid.diveTargetPoint) {
+                const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
+                // Generate target point below squid in preferred depth range
+                const targetDepthRange = this.config.PREFERRED_DEPTH_MAX - this.config.PREFERRED_DEPTH_MIN;
+                const randomDepthOffset = Math.random() * targetDepthRange;
+                const targetY = WORLD_HEIGHT * (this.config.PREFERRED_DEPTH_MIN + randomDepthOffset);
+                // Keep similar X position with some variation
+                const targetX = squid.x + (Math.random() - 0.5) * 500; // ±250px horizontal variation
+                
+                squid.diveTargetPoint = { x: targetX, y: targetY };
+                
+                console.log(`🦑 Squid generated dive target point:`, {
+                    from: { x: Math.round(squid.x), y: Math.round(squid.y) },
+                    to: { x: Math.round(targetX), y: Math.round(targetY) },
+                    depthDiff: Math.round(targetY - squid.y),
+                    currentVelocity: { x: squid.velocity.x, y: squid.velocity.y }
+                });
+            }
+            
+            // Actively swim toward the dive target point using steering
+            const distToTarget = Math.sqrt(
+                (squid.x - squid.diveTargetPoint.x) ** 2 + 
+                (squid.y - squid.diveTargetPoint.y) ** 2
+            );
+            
+            // If we've reached the target point (within 200px), clear it and use normal depth maintenance
+            if (distToTarget < 200) {
+                squid.diveTargetPoint = null;
+                console.log(`🦑 Squid reached dive target, switching to normal depth maintenance`);
+                // Use normal depth adjustment below
+            } else {
+                // Calculate direction to dive target
+                const direction = {
+                    x: squid.diveTargetPoint.x - squid.x,
+                    y: squid.diveTargetPoint.y - squid.y
+                };
+                const mag = Math.sqrt(direction.x ** 2 + direction.y ** 2);
+                if (mag > 0) {
+                    direction.x /= mag;
+                    direction.y /= mag;
+                }
+                
+                // CRITICAL: Ensure we have a jet system and apply forces immediately EVERY FRAME
+                // This prevents freezing - forces must be applied continuously, not just when patrolling forces apply
+                // STANDARDIZED SPEED: Use consistent hunting speed (0.9 jet, 0.7 fin) when retreating back to depth
+                if (this.controller && this.controller.jetSystem) {
+                    // Use jet if available and far away, otherwise use fin propulsion
+                    // Always apply forces - don't skip if jet is on cooldown
+                    // Match hunting speed: jet power 0.9 when >150px, fin intensity 0.7 when <=150px
+                    const diveJetRange = 500; // Use jet when further than 500px from dive target
+                    
+                    if (distToTarget > diveJetRange && this.controller.jetSystem.canJet(squid)) {
+                        // Use consistent hunting jet power (0.9) when retreating back to depth
+                        this.controller.jetSystem.jet(squid, direction, 0.9);
+                        if (squid.stateTimer % 30 === 0) {
+                            console.log(`🦑 Squid jetting toward dive target (hunting speed), distance: ${Math.round(distToTarget)}`);
+                        }
+                    } else {
+                        // CRITICAL: Always apply fin propulsion EVERY FRAME when diving
+                        // This ensures continuous movement and prevents freezing
+                        // Use consistent hunting fin intensity (0.7) when retreating back to depth
+                        // No direct velocity boost - let the physics system handle it consistently
+                        this.controller.jetSystem.finPropulsion(squid, direction, 0.7);
+                        
+                        if (squid.stateTimer % 30 === 0) {
+                            console.log(`🦑 Squid fin propulsion toward dive target (hunting speed), distance: ${Math.round(distToTarget)}`);
+                        }
+                    }
+                } else {
+                    console.error(`🦑 ERROR: Squid missing jet system or controller!`);
+                }
+                
+                // Skip normal depth adjustment when actively diving to target
+                return;
+            }
+        } else if (squid.diveTargetPoint && currentDepth >= this.config.PREFERRED_DEPTH_MIN) {
+            // We've reached preferred depth, clear the dive target
+            squid.diveTargetPoint = null;
+            console.log(`🦑 Squid reached preferred depth, clearing dive target`);
+        }
+        
+        // HUNTING COMMITMENT SYSTEM: Skip depth maintenance if fully committed to hunt
+        if (shouldSkipDepthMaintenance) {
+            // Fully committed to hunt - skip depth maintenance entirely
+            return;
+        }
+        
+        // REDUCED DEPTH FORCES: Rely on hunting commitment system instead of strong depth maintenance
+        // Only apply minimal depth adjustment when not hunting or when commitment is low
+        // The distance-based hunting commitment system handles depth preference during hunts
+        const depthDiff = squid.targetDepth - squid.y;
+        const adjustmentThreshold = currentDepth < 0.3 ? 200 : 500; // Much higher threshold - only adjust when very far from target
+        // commitmentLevel already declared above
+        
+        // When hunting with high commitment, skip depth adjustment entirely
+        // When hunting with low commitment, apply very weak forces
+        // When not hunting, apply minimal forces
+        let baseIntensity;
+        if (isHunting) {
+            // When hunting: very weak forces, reduced by commitment level
+            baseIntensity = 0.05; // Much weaker (was 0.1)
+        } else {
+            // When not hunting: minimal forces
+            baseIntensity = currentDepth < 0.3 ? 0.2 : 0.1; // Reduced from 0.4/0.2
+        }
+        
+        // Reduce intensity by commitment level (0 = full intensity, 1 = no intensity)
+        const adjustmentIntensity = baseIntensity * (1.0 - commitmentLevel);
+        
+        // Only apply if far from target depth AND intensity is meaningful
+        if (Math.abs(depthDiff) > adjustmentThreshold && adjustmentIntensity > 0.01) {
             const direction = { x: 0, y: Math.sign(depthDiff) };
             if (this.controller && this.controller.jetSystem) {
                 this.controller.jetSystem.finPropulsion(squid, direction, adjustmentIntensity);
+                
+                if (window.gameState && window.gameState.squidDebug && isHunting && squid.stateTimer % 60 === 0) {
+                    console.log(`🦑 Squid depth adjustment:`, {
+                        depthDiff: Math.round(depthDiff),
+                        commitmentLevel: Math.round(commitmentLevel * 100) + '%',
+                        intensity: Math.round(adjustmentIntensity * 1000) / 1000,
+                        threshold: adjustmentThreshold
+                    });
+                }
             }
         }
     }

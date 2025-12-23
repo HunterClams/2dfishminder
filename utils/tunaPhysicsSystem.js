@@ -59,6 +59,35 @@ class TunaPhysicsSystem {
      * @param {Object} tuna - The tuna entity
      */
     updatePhysics(tuna) {
+        // CRITICAL: Check and clamp position BEFORE applying forces to prevent getting stuck
+        // ENHANCED: Allow tuna to get close to edges when hunting (to catch stuck fry)
+        const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
+        const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        
+        // When hunting, allow closer approach to edges (10px) to catch prey stuck at walls
+        // When patrolling, use larger margin (25px) for safety
+        const isHunting = tuna.aiState === window.TUNA_STATES.HUNTING;
+        const minMargin = isHunting ? 10 : 25; // Closer when hunting, safer when patrolling
+        
+        // Clamp position first to prevent going outside bounds
+        // But allow hunting tuna to get very close to edges
+        if (tuna.x < minMargin) {
+            tuna.x = minMargin;
+            // When hunting, allow velocity toward edge (to pursue prey), just clamp position
+            if (!isHunting && tuna.velocity.x < 0) tuna.velocity.x = 0;
+        } else if (tuna.x > WORLD_WIDTH - minMargin) {
+            tuna.x = WORLD_WIDTH - minMargin;
+            if (!isHunting && tuna.velocity.x > 0) tuna.velocity.x = 0;
+        }
+        
+        if (tuna.y < minMargin) {
+            tuna.y = minMargin;
+            if (!isHunting && tuna.velocity.y < 0) tuna.velocity.y = 0;
+        } else if (tuna.y > WORLD_HEIGHT - minMargin) {
+            tuna.y = WORLD_HEIGHT - minMargin;
+            if (!isHunting && tuna.velocity.y > 0) tuna.velocity.y = 0;
+        }
+        
         // Apply acceleration to velocity
         if (tuna.acceleration) {
             tuna.velocity.x += tuna.acceleration.x;
@@ -78,15 +107,35 @@ class TunaPhysicsSystem {
         // Apply depth preference
         this.applyDepthPreference(tuna);
         
-        // Apply edge avoidance
+        // Apply edge avoidance (reduced or disabled when hunting to allow approaching walls)
         this.applyEdgeAvoidance(tuna);
         
         // Update position
         tuna.x += tuna.velocity.x;
         tuna.y += tuna.velocity.y;
         
-        // Handle world edges
-        this.handleEdges(tuna);
+        // Final safety clamp after movement (prevents any possibility of going outside)
+        // Use same margin logic as before
+        if (tuna.x < minMargin) {
+            tuna.x = minMargin;
+            // When hunting, allow velocity toward edge (to pursue prey at walls)
+            if (!isHunting) tuna.velocity.x = Math.max(0, tuna.velocity.x);
+        }
+        if (tuna.x > WORLD_WIDTH - minMargin) {
+            tuna.x = WORLD_WIDTH - minMargin;
+            if (!isHunting) tuna.velocity.x = Math.min(0, tuna.velocity.x);
+        }
+        if (tuna.y < minMargin) {
+            tuna.y = minMargin;
+            if (!isHunting) tuna.velocity.y = Math.max(0, tuna.velocity.y);
+        }
+        if (tuna.y > WORLD_HEIGHT - minMargin) {
+            tuna.y = WORLD_HEIGHT - minMargin;
+            if (!isHunting) tuna.velocity.y = Math.min(0, tuna.velocity.y);
+        }
+        
+        // NOTE: Removed handleEdges call - we now handle edges directly with position clamping
+        // This prevents velocity reversal oscillation that could cause sticking
     }
 
     /**
@@ -109,23 +158,51 @@ class TunaPhysicsSystem {
 
     /**
      * Apply edge avoidance forces
+     * ENHANCED: Reduced or disabled when hunting to allow approaching walls to catch stuck prey
      * @param {Object} tuna - The tuna entity
      */
     applyEdgeAvoidance(tuna) {
         const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
-        const edgeBuffer = 200;
+        const isHunting = tuna.aiState === window.TUNA_STATES.HUNTING;
         
-        if (tuna.x < edgeBuffer) {
-            this.applyForce(tuna, { x: tuna.maxForce * 0.5, y: 0 });
-        } else if (tuna.x > WORLD_WIDTH - edgeBuffer) {
-            this.applyForce(tuna, { x: -tuna.maxForce * 0.5, y: 0 });
+        // When hunting, reduce edge avoidance significantly to allow approaching walls
+        // When patrolling, use normal edge avoidance
+        const edgeBuffer = isHunting ? 100 : 300; // Smaller buffer when hunting
+        const maxForceMultiplier = isHunting ? 0.2 : 1.5; // Much weaker force when hunting
+        
+        // Calculate distance from each edge
+        const distFromLeft = tuna.x;
+        const distFromRight = WORLD_WIDTH - tuna.x;
+        const distFromTop = tuna.y;
+        const distFromBottom = WORLD_HEIGHT - tuna.y;
+        
+        // Horizontal edge avoidance with distance-based strength
+        // When hunting, only apply weak force when very close to edge
+        if (distFromLeft < edgeBuffer) {
+            const forceStrength = (1.0 - distFromLeft / edgeBuffer) * maxForceMultiplier;
+            // When hunting, only apply force if very close (within 50px)
+            if (!isHunting || distFromLeft < 50) {
+                this.applyForce(tuna, { x: tuna.maxForce * forceStrength, y: 0 });
+            }
+        } else if (distFromRight < edgeBuffer) {
+            const forceStrength = (1.0 - distFromRight / edgeBuffer) * maxForceMultiplier;
+            if (!isHunting || distFromRight < 50) {
+                this.applyForce(tuna, { x: -tuna.maxForce * forceStrength, y: 0 });
+            }
         }
         
-        if (tuna.y < edgeBuffer) {
-            this.applyForce(tuna, { x: 0, y: tuna.maxForce * 0.5 });
-        } else if (tuna.y > WORLD_HEIGHT - edgeBuffer) {
-            this.applyForce(tuna, { x: 0, y: -tuna.maxForce * 0.5 });
+        // Vertical edge avoidance with distance-based strength
+        if (distFromTop < edgeBuffer) {
+            const forceStrength = (1.0 - distFromTop / edgeBuffer) * maxForceMultiplier;
+            if (!isHunting || distFromTop < 50) {
+                this.applyForce(tuna, { x: 0, y: tuna.maxForce * forceStrength });
+            }
+        } else if (distFromBottom < edgeBuffer) {
+            const forceStrength = (1.0 - distFromBottom / edgeBuffer) * maxForceMultiplier;
+            if (!isHunting || distFromBottom < 50) {
+                this.applyForce(tuna, { x: 0, y: -tuna.maxForce * forceStrength });
+            }
         }
     }
 

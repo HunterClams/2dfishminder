@@ -35,10 +35,11 @@ const KRILL_CONFIG = {
     COMMUNICATION_RANGE: 160,    // Range for swarm communication (doubled from 80)
     
     // Migration parameters  
-    MIGRATION_CYCLE_LENGTH: 120000, // 2 minutes in milliseconds (reduced from 4 minutes)
+    MIGRATION_CYCLE_LENGTH: 150000, // 2.5 minutes in milliseconds (increased by 25% from 2 minutes)
     MIGRATION_DEPTH_RANGE: 0.4,  // 40% of world height range
     DEEP_WATER_PREFERENCE: 0.75, // Prefer 75% depth
     SURFACE_MIGRATION_DEPTH: 0.25, // Surface migration target
+    SURFACE_FORAGING_THRESHOLD: 0.05, // Within 5% of surface depth = at surface (for surface foraging feature)
     
     // Behavioral weights
     WEIGHTS: {
@@ -113,6 +114,28 @@ class KrillBehaviorTree {
             const nearbyFood = this.detectFood(poop, food, sperm);
             if (nearbyFood) {
                 return this.changeState(KRILL_STATES.SEEKING);
+            }
+        }
+        
+        // ADDITIONAL FEATURE: Allow foraging/seeking at surface during migration
+        // When krill reach surface during migration, they can forage/seek while maintaining migration state
+        if (this.krill.behaviorState === KRILL_STATES.MIGRATING) {
+            const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+            const surfaceDepth = WORLD_HEIGHT * KRILL_CONFIG.SURFACE_MIGRATION_DEPTH;
+            const surfaceThreshold = WORLD_HEIGHT * KRILL_CONFIG.SURFACE_FORAGING_THRESHOLD;
+            const distanceFromSurface = Math.abs(this.krill.y - surfaceDepth);
+            const isAtSurface = distanceFromSurface < surfaceThreshold;
+            
+            // If at surface, allow normal foraging/seeking behavior (but keep migration state for coordination)
+            // This allows krill to forage at surface while still being part of the migration swarm
+            if (isAtSurface) {
+                // Check for food seeking first (higher priority)
+                const nearbyFood = this.detectFood(poop, food, sperm);
+                if (nearbyFood) {
+                    this.krill.seekTarget = nearbyFood;
+                    // Stay in MIGRATING state but allow seeking forces to work (handled in force calculation)
+                }
+                // Foraging behavior will naturally occur due to reduced migration forces
             }
         }
         
@@ -446,6 +469,45 @@ class KrillAI {
         
         // Always maintain depth preference
         this.calculateDepthPreference(krill, forces);
+        
+        // ADDITIONAL FEATURE: Surface foraging during migration
+        // When krill reach the surface during migration phase, allow normal foraging/seeking behavior
+        // while maintaining surface depth with reduced migration forces
+        if (krill.behaviorState === KRILL_STATES.MIGRATING) {
+            const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+            const surfaceDepth = WORLD_HEIGHT * KRILL_CONFIG.SURFACE_MIGRATION_DEPTH;
+            const surfaceThreshold = WORLD_HEIGHT * KRILL_CONFIG.SURFACE_FORAGING_THRESHOLD;
+            const distanceFromSurface = Math.abs(krill.y - surfaceDepth);
+            
+            // If krill is at surface (within threshold), reduce migration forces to allow foraging/seeking
+            if (distanceFromSurface < surfaceThreshold) {
+                // Reduce migration forces significantly - let foraging/seeking forces dominate
+                forces.migration.y *= 0.2; // 80% reduction
+                forces.migration.x *= 0.2;
+                
+                // FIXED: Apply foraging/seeking forces WITHOUT flocking to prevent double application
+                // Flocking is already applied via calculateMigrationForces → calculateSwarmingForces
+                // So we only apply food-seeking or wandering forces, not the full methods
+                if (krill.seekTarget) {
+                    // Apply food seeking force only (no flocking - already applied via migration)
+                    const dx = krill.seekTarget.x - krill.x;
+                    const dy = krill.seekTarget.y - krill.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance > 0) {
+                        forces.foodSeek.x = (dx / distance) * KRILL_CONFIG.WEIGHTS.FOOD_SEEK;
+                        forces.foodSeek.y = (dy / distance) * KRILL_CONFIG.WEIGHTS.FOOD_SEEK;
+                    }
+                } else {
+                    // Apply wandering behavior only (no flocking - already applied via migration)
+                    const wanderAngle = (Date.now() / 1000 + krill.wanderOffset || 0) * 0.1;
+                    forces.wandering.x = Math.cos(wanderAngle) * 0.3;
+                    forces.wandering.y = Math.sin(wanderAngle) * 0.2;
+                }
+                // Don't override depth preference - allow natural behavior
+                // This allows krill to forage and seek at surface while staying near surface depth
+            }
+        }
         
         return forces;
     }

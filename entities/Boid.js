@@ -140,10 +140,10 @@ class Boid extends (window.Entity || Entity) {
         const perceptionRadiusSquared = CONSTANTS.PERCEPTION_RADIUS * CONSTANTS.PERCEPTION_RADIUS;
         const separationRadiusSquared = CONSTANTS.SEPARATION_RADIUS * CONSTANTS.SEPARATION_RADIUS;
         
-        // When fleeing, reduce flocking influence (similar to krill fleeing behavior)
-        // Still apply some flocking for coordination but prioritize escape
+        // When fleeing, disable alignment/cohesion completely - they counteract fleeing forces
+        // Only keep separation to avoid collisions while fleeing
         const isFleeing = this.behaviorState === 'fleeing';
-        const flockingIntensity = isFleeing ? 0.3 : 1.0; // 30% flocking when fleeing
+        const flockingIntensity = isFleeing ? 0.0 : 1.0; // NO alignment/cohesion when fleeing
         
         let alignment = { x: 0, y: 0 };
         let cohesion = { x: 0, y: 0 };
@@ -178,20 +178,23 @@ class Boid extends (window.Entity || Entity) {
         // Calculate steering forces
         const forces = { x: 0, y: 0 };
         
-        if (alignCount > 0) {
-            alignment.x /= alignCount;
-            alignment.y /= alignCount;
-            const alignSteering = this.calculateSteering(alignment, this.maxSpeed, this.maxForce);
-            forces.x += alignSteering.x * flockingIntensity;
-            forces.y += alignSteering.y * flockingIntensity;
-        }
-        
-        if (cohesionCount > 0) {
-            cohesion.x = (cohesion.x / cohesionCount) - this.x;
-            cohesion.y = (cohesion.y / cohesionCount) - this.y;
-            const cohesionSteering = this.calculateSteering(cohesion, this.maxSpeed, this.maxForce);
-            forces.x += cohesionSteering.x * flockingIntensity;
-            forces.y += cohesionSteering.y * flockingIntensity;
+        // CRITICAL: Skip alignment and cohesion when fleeing - they counteract fleeing forces
+        if (!isFleeing) {
+            if (alignCount > 0) {
+                alignment.x /= alignCount;
+                alignment.y /= alignCount;
+                const alignSteering = this.calculateSteering(alignment, this.maxSpeed, this.maxForce);
+                forces.x += alignSteering.x * flockingIntensity;
+                forces.y += alignSteering.y * flockingIntensity;
+            }
+            
+            if (cohesionCount > 0) {
+                cohesion.x = (cohesion.x / cohesionCount) - this.x;
+                cohesion.y = (cohesion.y / cohesionCount) - this.y;
+                const cohesionSteering = this.calculateSteering(cohesion, this.maxSpeed, this.maxForce);
+                forces.x += cohesionSteering.x * flockingIntensity;
+                forces.y += cohesionSteering.y * flockingIntensity;
+            }
         }
         
         if (separationCount > 0) {
@@ -199,13 +202,17 @@ class Boid extends (window.Entity || Entity) {
             separation.y /= separationCount;
             const separationSteering = this.calculateSteering(separation, this.maxSpeed, this.maxForce);
             // Separation still important when fleeing (avoid crowding during escape)
+            // CRITICAL: Don't multiply by flockingIntensity when fleeing - separation should still work
             const separationMultiplier = isFleeing ? 2.0 : 1.5; // Stronger separation when fleeing
-            forces.x += separationSteering.x * separationMultiplier * flockingIntensity;
-            forces.y += separationSteering.y * separationMultiplier * flockingIntensity;
+            const separationIntensity = isFleeing ? 1.0 : flockingIntensity; // Full separation when fleeing
+            forces.x += separationSteering.x * separationMultiplier * separationIntensity;
+            forces.y += separationSteering.y * separationMultiplier * separationIntensity;
         }
         
-        // Apply forces (only if not fleeing - fleeing forces already applied in update())
-        // If fleeing, we still apply reduced flocking for coordination
+        // Apply forces - forces are already correctly calculated above:
+        // When fleeing: forces only contains separation (alignment/cohesion skipped above)
+        // When not fleeing: forces contains all flocking forces (separation, alignment, cohesion)
+        // So we can apply forces unconditionally - the conditional above already filtered what goes into forces
         this.velocity.x += forces.x;
         this.velocity.y += forces.y;
         
@@ -261,6 +268,18 @@ class Boid extends (window.Entity || Entity) {
         // PRIORITY ORDER: Fleeing > All other states (spawning, feeding, foraging, hunting)
         // IMPORTANT: Fleeing has absolute priority - override all other states
         const squids = (window.gameEntities && window.gameEntities.squid) || [];
+        
+        // CRITICAL FIX: Ensure predators array is valid and contains tuna
+        // Debug logging to verify predators are being passed
+        if (window.gameState && window.gameState.fryDebug && this.frameCount % 120 === 0) {
+            console.log(`🐟 Fry threat check:`, {
+                fishType: this.fishType,
+                predatorsCount: predators ? predators.length : 0,
+                squidsCount: squids ? squids.length : 0,
+                predatorsValid: predators && predators.length > 0 ? predators.filter(p => p && p.x !== undefined && p.y !== undefined).length : 0
+            });
+        }
+        
         const threats = window.boidThreatSystem ? window.boidThreatSystem.findThreats(this, predators, squids) : [];
         
         // Handle fleeing state transitions - fleeing takes priority over ALL states

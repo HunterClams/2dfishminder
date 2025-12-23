@@ -23,17 +23,39 @@ class TunaBehaviorTree {
         tuna.lastAttackTime = 0;
         // REMOVED: restingSpot - no longer needed without resting state
         
-        // CRITICAL FIX: Initialize proper velocity for smooth movement
+        // CRITICAL FIX: Initialize proper velocity for smooth movement with horizontal bias
         // Tuna maxSpeed = 3, so set initial velocity to ~70% of max speed for natural patrolling
         const initialSpeed = tuna.maxSpeed * 0.7; // 2.1 speed (was -2 to +2 random)
-        const initialDirection = Math.random() * Math.PI * 2;
+        
+        // ENHANCED: Initialize patrol direction with horizontal bias (left or right)
+        // This ensures tuna start patrolling horizontally, not randomly
+        const config = window.TUNA_CONFIG || {};
+        const horizontalBias = config.patrolHorizontalBias || 0.85;
+        
+        // Choose left (-PI/2 to PI/2) or right (PI/2 to 3PI/2) with horizontal bias
+        const leftOrRight = Math.random() < 0.5 ? 0 : Math.PI; // 0 = right, PI = left
+        const horizontalVariation = (Math.random() - 0.5) * 0.3; // Small variation (±0.15 radians = ±8.6 degrees)
+        const verticalVariation = (Math.random() - 0.5) * (1 - horizontalBias) * 0.5; // Small vertical component
+        
+        const initialDirection = leftOrRight + horizontalVariation + verticalVariation;
+        
+        // Apply horizontal bias to the direction components (similar to generateLargePatrolTarget)
+        const horizontalComponent = Math.cos(initialDirection);
+        const verticalComponentRaw = Math.sin(initialDirection) * (1 - horizontalBias) * 1.25; // 25% vertical boost
+        
+        // Normalize the biased direction vector to ensure correct direction
+        const dirMag = Math.sqrt(horizontalComponent * horizontalComponent + verticalComponentRaw * verticalComponentRaw);
+        const dirX = dirMag > 0 ? horizontalComponent / dirMag : (horizontalComponent >= 0 ? 1 : -1);
+        const dirY = dirMag > 0 ? verticalComponentRaw / dirMag : 0;
+        
+        // Calculate velocity using normalized direction
         tuna.velocity = {
-            x: Math.cos(initialDirection) * initialSpeed,
-            y: Math.sin(initialDirection) * initialSpeed
+            x: dirX * initialSpeed,
+            y: dirY * initialSpeed
         };
         
-        // Initialize patrol direction to match initial movement
-        tuna.patrolDirection = initialDirection;
+        // Initialize patrol direction to match the normalized direction
+        tuna.patrolDirection = Math.atan2(dirY, dirX);
         
         // Set current speed boost for consistent movement
         tuna.currentSpeedBoost = 1.0;

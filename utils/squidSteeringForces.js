@@ -143,28 +143,145 @@ class SquidSteeringForces {
         if (squid.fleeingFromSquid && squid.fleeingFromSquid.x !== undefined && squid.fleeingFromSquid.y !== undefined) {
             const squidDetectionRange = window.SQUID_CONFIG?.SQUID_DETECTION_RANGE || 1000;
             const dist = this.distance(squid, squid.fleeingFromSquid);
-            const fleeDirection = this.normalize({
-                x: squid.x - squid.fleeingFromSquid.x,
-                y: squid.y - squid.fleeingFromSquid.y
-            });
+            const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+            const currentDepthPercent = squid.y / WORLD_HEIGHT;
+            const preferredDepthMin = window.SQUID_CONFIG?.PREFERRED_DEPTH_MIN || 0.75;
             
-            // Use jet propulsion for rapid escape if cooldown allows
-            if (jetSystem.canJet(squid) && dist < squidDetectionRange * 0.7) {
-                // Close enough to use powerful jet escape
-                jetSystem.jet(squid, fleeDirection, 0.8);
+            // Check if squid is in shallow waters (above preferred depth)
+            const isInShallowWaters = currentDepthPercent < preferredDepthMin;
+            
+            // Generate or use existing retreat target point with random variation
+            if (!squid.retreatTargetPoint) {
+                // Calculate base direction away from threatening squid
+                const baseDirection = {
+                    x: squid.x - squid.fleeingFromSquid.x,
+                    y: squid.y - squid.fleeingFromSquid.y
+                };
+                const baseMag = Math.sqrt(baseDirection.x ** 2 + baseDirection.y ** 2);
+                if (baseMag > 0) {
+                    baseDirection.x /= baseMag;
+                    baseDirection.y /= baseMag;
+                }
+                
+                // Generate retreat target point with random variation:
+                // - Within squid's size/radius (squid.size pixels) for vertical variation
+                // - 800 horizontal px variation
+                const retreatDistance = 1000; // Base retreat distance
+                const horizontalVariation = (Math.random() - 0.5) * 800; // ±400px horizontal
+                const verticalVariation = (Math.random() - 0.5) * squid.size; // Within squid's size
+                
+                // Calculate retreat target point
+                const retreatTargetX = squid.x + baseDirection.x * retreatDistance + horizontalVariation;
+                const retreatTargetY = squid.y + baseDirection.y * retreatDistance + verticalVariation;
+                
+                squid.retreatTargetPoint = { x: retreatTargetX, y: retreatTargetY };
+                
+                if (window.gameState && window.gameState.squidDebug) {
+                    console.log(`🦑 Squid generated retreat target:`, {
+                        from: { x: Math.round(squid.x), y: Math.round(squid.y) },
+                        to: { x: Math.round(retreatTargetX), y: Math.round(retreatTargetY) },
+                        horizontalVariation: Math.round(horizontalVariation),
+                        verticalVariation: Math.round(verticalVariation)
+                    });
+                }
+            }
+            
+            // Calculate direction to retreat target point
+            const directionToTarget = {
+                x: squid.retreatTargetPoint.x - squid.x,
+                y: squid.retreatTargetPoint.y - squid.y
+            };
+            const distToTarget = Math.sqrt(directionToTarget.x ** 2 + directionToTarget.y ** 2);
+            
+            // Normalize direction
+            const fleeDirection = this.normalize(directionToTarget);
+            
+            // If we've reached the retreat target, generate a new one
+            if (distToTarget < 200) {
+                squid.retreatTargetPoint = null; // Will generate new one next frame
+            }
+            
+            // REGULATED RETREAT SPEED SYSTEM: Consistent speed when retreating from other squids
+            // Use regulated speed multiplier from config (70% of hunting speed)
+            const baseRetreatSpeed = this.config.SQUID_RETREAT_SPEED_MULTIPLIER || 0.7; // 70% of hunting speed
+            
+            // SPEED SYSTEM: Only apply distance-based speed when retreating from shallow waters
+            // When in deep waters: Use regulated retreat speed (0.7)
+            // When in shallow waters: Start fast (regulated speed) when close, slow down as distance increases
+            let speedMultiplier;
+            
+            if (isInShallowWaters) {
+                // RETREATING FROM SHALLOW WATERS: Distance-based speed system
+                // Close to threat (< 500px): Regulated speed (0.7) = base retreat speed
+                // Far from threat (> 1500px): Slow speed (0.3) = much slower
+                // Between: Linear interpolation
+                const closeDistance = 500; // Within this distance, use regulated retreat speed
+                const farDistance = 1500; // Beyond this distance, use slow speed
+                const minSpeedMultiplier = 0.3; // Minimum speed when far away (30% of hunting speed)
+                const maxSpeedMultiplier = baseRetreatSpeed; // Maximum speed when close (70% = regulated retreat speed)
+                
+                if (dist <= closeDistance) {
+                    // Close to threat - use regulated retreat speed
+                    speedMultiplier = maxSpeedMultiplier;
+                } else if (dist >= farDistance) {
+                    // Far from threat - use slow speed
+                    speedMultiplier = minSpeedMultiplier;
+                } else {
+                    // Between close and far - linear interpolation
+                    const distanceRange = farDistance - closeDistance;
+                    const distanceInRange = dist - closeDistance;
+                    const speedRange = maxSpeedMultiplier - minSpeedMultiplier;
+                    speedMultiplier = maxSpeedMultiplier - (distanceInRange / distanceRange) * speedRange;
+                }
             } else {
-                // Use fin propulsion for sustained fleeing
-                jetSystem.finPropulsion(squid, fleeDirection, 0.7);
+                // RETREATING IN DEEP WATERS: Use regulated retreat speed (consistent)
+                speedMultiplier = baseRetreatSpeed; // 70% of hunting speed - regulated and consistent
+            }
+            
+            // Store speed multiplier for use in physics system
+            squid.retreatSpeedMultiplier = speedMultiplier;
+            
+            // Match hunting behavior: use jet when far, fins when close
+            // Hunting uses: jet power 0.9 when >150px, fin intensity 0.7 when <=150px
+            const retreatJetRange = 300; // Use jet when further than 300px from threat
+            
+            if (jetSystem.canJet(squid) && dist > retreatJetRange) {
+                // Far from threat - use jet propulsion (similar to hunting when far)
+                // Use consistent hunting jet power (0.9) scaled by speed multiplier
+                const jetPower = 0.9 * speedMultiplier; // Full power when close/in deep waters, reduced when far in shallow
+                jetSystem.jet(squid, fleeDirection, jetPower);
+            } else {
+                // Close to threat or jet on cooldown - use fin propulsion (similar to hunting when close)
+                // Use consistent hunting fin intensity (0.7) scaled by speed multiplier
+                const finIntensity = 0.7 * speedMultiplier; // Full intensity when close/in deep waters, reduced when far in shallow
+                jetSystem.finPropulsion(squid, fleeDirection, finIntensity);
+            }
+            
+            // Debug logging
+            if (window.gameState && window.gameState.squidDebug && squid.stateTimer % 30 === 0) {
+                console.log(`🦑 Squid retreat speed:`, {
+                    distance: Math.round(dist),
+                    isInShallowWaters: isInShallowWaters,
+                    currentDepth: Math.round(currentDepthPercent * 100) + '%',
+                    speedMultiplier: Math.round(speedMultiplier * 100) + '%',
+                    jetPower: jetSystem.canJet(squid) && dist > retreatJetRange ? Math.round(0.9 * speedMultiplier * 100) / 100 : 'N/A',
+                    finIntensity: Math.round(0.7 * speedMultiplier * 100) / 100
+                });
             }
             
             // Clear fleeing target if far enough away (handled in handleRetreating)
         } else {
             // Normal retreat: gentle settling movement (when not fleeing from squid)
-        const settleDirection = {
-            x: (Math.random() - 0.5) * 0.2,
-            y: 0.1
-        };
-        jetSystem.finPropulsion(squid, settleDirection, 0.2);
+            const settleDirection = {
+                x: (Math.random() - 0.5) * 0.2,
+                y: 0.1
+            };
+            jetSystem.finPropulsion(squid, settleDirection, 0.2);
+            
+            // Clear retreat target point when not fleeing
+            if (squid.retreatTargetPoint) {
+                squid.retreatTargetPoint = null;
+            }
         }
     }
 

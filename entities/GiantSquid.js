@@ -22,6 +22,8 @@ class GiantSquid extends (window.Entity || Entity) {
         // Sensory system - scaled proportionally for larger squid
         this.visionRange = window.SQUID_CONFIG.VISION_RANGE;
         this.visionRangeSquared = this.visionRange * this.visionRange;
+        this.huntingRadius = window.SQUID_CONFIG.HUNTING_RADIUS;
+        this.huntingRadiusSquared = this.huntingRadius * this.huntingRadius;
         this.attackRange = window.SQUID_CONFIG.ATTACK_RANGE;
         this.attackRangeSquared = this.attackRange * this.attackRange;
         
@@ -33,15 +35,39 @@ class GiantSquid extends (window.Entity || Entity) {
         this.lastFlipTime = 0;
         this.facingDirection = 1; // 1 for right, -1 for left
         
-        // Initialize with gentle downward drift (stronger if spawned at surface)
+        // REMOVED: Spawn grace period - no longer needed, squids should move immediately
+        // Squids will now immediately start moving toward preferred depth when spawned shallow
         const currentDepth = this.y / WORLD_HEIGHT;
-        const downwardForce = currentDepth < 0.5 ? 0.8 : 0.2; // Stronger drift if near surface
-        this.velocity = { x: 0, y: downwardForce };
+        this.spawnGracePeriod = 0; // No grace period - immediate movement
+        this.spawnTime = Date.now();
+        
+        // Initialize velocity - start moving immediately toward preferred depth if shallow
+        if (currentDepth < 0.5) {
+            // Spawned in shallow water - give immediate downward velocity toward preferred depth
+            const targetDepth = WORLD_HEIGHT * 0.85; // Preferred depth target
+            const directionY = targetDepth - this.y;
+            const directionX = (Math.random() - 0.5) * 200; // Small horizontal variation
+            const mag = Math.sqrt(directionX ** 2 + directionY ** 2);
+            
+            if (mag > 0) {
+                // Give immediate velocity toward preferred depth
+                const initialSpeed = 2.0; // Moderate initial speed
+                this.velocity.x = (directionX / mag) * initialSpeed;
+                this.velocity.y = (directionY / mag) * initialSpeed;
+            } else {
+                // Fallback: simple downward velocity
+                this.velocity = { x: 0, y: 0.8 };
+            }
+        } else {
+            // Normal spawn: gentle downward drift
+            const downwardForce = 0.2;
+            this.velocity = { x: 0, y: downwardForce };
+        }
         
         // Initialize modular systems
         this.initializeModularSystems();
         
-        console.log('Massive Giant Squid created at:', this.x, this.y, 'Size:', this.size, 'State:', this.state, 'Depth:', Math.round(currentDepth * 100) + '%');
+        console.log('Massive Giant Squid created at:', this.x, this.y, 'Size:', this.size, 'State:', this.state, 'Depth:', Math.round(currentDepth * 100) + '%', 'Grace period:', this.spawnGracePeriod);
     }
 
     /**
@@ -98,6 +124,9 @@ class GiantSquid extends (window.Entity || Entity) {
 
     // Main update method - orchestrates all modular systems
     update(fish, predators, krill) {
+        // REMOVED: Grace period decrement and expiration logic - no longer needed
+        // Squids now start moving immediately when spawned shallow
+        
         // Debug logging for movement tracking
         if (window.gameState && window.gameState.squidDebug && this.stateTimer % 60 === 0) {
             console.log(`🦑 Squid update:`, {
@@ -106,7 +135,8 @@ class GiantSquid extends (window.Entity || Entity) {
                 state: this.state,
                 currentSpeed: Math.round(this.currentSpeed * 100) / 100,
                 depth: Math.round((this.y / (window.WORLD_HEIGHT || 8000)) * 100) + '%',
-                isJetting: this.jetSystem.isJetting(this)
+                isJetting: this.jetSystem.isJetting(this),
+                spawnGracePeriod: this.spawnGracePeriod || 0
             });
         }
         
@@ -125,11 +155,11 @@ class GiantSquid extends (window.Entity || Entity) {
         // Update behavior tree BEFORE other movement systems
         this.behaviorTree.updateBehaviorTree(this, fish, predators, krill);
         
-        // CRITICAL FIX: Only apply depth maintenance when NOT jetting
-        // Prevents depth system from interfering with jet propulsion
-        if (!this.jetSystem.isJetting(this)) {
-            this.maintainDepth();
-        }
+        // CRITICAL FIX: Apply depth maintenance - maintainDepth() handles jetting logic internally
+        // maintainDepth() is designed to skip only if jetting AND no dive target exists
+        // If there IS a dive target, it should be applied even during jetting to prevent freezing
+        // So we always call maintainDepth() and let it decide based on jetting + dive target state
+        this.maintainDepth();
         
         // CRITICAL FIX: Reduce flocking interference during jet propulsion
         if (window.gameEntities && window.gameEntities.squid) {
@@ -157,13 +187,21 @@ class GiantSquid extends (window.Entity || Entity) {
         this.move();
         
         // Hard limit: Prevent squids from going above 50% depth (4000px if WORLD_HEIGHT is 8000)
+        // BUT: Respect dive target - allow squids to actively swim down
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
         const maxShallowDepth = WORLD_HEIGHT * 0.5; // 50% depth limit
-        if (this.y < maxShallowDepth) {
-            this.y = maxShallowDepth;
-            // Stop upward velocity if we hit the limit
-            if (this.velocity && this.velocity.y < 0) {
-                this.velocity.y = 0;
+        
+        // Only enforce depth limit if not actively diving to target
+        const hasDiveTarget = this.diveTargetPoint !== null && this.diveTargetPoint !== undefined;
+        
+        // Don't teleport if actively diving - let it swim down naturally
+        if (!hasDiveTarget) {
+            if (this.y < maxShallowDepth) {
+                this.y = maxShallowDepth;
+                // Stop upward velocity if we hit the limit
+                if (this.velocity && this.velocity.y < 0) {
+                    this.velocity.y = 0;
+                }
             }
         }
     }
@@ -174,10 +212,15 @@ class GiantSquid extends (window.Entity || Entity) {
         if (window.gameEntities && window.gameEntities.squid) {
             const nearbySquid = this.behaviorTree.scanForOtherSquids(this, window.gameEntities.squid);
             if (nearbySquid) {
-                // Store the threatening squid and transition to retreating
-                this.fleeingFromSquid = nearbySquid;
-                this.behaviorTree.transitionToState(this, window.SQUID_STATES.RETREATING);
-                return;
+                // Only retreat if this squid should retreat (deterministic comparison)
+                // This ensures only one squid retreats when two detect each other
+                if (this.behaviorTree.shouldRetreatFromSquid(this, nearbySquid)) {
+                    // Store the threatening squid and transition to retreating
+                    this.fleeingFromSquid = nearbySquid;
+                    this.behaviorTree.transitionToState(this, window.SQUID_STATES.RETREATING);
+                    return;
+                }
+                // Otherwise, continue patrolling (the other squid will retreat)
             }
         }
         
@@ -191,7 +234,14 @@ class GiantSquid extends (window.Entity || Entity) {
         }
         
         // Apply patrolling forces
-        if (this.behaviorTree.shouldPatrolMove(this)) {
+        // CRITICAL FIX: If squid has a dive target, apply forces every frame
+        // to ensure active swimming instead of freezing
+        const hasDiveTarget = this.diveTargetPoint !== null && this.diveTargetPoint !== undefined;
+        if (hasDiveTarget) {
+            // Actively diving - maintainDepth() handles the dive forces, but ensure we don't freeze
+            // The dive forces are applied in maintainDepth(), so we skip normal patrolling here
+        } else if (this.behaviorTree.shouldPatrolMove(this)) {
+            // Normal patrolling - apply forces at normal interval
             this.steeringForces.applyPatrollingForces(this, this.jetSystem);
         }
         
@@ -206,14 +256,19 @@ class GiantSquid extends (window.Entity || Entity) {
         if (window.gameEntities && window.gameEntities.squid) {
             const nearbySquid = this.behaviorTree.scanForOtherSquids(this, window.gameEntities.squid);
             if (nearbySquid) {
-                // Clear claim on hunt target when fleeing
-                if (this.huntTarget && this.huntTarget.huntedBySquid === this) {
-                    this.huntTarget.huntedBySquid = null;
+                // Only retreat if this squid should retreat (deterministic comparison)
+                // This ensures only one squid retreats when two detect each other
+                if (this.behaviorTree.shouldRetreatFromSquid(this, nearbySquid)) {
+                    // Clear claim on hunt target when fleeing
+                    if (this.huntTarget && this.huntTarget.huntedBySquid === this) {
+                        this.huntTarget.huntedBySquid = null;
+                    }
+                    // Store the threatening squid and transition to retreating
+                    this.fleeingFromSquid = nearbySquid;
+                    this.behaviorTree.transitionToState(this, window.SQUID_STATES.RETREATING);
+                    return;
                 }
-                // Store the threatening squid and transition to retreating
-                this.fleeingFromSquid = nearbySquid;
-                this.behaviorTree.transitionToState(this, window.SQUID_STATES.RETREATING);
-                return;
+                // Otherwise, continue hunting (the other squid will retreat)
             }
         }
         
@@ -312,6 +367,8 @@ class GiantSquid extends (window.Entity || Entity) {
             if (dist > squidDetectionRange * 1.5 || 
                 !this.fleeingFromSquid.x || !this.fleeingFromSquid.y) {
                 this.fleeingFromSquid = null;
+                this.retreatTargetPoint = null; // Clear retreat target when done fleeing
+                this.retreatSpeedMultiplier = undefined; // Clear distance-based speed multiplier
                 this.behaviorTree.transitionToState(this, window.SQUID_STATES.PATROLLING);
                 return;
             }

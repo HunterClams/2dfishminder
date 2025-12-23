@@ -10,15 +10,15 @@ const TUNA_STATES = {
 
 const TUNA_CONFIG = {
     // Detection and attack ranges
-    huntRadius: 300, // Primary detection radius for regular fry
+    huntRadius: 425, // Primary detection radius for regular fry (increased by 80px from 345)
     attackRadius: 40, // Eating range (within this distance, can eat)
     fleeRadius: 850, // Giant squid detection range
     
-    // Prey-specific detection radii (smaller = harder to see)
-    regularFryDetectionRadius: 300, // Regular fry - easiest to see (full hunt radius)
-    trueFryDetectionRadius: 200, // TrueFry - harder to see (reduced radius)
-    fertilizedEggDetectionRadius: 120, // Fertilized eggs - even smaller
-    fishEggDetectionRadius: 80, // Unfertilized eggs - smallest (hardest to see)
+    // Prey-specific detection radii (smaller = harder to see) - all increased by 80px
+    regularFryDetectionRadius: 425, // Regular fry - easiest to see (full hunt radius, increased by 80px from 345)
+    trueFryDetectionRadius: 310, // TrueFry - harder to see (reduced radius, increased by 80px from 230)
+    fertilizedEggDetectionRadius: 218, // Fertilized eggs - even smaller (increased by 80px from 138)
+    fishEggDetectionRadius: 172, // Unfertilized eggs - smallest (hardest to see, increased by 80px from 92)
     
     // Movement and speed
     maxPredictionTime: 3.0, // Max seconds to predict prey movement
@@ -35,8 +35,8 @@ const TUNA_CONFIG = {
     flockingSeparationWeight: 0.3, // Separation force weight (moderate - prevents overlap)
     
     // Patrol behavior
-    patrolDistance: 800, // Base patrol distance
-    patrolVariation: 500, // Variation in patrol distance
+    patrolDistance: 1500, // Base patrol distance (increased from 800)
+    patrolVariation: 800, // Variation in patrol distance (increased from 500)
     patrolScanFrequency: 0.05, // Chance per frame to do quick scan turn
     
     // State management

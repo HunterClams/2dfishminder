@@ -49,7 +49,7 @@ class BoidConfig {
         alignmentRadius: 60,
         cohesionRadius: 80,
         fearRadius: 120,        // Threat detection radius (same as tuna's flee radius concept)
-        fleeRadius: 480,        // Flee radius for predators (tuna and squids) - doubled from 240 to 480
+        fleeRadius: 252,        // Flee radius for predators (tuna and squids)
         fleeSpeed: 1.3,         // Speed boost when fleeing (30% faster)
         minSpeed: 0.8,          // Minimum speed to prevent stationary fry (increased from 0.5 for more active movement)
         foodRadius: 80,

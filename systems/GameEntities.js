@@ -258,8 +258,12 @@ class GameEntities {
             this.momKrill.push(momKrill);
         }
         
-        // Create initial predators
-        for (let i = 0; i < 30; i++) {
+        // FIXED: Tuna spawning is handled by FishSpawningSystem in initializeEcosystem()
+        // Only spawn tuna here if FishSpawningSystem is not available (fallback only)
+        // This prevents duplicate spawning when both systems are present
+        // Note: FishSpawningSystem spawns 35 tuna, so this fallback should match that count
+        // But since only one system runs, this is just a fallback safety net
+        for (let i = 0; i < 35; i++) {
             const tunaType = 'tuna';
             const predator = new window.Predator(tunaType);
             predator.x = Math.random() * window.WORLD_WIDTH;

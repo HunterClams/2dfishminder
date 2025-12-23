@@ -77,6 +77,26 @@ class TunaSteeringForces {
         const patrolDistance = config.patrolDistance || 800;
         const patrolVariation = config.patrolVariation || 500;
         
+        // CRITICAL FIX: Ensure patrol system is initialized when spawning
+        // Initialize patrol direction if not set (with horizontal bias)
+        if (tuna.patrolDirection === undefined || tuna.patrolDirection === null) {
+            // Choose left or right direction with horizontal bias
+            const leftOrRight = Math.random() < 0.5 ? 0 : Math.PI; // 0 = right, PI = left
+            const horizontalVariation = (Math.random() - 0.5) * 0.3; // Small variation
+            const verticalComponent = (Math.random() - 0.5) * (1 - horizontalBias) * 0.5;
+            tuna.patrolDirection = leftOrRight + horizontalVariation + verticalComponent;
+        }
+        
+        // Initialize patrol target change cooldown to prevent rapid switching
+        if (tuna.patrolTargetChangeCooldown === undefined) {
+            tuna.patrolTargetChangeCooldown = 0;
+        }
+        
+        // Decrement cooldown
+        if (tuna.patrolTargetChangeCooldown > 0) {
+            tuna.patrolTargetChangeCooldown--;
+        }
+        
         // Calculate flocking influence BEFORE setting patrol target
         // This allows the patrol target to be biased toward nearby tuna (cohesion)
         let flockingBias = { x: 0, y: 0 };
@@ -115,28 +135,64 @@ class TunaSteeringForces {
         // Initialize patrol target if needed
         if (!tuna.patrolTarget) {
             tuna.patrolTarget = this.generateLargePatrolTarget(tuna, patrolDistance, patrolVariation, horizontalBias);
+            tuna.patrolTargetChangeCooldown = 60; // 1 second cooldown after initial target
         }
         
         // Adjust patrol target based on flocking bias (makes tuna move toward each other)
-        if (flockingBias.x !== 0 || flockingBias.y !== 0) {
+        // ENHANCED: Ensure flocking bias doesn't push target too close to edges
+        // Only adjust if not too close to target (prevents oscillation)
+        const distToTarget = window.Utils.distance(tuna, tuna.patrolTarget);
+        if (distToTarget > 150 && (flockingBias.x !== 0 || flockingBias.y !== 0)) {
+            const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
+            const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+            const safeMargin = 500; // Match the safe margin from generateLargePatrolTarget
+            
             // Move patrol target slightly toward nearby tuna center
-            tuna.patrolTarget.x += flockingBias.x * 0.3;
-            tuna.patrolTarget.y += flockingBias.y * 0.3;
+            const newTargetX = tuna.patrolTarget.x + flockingBias.x * 0.3;
+            const newTargetY = tuna.patrolTarget.y + flockingBias.y * 0.3;
+            
+            // Clamp to safe margin to prevent edge issues
+            tuna.patrolTarget.x = Math.max(safeMargin, Math.min(WORLD_WIDTH - safeMargin, newTargetX));
+            tuna.patrolTarget.y = Math.max(safeMargin, Math.min(WORLD_HEIGHT - safeMargin, newTargetY));
         }
         
         // Check if we've reached the target or are close enough
-        const distToTarget = window.Utils.distance(tuna, tuna.patrolTarget);
         const arrivalThreshold = 100; // Consider "reached" when within 100px
         
-        if (distToTarget < arrivalThreshold) {
+        // Only generate new target if cooldown expired (prevents rapid switching)
+        if (distToTarget < arrivalThreshold && tuna.patrolTargetChangeCooldown <= 0) {
             // Generate new distant target for large-area patrolling
+            // Constrain vertical position to prevent oscillation with depth preference
+            const currentDepth = tuna.y;
+            const depthTolerance = tuna.depthTolerance || 200;
+            
             tuna.patrolTarget = this.generateLargePatrolTarget(tuna, patrolDistance, patrolVariation, horizontalBias);
             
-            // Apply flocking bias to new target as well
-            if (flockingBias.x !== 0 || flockingBias.y !== 0) {
-                tuna.patrolTarget.x += flockingBias.x * 0.3;
-                tuna.patrolTarget.y += flockingBias.y * 0.3;
+            // Constrain new target's vertical position to be near current depth
+            // This prevents rapid up/down oscillation when depth preference conflicts with patrol
+            const targetDepthDiff = Math.abs(tuna.patrolTarget.y - currentDepth);
+            if (targetDepthDiff > depthTolerance) {
+                // Clamp target Y to be within depth tolerance of current position
+                const direction = tuna.patrolTarget.y > currentDepth ? 1 : -1;
+                tuna.patrolTarget.y = currentDepth + direction * depthTolerance * 0.8;
             }
+            
+            // Apply flocking bias to new target as well (with edge safety)
+            if (flockingBias.x !== 0 || flockingBias.y !== 0) {
+                const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
+                const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+                const safeMargin = 500; // Match the safe margin from generateLargePatrolTarget
+                
+                const newTargetX = tuna.patrolTarget.x + flockingBias.x * 0.3;
+                const newTargetY = tuna.patrolTarget.y + flockingBias.y * 0.3;
+                
+                // Clamp to safe margin to prevent edge issues
+                tuna.patrolTarget.x = Math.max(safeMargin, Math.min(WORLD_WIDTH - safeMargin, newTargetX));
+                tuna.patrolTarget.y = Math.max(safeMargin, Math.min(WORLD_HEIGHT - safeMargin, newTargetY));
+            }
+            
+            // Set cooldown to prevent rapid target switching (2 seconds)
+            tuna.patrolTargetChangeCooldown = 120;
         }
         
         // Use steering to move toward the distant target (creates large area coverage)
@@ -163,9 +219,21 @@ class TunaSteeringForces {
     }
     
     // Generate a large patrol target far away (for covering large areas)
+    // ENHANCED: Prevents targets near edges, especially when tuna spawn near edges
     generateLargePatrolTarget(tuna, baseDistance, variation, horizontalBias) {
         const WORLD_WIDTH = window.WORLD_WIDTH || 12000;
         const WORLD_HEIGHT = window.WORLD_HEIGHT || 8000;
+        
+        // INCREASED SAFE MARGIN: Larger buffer to prevent targets near edges
+        // This matches the edge avoidance buffer (300px) plus extra safety margin
+        const safeMargin = 500; // Increased from 300 to 500 for better edge avoidance
+        
+        // Check if tuna is near any edge - if so, bias direction away from that edge
+        const distFromLeft = tuna.x;
+        const distFromRight = WORLD_WIDTH - tuna.x;
+        const distFromTop = tuna.y;
+        const distFromBottom = WORLD_HEIGHT - tuna.y;
+        const edgeProximityThreshold = 600; // If within 600px of edge, bias away
         
         // Calculate random distance (large distance for large area coverage)
         // Increase horizontal distance by 25% to cover more ground
@@ -174,9 +242,47 @@ class TunaSteeringForces {
         const distance = baseDistanceScaled + Math.random() * variationScaled; // ~1000-1625px away (increased from 800-1300)
         
         // Choose direction with horizontal bias (mostly horizontal movement)
-        // Random angle, but bias toward horizontal directions
-        // Add 25% vertical boost for slight vertical variation
-        const angle = Math.random() * Math.PI * 2;
+        // But if near an edge, bias away from that edge
+        let angle = Math.random() * Math.PI * 2;
+        
+        // Edge-aware direction biasing
+        if (distFromLeft < edgeProximityThreshold) {
+            // Near left edge - bias toward right (0 to PI/2 or 3PI/2 to 2PI)
+            const biasStrength = 1.0 - (distFromLeft / edgeProximityThreshold);
+            if (angle > Math.PI / 2 && angle < 3 * Math.PI / 2) {
+                // Angle points left - bias it right
+                angle = angle + (Math.PI / 2) * biasStrength * 0.5;
+            }
+        } else if (distFromRight < edgeProximityThreshold) {
+            // Near right edge - bias toward left (PI/2 to 3PI/2)
+            const biasStrength = 1.0 - (distFromRight / edgeProximityThreshold);
+            if (angle < Math.PI / 2 || angle > 3 * Math.PI / 2) {
+                // Angle points right - bias it left
+                angle = angle - (Math.PI / 2) * biasStrength * 0.5;
+            }
+        }
+        
+        if (distFromTop < edgeProximityThreshold) {
+            // Near top edge - bias downward (PI to 2PI or 0 to PI)
+            const biasStrength = 1.0 - (distFromTop / edgeProximityThreshold);
+            if (angle > 0 && angle < Math.PI) {
+                // Angle points up - bias it down
+                angle = angle + Math.PI * biasStrength * 0.5;
+            }
+        } else if (distFromBottom < edgeProximityThreshold) {
+            // Near bottom edge - bias upward (0 to PI)
+            const biasStrength = 1.0 - (distFromBottom / edgeProximityThreshold);
+            if (angle > Math.PI && angle < 2 * Math.PI) {
+                // Angle points down - bias it up
+                angle = angle - Math.PI * biasStrength * 0.5;
+            }
+        }
+        
+        // Normalize angle
+        angle = angle % (Math.PI * 2);
+        if (angle < 0) angle += Math.PI * 2;
+        
+        // Apply horizontal bias to the direction
         const horizontalComponent = Math.cos(angle);
         const verticalComponent = Math.sin(angle) * (1 - horizontalBias) * 1.25; // 25% vertical boost
         
@@ -189,15 +295,17 @@ class TunaSteeringForces {
         let targetX = tuna.x + dirX * distance;
         let targetY = tuna.y + dirY * distance;
         
-        // Keep target within world bounds (with buffer)
-        const buffer = 300;
-        targetX = Math.max(buffer, Math.min(WORLD_WIDTH - buffer, targetX));
-        targetY = Math.max(buffer, Math.min(WORLD_HEIGHT - buffer, targetY));
+        // CRITICAL: Clamp target to safe margin BEFORE checking if it's valid
+        // This ensures targets are always well away from edges
+        targetX = Math.max(safeMargin, Math.min(WORLD_WIDTH - safeMargin, targetX));
+        targetY = Math.max(safeMargin, Math.min(WORLD_HEIGHT - safeMargin, targetY));
         
-        // If target would be outside bounds, generate a new direction toward center
-        if (targetX <= buffer || targetX >= WORLD_WIDTH - buffer || 
-            targetY <= buffer || targetY >= WORLD_HEIGHT - buffer) {
-            // Turn toward center of world
+        // If target was clamped (too close to edge), generate a better direction
+        const wasClamped = (targetX === safeMargin || targetX === WORLD_WIDTH - safeMargin ||
+                           targetY === safeMargin || targetY === WORLD_HEIGHT - safeMargin);
+        
+        if (wasClamped) {
+            // Target would be too close to edge - generate direction toward center with safe distance
             const centerX = WORLD_WIDTH / 2;
             const centerY = WORLD_HEIGHT / 2;
             const toCenterX = centerX - tuna.x;
@@ -205,10 +313,18 @@ class TunaSteeringForces {
             const toCenterMag = Math.sqrt(toCenterX * toCenterX + toCenterY * toCenterY);
             
             if (toCenterMag > 0) {
-                // Apply horizontal distance boost here too
-                const distanceScaled = distance; // distance is already scaled above
-                targetX = tuna.x + (toCenterX / toCenterMag) * distanceScaled;
-                targetY = tuna.y + (toCenterY / toCenterMag) * distanceScaled * (1 - horizontalBias);
+                // Use a safe distance that ensures we stay well away from edges
+                // FIXED: Don't apply horizontalBias to emergency center-directed movement
+                // This is emergency movement away from edges, not normal patrolling
+                const safeDistance = Math.min(distance, toCenterMag * 0.7); // Use 70% of distance to center
+                const normalizedDirX = toCenterX / toCenterMag;
+                const normalizedDirY = toCenterY / toCenterMag;
+                targetX = tuna.x + normalizedDirX * safeDistance;
+                targetY = tuna.y + normalizedDirY * safeDistance;
+                
+                // Final clamp to ensure safety
+                targetX = Math.max(safeMargin, Math.min(WORLD_WIDTH - safeMargin, targetX));
+                targetY = Math.max(safeMargin, Math.min(WORLD_HEIGHT - safeMargin, targetY));
             }
         }
         
@@ -238,7 +354,17 @@ class TunaSteeringForces {
         // CRITICAL FIX: Initialize patrol distance from config
         const config = window.TUNA_CONFIG || {};
         tuna.patrolDistance = (config.patrolDistance || 800) + (Math.random() * 2 - 1) * (config.patrolVariation || 500);
-        tuna.patrolDirection = tuna.patrolDirection || Math.random() * Math.PI * 2;
+        
+        // ENHANCED: If patrol direction not set, initialize with horizontal bias (left or right)
+        if (!tuna.patrolDirection || tuna.patrolDirection === undefined) {
+            const horizontalBias = config.patrolHorizontalBias || 0.85;
+            // Choose left or right direction with horizontal bias
+            const leftOrRight = Math.random() < 0.5 ? 0 : Math.PI; // 0 = right, PI = left
+            const horizontalVariation = (Math.random() - 0.5) * 0.3; // Small variation
+            const verticalComponent = (Math.random() - 0.5) * (1 - horizontalBias) * 0.5;
+            tuna.patrolDirection = leftOrRight + horizontalVariation + verticalComponent;
+        }
+        
         tuna.patrolChangeTimer = 0;
         tuna.patrolChangeInterval = 300 + Math.random() * 360;
         
@@ -419,22 +545,75 @@ class TunaSteeringForces {
         let targetX = tuna.x + Math.cos(tuna.patrolDirection) * tuna.patrolDistance;
         let targetY = tuna.y + Math.sin(tuna.patrolDirection) * tuna.patrolDistance;
         
-        // Keep target within world bounds with buffer
-        const buffer = 200;
-        targetX = Math.max(buffer, Math.min(WORLD_WIDTH - buffer, targetX));
-        targetY = Math.max(buffer, Math.min(WORLD_HEIGHT - buffer, targetY));
+        // ENHANCED: Keep target within world bounds with larger safe margin
+        // Increased buffer to match edge avoidance system (500px for safety)
+        const safeMargin = 500; // Increased from 200 to 500 to prevent edge issues
         
-        // If target would be too close to world edge, adjust direction
-        if (targetX <= buffer || targetX >= WORLD_WIDTH - buffer || 
-            targetY <= buffer || targetY >= WORLD_HEIGHT - buffer) {
+        // Check if tuna is near an edge - if so, bias direction away from edge
+        const distFromLeft = tuna.x;
+        const distFromRight = WORLD_WIDTH - tuna.x;
+        const distFromTop = tuna.y;
+        const distFromBottom = WORLD_HEIGHT - tuna.y;
+        const edgeProximityThreshold = 600; // If within 600px of edge, bias away
+        
+        // Adjust patrol direction if near edge
+        if (distFromLeft < edgeProximityThreshold) {
+            // Near left edge - bias toward right
+            const biasStrength = 1.0 - (distFromLeft / edgeProximityThreshold);
+            if (tuna.patrolDirection > Math.PI / 2 && tuna.patrolDirection < 3 * Math.PI / 2) {
+                tuna.patrolDirection += (Math.PI / 2) * biasStrength * 0.5;
+            }
+        } else if (distFromRight < edgeProximityThreshold) {
+            // Near right edge - bias toward left
+            const biasStrength = 1.0 - (distFromRight / edgeProximityThreshold);
+            if (tuna.patrolDirection < Math.PI / 2 || tuna.patrolDirection > 3 * Math.PI / 2) {
+                tuna.patrolDirection -= (Math.PI / 2) * biasStrength * 0.5;
+            }
+        }
+        
+        if (distFromTop < edgeProximityThreshold) {
+            // Near top edge - bias downward
+            const biasStrength = 1.0 - (distFromTop / edgeProximityThreshold);
+            if (tuna.patrolDirection > 0 && tuna.patrolDirection < Math.PI) {
+                tuna.patrolDirection += Math.PI * biasStrength * 0.5;
+            }
+        } else if (distFromBottom < edgeProximityThreshold) {
+            // Near bottom edge - bias upward
+            const biasStrength = 1.0 - (distFromBottom / edgeProximityThreshold);
+            if (tuna.patrolDirection > Math.PI && tuna.patrolDirection < 2 * Math.PI) {
+                tuna.patrolDirection -= Math.PI * biasStrength * 0.5;
+            }
+        }
+        
+        // Normalize direction
+        tuna.patrolDirection = tuna.patrolDirection % (Math.PI * 2);
+        if (tuna.patrolDirection < 0) tuna.patrolDirection += Math.PI * 2;
+        
+        // Recalculate target with adjusted direction
+        targetX = tuna.x + Math.cos(tuna.patrolDirection) * tuna.patrolDistance;
+        targetY = tuna.y + Math.sin(tuna.patrolDirection) * tuna.patrolDistance;
+        
+        // Clamp target to safe margin
+        targetX = Math.max(safeMargin, Math.min(WORLD_WIDTH - safeMargin, targetX));
+        targetY = Math.max(safeMargin, Math.min(WORLD_HEIGHT - safeMargin, targetY));
+        
+        // If target was clamped (too close to edge), redirect toward center
+        if (targetX === safeMargin || targetX === WORLD_WIDTH - safeMargin ||
+            targetY === safeMargin || targetY === WORLD_HEIGHT - safeMargin) {
             // Turn toward center of world
             const centerX = WORLD_WIDTH / 2;
             const centerY = WORLD_HEIGHT / 2;
             tuna.patrolDirection = Math.atan2(centerY - tuna.y, centerX - tuna.x);
             
-            // Recalculate target
-            targetX = tuna.x + Math.cos(tuna.patrolDirection) * tuna.patrolDistance;
-            targetY = tuna.y + Math.sin(tuna.patrolDirection) * tuna.patrolDistance;
+            // Recalculate target with safe distance
+            const toCenterDist = Math.sqrt((centerX - tuna.x) ** 2 + (centerY - tuna.y) ** 2);
+            const safeDistance = Math.min(tuna.patrolDistance, toCenterDist * 0.7);
+            targetX = tuna.x + Math.cos(tuna.patrolDirection) * safeDistance;
+            targetY = tuna.y + Math.sin(tuna.patrolDirection) * safeDistance;
+            
+            // Final clamp
+            targetX = Math.max(safeMargin, Math.min(WORLD_WIDTH - safeMargin, targetX));
+            targetY = Math.max(safeMargin, Math.min(WORLD_HEIGHT - safeMargin, targetY));
         }
         
         return {

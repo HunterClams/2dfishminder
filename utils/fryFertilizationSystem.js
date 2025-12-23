@@ -24,6 +24,12 @@ class FryFertilizationSystem {
      */
     processAllFry(allFry, fishEggs, gameEntities) {
         for (let fry of allFry) {
+            // CRITICAL: Skip all fertilization processing when fleeing - fleeing has priority
+            // This prevents fertilization systems from interfering with fleeing state
+            if (fry.behaviorState === 'fleeing') {
+                continue;
+            }
+            
             // Check if feeding fry should detect unfertilized eggs at long range and enter spawning
             this.checkForLongRangeEggDetection(fry, fishEggs);
             
@@ -40,6 +46,11 @@ class FryFertilizationSystem {
     checkForLongRangeEggDetection(fry, fishEggs) {
         // Skip TrueFry1 and TrueFry2 - they don't participate in fertilization
         if (fry.fishType === 'truefry1' || fry.fishType === 'truefry2') {
+            return;
+        }
+        
+        // CRITICAL: Skip spawning detection when fleeing - fleeing has priority
+        if (fry.behaviorState === 'fleeing') {
             return;
         }
         

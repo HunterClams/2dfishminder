@@ -31,7 +31,8 @@ const SQUID_CONFIG = {
     DRAG_FACTOR: 0.94,
     
     // Sensory system
-    VISION_RANGE: 2000,
+    VISION_RANGE: 2000, // Maximum detection range (can see prey this far)
+    HUNTING_RADIUS: 1000, // Maximum range to actively hunt tuna (only hunt within this radius)
     ATTACK_RANGE: 315,
     SQUID_DETECTION_RANGE: 1000, // Range at which squids detect and flee from each other
     EDGE_BUFFER: -892, // Allow squids to go 2 sprite lengths off the map
@@ -47,6 +48,8 @@ const SQUID_CONFIG = {
     ATTACK_TIMEOUT: 60,
     RETREAT_TIMEOUT: 120,
     RETREAT_SETTLE_INTERVAL: 30,
+    RETREAT_SPEED_MULTIPLIER: 0.85, // Retreat speed multiplier - set to 0.85 to match hunting speed (was 0.5, too slow)
+    SQUID_RETREAT_SPEED_MULTIPLIER: 0.7, // Speed multiplier when retreating from other squids (70% of hunting speed - regulated)
     
     // Eating and cooldowns
     EAT_COOLDOWN: 10000, // 10 second cooldown between eating
@@ -58,6 +61,10 @@ const SQUID_CONFIG = {
     PREFERRED_DEPTH_MAX: 0.95, // 95% depth
     PREFERRED_DEPTH_TARGET: 0.85, // Preferred depth
     DEPTH_ADJUSTMENT_THRESHOLD: 150,
+    
+    // Hunting commitment system - distance-based depth preference override
+    HUNTING_COMMITMENT_DISTANCE: 500, // When within this distance of prey, ignore depth preference completely
+    HUNTING_COMMITMENT_FADE_DISTANCE: 800, // Between commitment and fade distance, gradually reduce depth forces
     
     // Bioluminescence depth thresholds
     BIOLUMINESCENCE_DEPTH_THRESHOLD: 0.7, // 70% depth
